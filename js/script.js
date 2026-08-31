@@ -7907,3 +7907,58 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     document.addEventListener('keydown', unlockChatAudio, true);
 
   })();
+
+
+/* ===== v125: 下拉刷新（页面顶部下拉 -> 重新加载） ===== */
+(function () {
+  if (window.__pullRefreshInstalled) return;
+  window.__pullRefreshInstalled = true;
+
+  var THRESHOLD = 72;
+  var MAX = 96;
+  var startY = 0, pulling = false, dist = 0;
+
+  var ind = document.createElement('div');
+  ind.id = 'pull-refresh';
+  ind.innerHTML = '<div class="pr-spinner"></div><span class="pr-text">下拉刷新</span>';
+  document.body.appendChild(ind);
+  var textEl = ind.querySelector('.pr-text');
+
+  function canPull() {
+    return (window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0) <= 0;
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    if (canPull()) { startY = e.touches[0].clientY; pulling = true; dist = 0; }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (!pulling) return;
+    var y = e.touches[0].clientY;
+    dist = y - startY;
+    if (dist <= 0) { ind.classList.remove('ready'); ind.style.transform = ''; return; }
+    var show = Math.min(dist * 0.55, MAX);
+    ind.style.transform = 'translateY(' + show + 'px)';
+    ind.classList.add('active');
+    if (dist >= THRESHOLD) {
+      ind.classList.add('ready');
+      textEl.textContent = '释放刷新';
+    } else {
+      ind.classList.remove('ready');
+      textEl.textContent = '下拉刷新';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', function () {
+    if (!pulling) return;
+    if (dist >= THRESHOLD) {
+      ind.classList.add('loading');
+      textEl.textContent = '刷新中...';
+      setTimeout(function () { location.reload(); }, 400);
+    } else {
+      ind.classList.remove('active', 'ready');
+      ind.style.transform = '';
+    }
+    pulling = false; dist = 0;
+  }, { passive: true });
+})();
