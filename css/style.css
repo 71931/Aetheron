@@ -1466,9 +1466,8 @@
   .home-top .avatar { width:64px; height:64px; border-radius:50%; border:1.5px solid var(--wire-line); flex:none; background:var(--wire-bg); background-size:cover; background-position:center; cursor:pointer; }
   .home-top .wire-bubble { flex:1; min-width:0; }
   /* v112 分割线：弱化，去掉白色小三角，仅留细线+深色小角 */
-  /* v124：横线在三角处断开（三角悬于断口上方，下方不再有横线穿过）；三角为空心描边 */
-  .home-divider { position:relative; height:1px; margin:14px 0 12px; opacity:.5; background:transparent; }
-  .home-divider::after { content:''; position:absolute; left:0; right:0; top:0; height:1px; background:linear-gradient(to right, var(--wire-line) 0, var(--wire-line) calc(1.5cm - 9px), transparent calc(1.5cm - 9px), transparent calc(1.5cm + 9px), var(--wire-line) calc(1.5cm + 9px), var(--wire-line) 100%); }
+  /* v125：横线恢复为一条整体，不再断开；空心三角悬于线上方 */
+  .home-divider { position:relative; border-top:1px solid var(--wire-line); opacity:.5; margin:14px 0 12px; }
   .home-divider::before { content:''; position:absolute; left:1.5cm; top:-7px; transform:translateX(-50%) rotate(45deg); width:10px; height:10px; border-left:1.6px solid var(--wire-line); border-top:1.6px solid var(--wire-line); border-radius:1.5px; background:transparent; }
 
   /* ===== v112 上下半区背景分离 ===== */
