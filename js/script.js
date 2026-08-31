@@ -174,11 +174,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function updateBattery() {
       var el = document.getElementById('realBattery');
       if (!el) return;
-      function applyBattery(rawLevel, charging) {
+      function applyBattery(rawLevel, charging, isReal) {
         var lv = Math.max(5, Math.min(100, Math.round(rawLevel)));
         el.style.setProperty('--bat', lv + '%');
         el.classList.toggle('charging', charging);
-        el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '');
+        el.classList.toggle('simulated', !isReal);
+        el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '') + (isReal ? '' : '（模拟值，当前浏览器不支持读取真实电量）');
         // v121：爱心电量滑块联动（爱心位置=电量；充电绿 / <20 红 / <30 橙 / <60 黄 / 其余灰）
         // v124：改用 class 选择器匹配进度条 DOM（原 getElementById 拿不到，百分比一直停在 65%）
         var fill = document.querySelector('.slider-fill');
@@ -202,18 +203,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       if (navigator.getBattery) {
         navigator.getBattery().then(function (b) {
-          applyBattery((b.level || 0) * 100, !!b.charging);
-          b.addEventListener('levelchange', function () { applyBattery((b.level || 0) * 100, !!b.charging); });
-          b.addEventListener('chargingchange', function () { applyBattery((b.level || 0) * 100, !!b.charging); });
+          applyBattery((b.level || 0) * 100, !!b.charging, true);
+          b.addEventListener('levelchange', function () { applyBattery((b.level || 0) * 100, !!b.charging, true); });
+          b.addEventListener('chargingchange', function () { applyBattery((b.level || 0) * 100, !!b.charging, true); });
         }).catch(function () {
           // Battery API 拿不到：按时间段给模拟电量兜底，保证滑块/爱心/顶栏电池联动可见
           var h = new Date().getHours();
-          applyBattery(h < 7 ? 35 : (h < 12 ? 68 : (h < 18 ? 82 : 55)), false);
+          applyBattery(h < 7 ? 35 : (h < 12 ? 68 : (h < 18 ? 82 : 55)), false, false);
         });
       } else {
         // 浏览器不支持 Battery API：同样用模拟电量兜底
         var h2 = new Date().getHours();
-        applyBattery(h2 < 7 ? 35 : (h2 < 12 ? 68 : (h2 < 18 ? 82 : 55)), false);
+        applyBattery(h2 < 7 ? 35 : (h2 < 12 ? 68 : (h2 < 18 ? 82 : 55)), false, false);
       }
     }
     updateBattery();
