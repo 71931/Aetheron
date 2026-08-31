@@ -294,7 +294,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var polaroidWidget = document.querySelector('.media-ecg .heart-photo-widget');
     var polaroidStyleEl = document.getElementById('polaroidStyle');
     var avatarEls = document.querySelectorAll('.media-ecg .link-avatar');
-    var ppToggle = document.getElementById('ppToggle');
+    var ecgEditBar = document.getElementById('ecgEditBar');
     var polaroidPanel = document.getElementById('polaroidPanel');
 
     // ===== 恢复状态 =====
@@ -408,11 +408,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       openPicker(statusModule, 'bg');
     });
     homeBottom.addEventListener('click', function (e) {
-      if (e.target.closest && (e.target.closest('.bottom-card') || e.target.closest('.app') || e.target.closest('.bubble-col') || e.target.closest('.media-ecg'))) return;
+      if (e.target.closest && (e.target.closest('.bottom-card') || e.target.closest('.app') || e.target.closest('.bubble-col') || e.target.closest('.media-ecg') || e.target.closest('.ecg-editbar') || e.target.closest('.polaroid-panel'))) return;
       openPicker(homeBottom, 'bg');
     });
 
-    // v135：小组件内交互 —— 拍立得换图 / 头像替换 / 组件背景上传 / 调色面板
+    // v135：小组件内交互 —— 拍立得换图 / 头像替换 / 组件背景上传
     polaroidWidget.addEventListener('click', function (e) {
       e.stopPropagation();
       openPicker(polaroidWidget, 'polaroid');
@@ -423,14 +423,39 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         openPicker(el, 'avatar');
       });
     });
+
+    // v135：长按组件弹出编辑美化栏；点击组件其它区域关闭
+    var ecgLongTimer = null, ecgLongPressed = false;
+    function showEcgEditBar() { ecgEditBar.hidden = false; }
+    function hideEcgEditBar() { ecgEditBar.hidden = true; }
+    mediaEcg.addEventListener('touchstart', function () {
+      ecgLongPressed = false;
+      clearTimeout(ecgLongTimer);
+      ecgLongTimer = setTimeout(function () { ecgLongPressed = true; showEcgEditBar(); }, 500);
+    });
+    mediaEcg.addEventListener('touchend', function () { clearTimeout(ecgLongTimer); });
+    mediaEcg.addEventListener('touchmove', function () { clearTimeout(ecgLongTimer); });
+    mediaEcg.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      showEcgEditBar();
+    });
     mediaEcg.addEventListener('click', function (e) {
-      if (e.target.closest && (e.target.closest('.heart-photo-widget') || e.target.closest('.link-avatar') || e.target.closest('.pp-toggle'))) return;
+      if (ecgLongPressed) { ecgLongPressed = false; return; }
+      if (!ecgEditBar.hidden) { hideEcgEditBar(); return; }
+      if (e.target.closest && (e.target.closest('.heart-photo-widget') || e.target.closest('.link-avatar') || e.target.closest('.ecg-editbar') || e.target.closest('.polaroid-panel'))) return;
       openPicker(mediaEcg, 'ecgBg');
     });
-    ppToggle.addEventListener('click', function (e) {
+    ecgEditBar.addEventListener('click', function (e) {
+      var btn = e.target.closest('.eb-btn');
+      if (!btn) return;
       e.stopPropagation();
-      polaroidPanel.hidden = !polaroidPanel.hidden;
-      if (!polaroidPanel.hidden) syncPanelFromState();
+      var act = btn.getAttribute('data-act');
+      if (act === 'polaroid') { openPicker(polaroidWidget, 'polaroid'); hideEcgEditBar(); }
+      else if (act === 'avatarL') { openPicker(avatarEls[0], 'avatar'); hideEcgEditBar(); }
+      else if (act === 'avatarR') { openPicker(avatarEls[1], 'avatar'); hideEcgEditBar(); }
+      else if (act === 'ecgBg') { openPicker(mediaEcg, 'ecgBg'); hideEcgEditBar(); }
+      else if (act === 'color') { polaroidPanel.hidden = false; syncPanelFromState(); hideEcgEditBar(); }
+      else if (act === 'close') { hideEcgEditBar(); }
     });
 
     // 调色面板：控件实时预览 -> 应用保存
