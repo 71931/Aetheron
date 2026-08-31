@@ -225,8 +225,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       cover: { img: '', posY: 0 },
       avatar: '',
       twAvatar: '',
+      avatarL: '',
+      avatarR: '',
       topBg: '',
       bottomBg: '',
+      ecgBg: '',
+      polaroid: { img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 },
       name: 'user',
       handle: '@user',
       bio: '>ㅅ<可惡 萌也是罪嗎!! ⊹.',
@@ -286,6 +290,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var settingsOverlay = document.getElementById('settingsOverlay');
     var toastEl = document.getElementById('toast');
     var appIcons = document.querySelectorAll('.app-icon');
+    var mediaEcg = document.getElementById('mediaEcg');
+    var polaroidWidget = document.querySelector('.media-ecg .heart-photo-widget');
+    var polaroidStyleEl = document.getElementById('polaroidStyle');
+    var avatarEls = document.querySelectorAll('.media-ecg .link-avatar');
+    var ppToggle = document.getElementById('ppToggle');
+    var polaroidPanel = document.getElementById('polaroidPanel');
 
     // ===== 恢复状态 =====
     function applyState() {
@@ -317,8 +327,43 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           appIcons[i].innerHTML = '<img src="' + state.apps[key] + '" alt="">';
         }
       }
+      // v135：拍立得样式 / 组件背景 / 左右头像恢复
+      applyPolaroidStyle();
+      if (state.ecgBg) { mediaEcg.style.backgroundImage = "url('" + state.ecgBg + "')"; mediaEcg.classList.add('has-img'); }
+      if (state.avatarL && avatarEls[0]) avatarEls[0].style.backgroundImage = "url('" + state.avatarL + "')";
+      if (state.avatarR && avatarEls[1]) avatarEls[1].style.backgroundImage = "url('" + state.avatarR + "')";
     }
+    state.polaroid = Object.assign({ img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 }, state.polaroid || {});
     applyState();
+
+    // ===== 拍立得样式重写（换图 / 调色统一入口） =====
+    function applyPolaroidStyle() {
+      var p = state.polaroid || {};
+      var bg = p.bg || '#F0F2F0';
+      var op = (p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp;
+      var bd = p.border || '#DCDCDC';
+      var r = (p.radius === undefined || p.radius === null) ? 4 : p.radius;
+      var img = p.img || 'https://i.postimg.cc/XvFDdTKY/Smart-Select-20251013-023208.jpg';
+      var bdDark = shadeColor(bd, -18);
+      polaroidStyleEl.textContent =
+        '.media-ecg .heart-photo-widget { background-color: ' + rgba(bg, op) + '; border: 1px solid ' + bd + '; border-bottom-color: ' + bdDark + '; border-right-color: ' + bdDark + '; border-radius: ' + r + 'px; }' +
+        '.media-ecg .heart-photo-widget::after { background-image: url(\'' + img + '\'); }';
+    }
+    function rgba(hex, a) {
+      var h = hex.replace('#', '');
+      if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+      var n = parseInt(h, 16);
+      return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+    }
+    function shadeColor(hex, amt) {
+      var h = hex.replace('#', '');
+      if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+      var n = parseInt(h, 16);
+      var r = Math.min(255, Math.max(0, ((n >> 16) & 255) + amt));
+      var g = Math.min(255, Math.max(0, ((n >> 8) & 255) + amt));
+      var b = Math.min(255, Math.max(0, (n & 255) + amt));
+      return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
 
     // ===== Toast =====
     var toastTimer = null;
@@ -363,8 +408,59 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       openPicker(statusModule, 'bg');
     });
     homeBottom.addEventListener('click', function (e) {
-      if (e.target.closest && (e.target.closest('.bottom-card') || e.target.closest('.app') || e.target.closest('.bubble-col'))) return;
+      if (e.target.closest && (e.target.closest('.bottom-card') || e.target.closest('.app') || e.target.closest('.bubble-col') || e.target.closest('.media-ecg'))) return;
       openPicker(homeBottom, 'bg');
+    });
+
+    // v135：小组件内交互 —— 拍立得换图 / 头像替换 / 组件背景上传 / 调色面板
+    polaroidWidget.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openPicker(polaroidWidget, 'polaroid');
+    });
+    avatarEls.forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openPicker(el, 'avatar');
+      });
+    });
+    mediaEcg.addEventListener('click', function (e) {
+      if (e.target.closest && (e.target.closest('.heart-photo-widget') || e.target.closest('.link-avatar') || e.target.closest('.pp-toggle'))) return;
+      openPicker(mediaEcg, 'ecgBg');
+    });
+    ppToggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      polaroidPanel.hidden = !polaroidPanel.hidden;
+      if (!polaroidPanel.hidden) syncPanelFromState();
+    });
+
+    // 调色面板：控件实时预览 -> 应用保存
+    function syncPanelFromState() {
+      var p = state.polaroid || {};
+      document.getElementById('ppBgColor').value = p.bg || '#F0F2F0';
+      document.getElementById('ppBgOpacity').value = Math.round(((p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp) * 100);
+      document.getElementById('ppBorderColor').value = p.border || '#DCDCDC';
+      document.getElementById('ppRadius').value = (p.radius === undefined || p.radius === null) ? 4 : p.radius;
+    }
+    function previewPolaroid() {
+      state.polaroid = state.polaroid || {};
+      state.polaroid.bg = document.getElementById('ppBgColor').value;
+      state.polaroid.bgOp = parseInt(document.getElementById('ppBgOpacity').value, 10) / 100;
+      state.polaroid.border = document.getElementById('ppBorderColor').value;
+      state.polaroid.radius = parseInt(document.getElementById('ppRadius').value, 10);
+      applyPolaroidStyle();
+    }
+    document.getElementById('ppBgColor').addEventListener('input', previewPolaroid);
+    document.getElementById('ppBgOpacity').addEventListener('input', previewPolaroid);
+    document.getElementById('ppBorderColor').addEventListener('input', previewPolaroid);
+    document.getElementById('ppRadius').addEventListener('input', previewPolaroid);
+    document.getElementById('ppApply').addEventListener('click', function () {
+      saveState();
+      toast('拍立得配色已应用');
+      polaroidPanel.hidden = true;
+    });
+    document.getElementById('ppReset').addEventListener('click', function () {
+      state.polaroid = { img: state.polaroid.img || '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 };
+      applyPolaroidStyle(); syncPanelFromState(); saveState(); toast('已恢复默认');
     });
 
     // app 图标：长按 / 右键换图
@@ -409,7 +505,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     uploadInput.addEventListener('change', function () {
       var f = uploadInput.files && uploadInput.files[0];
       if (!f || !uploadTarget) return;
-      var outType = uploadMode === 'icon' ? 'image/png' : 'image/jpeg';
+      var outType = (uploadMode === 'icon' || uploadMode === 'avatar') ? 'image/png' : 'image/jpeg';
       compressImage(f, 1080, outType, 0.85, function (url) {
         if (uploadMode === 'icon') {
           uploadTarget.innerHTML = '<img src="' + url + '" alt="">';
@@ -423,6 +519,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           homeCanvas.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + url + "')";
           homeCanvas.classList.add('has-img');
           state.topBg = url;
+        } else if (uploadMode === 'polaroid') {
+          state.polaroid = state.polaroid || {};
+          state.polaroid.img = url;
+          applyPolaroidStyle();
+        } else if (uploadMode === 'avatar') {
+          uploadTarget.style.backgroundImage = "url('" + url + "')";
+          uploadTarget.classList.add('has-img');
+          if (uploadTarget === avatar) state.avatar = url;
+          else if (uploadTarget === twAvatar) state.twAvatar = url;
+          else if (avatarEls[0] && uploadTarget === avatarEls[0]) state.avatarL = url;
+          else if (avatarEls[1] && uploadTarget === avatarEls[1]) state.avatarR = url;
+        } else if (uploadMode === 'ecgBg') {
+          uploadTarget.style.backgroundImage = "url('" + url + "')";
+          uploadTarget.style.backgroundSize = 'cover';
+          uploadTarget.style.backgroundPosition = 'center';
+          uploadTarget.classList.add('has-img');
+          state.ecgBg = url;
         } else {
           uploadTarget.style.backgroundImage = "url('" + url + "')";
           uploadTarget.classList.add('has-img');
