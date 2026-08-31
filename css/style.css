@@ -1703,3 +1703,29 @@
     border: 1.5px solid #b9b9c0; background: transparent;
   }
   .home-canvas .page-dots .d.on { background: #b9b9c0; }
+
+
+/* ===== v125: 下拉刷新指示器 ===== */
+#pull-refresh {
+  position: fixed;
+  top: -54px; left: 0; right: 0;
+  height: 54px;
+  z-index: 2147483000;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  color: var(--text-faint, #8e8e93);
+  font-size: 13px; font-weight: 600; letter-spacing: .5px;
+  background: linear-gradient(to bottom, var(--bg-color, #f2f2f7), transparent);
+  transition: transform .18s ease;
+  pointer-events: none;
+  -webkit-user-select: none; user-select: none;
+}
+#pull-refresh .pr-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(140,140,148,.3);
+  border-top-color: var(--accent, #8e8e93);
+  border-radius: 50%;
+  transition: transform .3s ease;
+}
+#pull-refresh.ready .pr-spinner { transform: rotate(180deg); }
+#pull-refresh.loading .pr-spinner { animation: pr-spin .7s linear infinite; }
+@keyframes pr-spin { to { transform: rotate(360deg); } }
