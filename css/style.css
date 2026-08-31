@@ -1634,7 +1634,10 @@
 
   /* 下玻璃卡片 */
   .home-canvas .bottom-card-wrap { padding: 6px 12px 12px; overflow: visible; flex: 1; display: flex; flex-direction: column; }
-  .bottom-split { display: flex; gap: 10px; align-items: stretch; margin-top: 10px; flex: 1; }
+  .bottom-split { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; align-items: stretch; margin-top: 10px; flex: 1; }
+  /* v139：气泡对话小组件只占 2x2（右两列），四宫格占左两列 */
+  .bottom-split .app-grid.hg-grid { grid-column: 1 / 3; }
+  .bottom-split .ins-col { grid-column: 3 / 5; justify-content: center; }
   /* 子组件①：拍立得 + 双头像电波连接（v134 加高一倍） */
   .media-ecg {
     display: flex; align-items: center; gap: 12px;
