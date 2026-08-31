@@ -7962,3 +7962,32 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     pulling = false; dist = 0;
   }, { passive: true });
 })();
+
+
+/* ===== v126: 气泡打字机效果（逐字显示，改 data-text 即换新文字） ===== */
+(function () {
+  var SPEED = 110; // 每字间隔毫秒，可调
+  function typeIt(el) {
+    var text = el.getAttribute('data-text');
+    if (text == null) {
+      text = el.textContent.trim();
+      el.setAttribute('data-text', text);
+    }
+    el.textContent = '';
+    var i = 0;
+    var timer = setInterval(function () {
+      i += 1;
+      el.textContent = text.slice(0, i);
+      if (i >= text.length) { clearInterval(timer); }
+    }, SPEED);
+  }
+  function run() {
+    var bubbles = document.querySelectorAll('.ins-bubble');
+    bubbles.forEach(typeIt);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+  } else {
+    run();
+  }
+})();
