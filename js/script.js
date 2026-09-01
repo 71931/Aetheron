@@ -249,10 +249,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function rainText(prob, sum) {
       var p = (typeof prob === 'number') ? prob : 0;
       var s = (typeof sum === 'number') ? sum : 0;
-      if (s > 0.5) return { txt: '有雨，记得带伞 ☔', rain: true };
-      if (p >= 60) return { txt: '大概率下雨，备把伞 ☂', rain: true };
+      if (s > 0.5) return { txt: '有雨，记得带伞', rain: true };
+      if (p >= 60) return { txt: '大概率下雨，备把伞', rain: true };
       if (p >= 35) return { txt: '可能有雨，建议带伞', rain: true };
       return { txt: '无雨，放心出门', rain: false };
+    }
+
+    function rainSvg(rain) {
+      if (rain) {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14a4 4 0 0 1-.5-8A5 5 0 0 1 16 6.5 3.5 3.5 0 0 1 17 13"/><path d="M9 17l-1 2M13 17l-1 2M17 17l-1 2"/></svg>';
+      }
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>';
     }
 
     function renderWeatherPanel() {
@@ -276,7 +283,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (elTodayTemp) elTodayTemp.textContent = weatherData.todayHi + '/' + weatherData.todayLo + '℃';
       if (elTodayRain) {
         var tr = rainText(weatherData.todayRain, weatherData.todayRainSum);
-        elTodayRain.textContent = tr.txt;
+        elTodayRain.innerHTML = rainSvg(tr.rain) + '<span>' + tr.txt + '</span>';
         elTodayRain.className = 'weather-rain' + (tr.rain ? ' rain' : ' dry');
       }
       if (elTodayDress) elTodayDress.textContent = '今天穿衣建议：' + dressAdvice(weatherData.todayHi, weatherData.todayLo);
@@ -288,14 +295,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (elTomorrowTemp) elTomorrowTemp.textContent = weatherData.tomorrowHi + '/' + weatherData.tomorrowLo + '℃';
         if (elTomorrowRain) {
           var mr = rainText(weatherData.tomorrowRain, weatherData.tomorrowRainSum);
-          elTomorrowRain.textContent = mr.txt;
+          elTomorrowRain.innerHTML = rainSvg(mr.rain) + '<span>' + mr.txt + '</span>';
           elTomorrowRain.className = 'weather-rain' + (mr.rain ? ' rain' : ' dry');
         }
         if (elTomorrowDress) elTomorrowDress.textContent = '明天穿衣建议：' + dressAdvice(weatherData.tomorrowHi, weatherData.tomorrowLo);
       }
     }
 
+    function reverseGeocode(lat, lon) {
+      fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=zh')
+        .then(function (r) { return r.json(); })
+        .then(function (g) {
+          var name = (g && (g.city || g.locality || g.principalSubdivision)) || '';
+          if (name) {
+            weatherData.city = name;
+            var elCity = document.getElementById('weatherCity');
+            if (elCity) elCity.textContent = weatherData.city;
+          }
+        }).catch(function () {});
+    }
+
     function fetchWeather(lat, lon, city) {
+      reverseGeocode(lat, lon);
       fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
         '&current_weather=true&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto')
         .then(function (r) { return r.json(); })
@@ -2286,7 +2307,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       h.className = 'wb-folder-head';
       var t = document.createElement('span');
       t.className = 'wb-folder-title';
-      t.textContent = name;
+      t.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+      var tn = document.createTextNode(name);
+      t.appendChild(tn);
       var c = document.createElement('span');
       c.className = 'wb-folder-count';
       c.textContent = items.length + ' 条';
