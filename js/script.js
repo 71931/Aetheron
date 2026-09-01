@@ -8357,10 +8357,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return 'Today ' + mm + '-' + dd;
   }
 
+  /* 时间栏显示闹钟设定时间 */
+  function syncAlarmDisplay() {
+    var elTime = document.getElementById('ncTimeNow');
+    if (elTime) elTime.textContent = pad(alarmHour) + ':' + pad(alarmMinute);
+  }
+
   function tickClock() {
     var now = new Date();
-    var elTime = document.getElementById('ncTimeNow');
-    if (elTime) elTime.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
     var elToday = document.getElementById('ncToday');
     if (elToday && elToday.lastChild && elToday.lastChild.nodeType === 3) {
       elToday.lastChild.textContent = ' ' + fmtDate(now);
@@ -8491,10 +8495,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     buildCol('apHours', 24, alarmHour, function (v) {
       alarmHour = v;
       document.getElementById('alarmHour').textContent = pad(v);
+      syncAlarmDisplay();
     });
     buildCol('apMinutes', 60, alarmMinute, function (v) {
       alarmMinute = v;
       document.getElementById('alarmMinute').textContent = pad(v);
+      syncAlarmDisplay();
     });
 
     var en = document.getElementById('alarmEnabled');
@@ -8511,6 +8517,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (stopBtn) stopBtn.addEventListener('click', stopRing);
 
     tickClock();
+    syncAlarmDisplay();
     setInterval(tickClock, 1000);
   }
 
