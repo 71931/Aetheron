@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · 可编辑组件 · v146</title>
-<link rel="stylesheet" href="css/style.css?v=146">
+<title>Aetheron 黑白桌面 · 可编辑组件 · v147</title>
+<link rel="stylesheet" href="css/style.css?v=147">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -100,19 +100,21 @@
     </div>
   </div>
 
-    <!-- 上半区：音乐卡片（Apple Music 风格） -->
+    <!-- 上半区：通知卡片（浅灰半透明 + 白波点蝴蝶结 + 圆形头像） 2×4 -->
   <div class="home-top glass-card top-card" id="homeTop">
-    <div class="music-card" id="musicCard">
-      <div class="mc-cover">
-        <svg viewBox="0 0 80 80" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="mcG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3c3c44"/><stop offset="1" stop-color="#141417"/></linearGradient></defs><rect width="80" height="80" fill="url(#mcG)"/><circle cx="40" cy="40" r="17" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2"/><path d="M34 48V30l14-4v18" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="notify-card" id="notifyCard">
+      <div class="nc-avatar">
+        <svg viewBox="0 0 80 80" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ncG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2c9d8"/><stop offset="1" stop-color="#c9a3b8"/></linearGradient></defs><rect width="80" height="80" fill="url(#ncG)"/><circle cx="40" cy="30" r="15" fill="#f6e3ea"/><path d="M18 72c0-14 10-22 22-22s22 8 22 22" fill="#f6e3ea"/><circle cx="34" cy="28" r="2.2" fill="#6b4a55"/><circle cx="46" cy="28" r="2.2" fill="#6b4a55"/><path d="M35 36c3 2.5 7 2.5 10 0" fill="none" stroke="#6b4a55" stroke-width="2" stroke-linecap="round"/></svg>
       </div>
-      <div class="mc-info">
-        <div class="mc-title">You Belong with Me</div>
-        <div class="mc-artist">Taylor Swift</div>
-        <div class="mc-source">music.apple.com</div>
-      </div>
-      <div class="mc-dots">
-        <span></span><span></span><span></span>
+      <div class="nc-info">
+        <div class="nc-row1">
+          <span class="nc-msg">미녀 고교가 입학하다</span>
+          <button class="nc-btn" type="button">확인</button>
+        </div>
+        <div class="nc-row2">
+          <span class="nc-user">Xiaoubabe</span>
+          <span class="nc-time">Today 010-04</span>
+        </div>
       </div>
     </div>
   </div><!-- /home-top -->

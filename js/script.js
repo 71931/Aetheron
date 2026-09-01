@@ -570,7 +570,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     // v112：点击上下半区空白上传对应背景（与头像/气泡/卡片内部交互区分）
     statusModule.addEventListener('click', function (e) {
-      if (e.target.closest && (e.target.closest('.avatar') || e.target.closest('.wire-bubble') || e.target.closest('.music-card'))) return;
+      if (e.target.closest && (e.target.closest('.avatar') || e.target.closest('.wire-bubble') || e.target.closest('.music-card') || e.target.closest('.notify-card'))) return;
       openPicker(statusModule, 'bg');
     });
     homeBottom.addEventListener('click', function (e) {
