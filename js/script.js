@@ -171,6 +171,19 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.textContent = d.getHours() + ':' + pad2(d.getMinutes());
     }
     updateClock(); setInterval(updateClock, 10000);
+    /* v139：电量支持引导——不支持的浏览器提示换浏览器打开，安卓主流浏览器均可读真实电量 */
+    var batteryHintShown = false;
+    function batteryHint(msg) {
+      if (batteryHintShown) return;
+      batteryHintShown = true;
+      setTimeout(function () { toast(msg); }, 1200);
+    }
+    function batteryHintMsg() {
+      var ua = navigator.userAgent || '';
+      if (/MicroMessenger/i.test(ua)) return '微信内置浏览器读不到真实电量，点右上角"···"→"在浏览器中打开"，就能显示真实电量啦';
+      if (/Android/i.test(ua)) return '当前浏览器不支持读取真实电量（显示为模拟值），建议用 Chrome 或手机自带浏览器打开';
+      return '当前浏览器不支持读取真实电量（显示为模拟值），建议用 Chrome / Edge 打开';
+    }
     function updateBattery() {
       var el = document.getElementById('realBattery');
       if (!el) return;
@@ -180,6 +193,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         el.classList.toggle('charging', charging);
         el.classList.toggle('simulated', !isReal);
         el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '') + (isReal ? '' : '（模拟值，当前浏览器不支持读取真实电量）');
+        if (isReal) {
+          el.onclick = null;
+        } else {
+          var hintMsg = batteryHintMsg();
+          batteryHint(hintMsg);
+          el.onclick = function () { toast(hintMsg); };
+          el.style.cursor = 'pointer';
+        }
         // v121：爱心电量滑块联动（爱心位置=电量；充电绿 / <20 红 / <30 橙 / <60 黄 / 其余灰）
         // v124：改用 class 选择器匹配进度条 DOM（原 getElementById 拿不到，百分比一直停在 65%）
         var fill = document.querySelector('.slider-fill');
