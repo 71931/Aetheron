@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · 可编辑组件 · v147</title>
-<link rel="stylesheet" href="css/style.css?v=147">
+<title>Aetheron 黑白桌面 · 可编辑组件 · v148</title>
+<link rel="stylesheet" href="css/style.css?v=148">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -100,20 +100,49 @@
     </div>
   </div>
 
-    <!-- 上半区：通知卡片（浅灰半透明 + 白波点蝴蝶结 + 圆形头像） 2×4 -->
+    <!-- 上半区：2×4 组件（时间控制栏 + 通知卡片，P1 样式） -->
   <div class="home-top glass-card top-card" id="homeTop">
-    <div class="notify-card" id="notifyCard">
-      <div class="nc-avatar">
-        <svg viewBox="0 0 80 80" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ncG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2c9d8"/><stop offset="1" stop-color="#c9a3b8"/></linearGradient></defs><rect width="80" height="80" fill="url(#ncG)"/><circle cx="40" cy="30" r="15" fill="#f6e3ea"/><path d="M18 72c0-14 10-22 22-22s22 8 22 22" fill="#f6e3ea"/><circle cx="34" cy="28" r="2.2" fill="#6b4a55"/><circle cx="46" cy="28" r="2.2" fill="#6b4a55"/><path d="M35 36c3 2.5 7 2.5 10 0" fill="none" stroke="#6b4a55" stroke-width="2" stroke-linecap="round"/></svg>
+    <div class="nc-widget" id="notifyCard">
+      <!-- ① 时间控制栏：进度环50 + Time + 闹钟23:35 + 银白波点蝴蝶结 -->
+      <div class="nc-timebar">
+        <div class="nc-ring">
+          <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#e4e4e9" stroke-width="4"/><circle cx="20" cy="20" r="16" fill="none" stroke="#3a3a40" stroke-width="4" stroke-linecap="round" stroke-dasharray="50.3 100.6" transform="rotate(-90 20 20)"/></svg>
+          <span class="nc-ring-num">50</span>
+        </div>
+        <span class="nc-time-label">Time</span>
+        <svg class="nc-alarm" viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 0-7 7v4.2L3.8 17h16.4L19 15.2V11a7 7 0 0 0-7-7z" fill="none" stroke="#b5b5bd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="#b5b5bd" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="nc-time-num">23:35</span>
+        <span class="nc-bow">
+          <svg viewBox="0 0 40 32"><defs><linearGradient id="bowGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d8d8e0"/></linearGradient></defs><path d="M14 6c5 2.5 7 7 8 10 1-3 3-7.5 8-10-2 5-2 9-4 12 5 1 8 2 9 4-4 2-9 2-14 1 0 5-1 7-2 8-1-1-2-3-2-8-5 1-10 1-14-1 1-2 4-3 9-4-2-3-2-7-4-12z" fill="url(#bowGrad)" stroke="#b9b9c4" stroke-width="1.2"/><circle cx="20" cy="16" r="2.2" fill="url(#bowGrad)" stroke="#b9b9c4" stroke-width="1.2"/></svg>
+        </span>
       </div>
-      <div class="nc-info">
-        <div class="nc-row1">
+      <!-- ② 通知卡片：上（头像+韩文+확인） / 下（分隔线 + 用户名 + 时间） -->
+      <div class="nc-notice">
+        <div class="nc-notice-top">
+          <div class="nc-avatar">
+            <svg viewBox="0 0 80 80" preserveAspectRatio="xMidYMid slice">
+              <rect width="80" height="80" fill="#fff"/>
+              <path d="M14 36c0-14 12-24 26-24s26 10 26 24v8H14v-8z" fill="#b9a7f0"/>
+              <path d="M14 36h52v4c0 3-2 5-5 5H19c-3 0-5-2-5-5v-4z" fill="#e6dfff"/>
+              <path d="M26 26l2-8 4 6M54 26l-2-8-4 6" stroke="#b9a7f0" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <circle cx="40" cy="38" r="13" fill="#f7dfe6"/>
+              <path d="M27 50c2-6 8-9 13-9s11 3 13 9" fill="#f7dfe6"/>
+              <circle cx="35" cy="37" r="1.8" fill="#5a4a52"/>
+              <circle cx="45" cy="37" r="1.8" fill="#5a4a52"/>
+              <path d="M36 44c2.6 1.8 5.4 1.8 8 0" fill="none" stroke="#5a4a52" stroke-width="2" stroke-linecap="round"/>
+              <ellipse cx="31" cy="41" rx="2.4" ry="1.3" fill="#f2a9bd"/>
+              <ellipse cx="49" cy="41" rx="2.4" ry="1.3" fill="#f2a9bd"/>
+              <path d="M52 22c3-2 7-2 9 1" fill="none" stroke="#9ec7f5" stroke-width="2.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <svg class="nc-user-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6" fill="#cfcfd6"/><path d="M4.5 20c0-4.5 3.2-7 7.5-7s7.5 2.5 7.5 7" fill="#cfcfd6"/></svg>
           <span class="nc-msg">미녀 고교가 입학하다</span>
           <button class="nc-btn" type="button">확인</button>
         </div>
-        <div class="nc-row2">
+        <div class="nc-divider"></div>
+        <div class="nc-notice-bottom">
           <span class="nc-user">Xiaoubabe</span>
-          <span class="nc-time">Today 010-04</span>
+          <span class="nc-time"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="#b5b5bd" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Today 010-04</span>
         </div>
       </div>
     </div>
