@@ -201,8 +201,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var lv = Math.max(5, Math.min(100, Math.round(rawLevel)));
       el.style.setProperty('--bat', lv + '%');
       el.classList.toggle('charging', charging);
-      el.classList.toggle('simulated', !isReal);
-      el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '') + (isReal ? '' : '（模拟值，当前浏览器不支持读取真实电量）');
+      el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '');
     }
     function enterLyricMode() {
       var h = new Date().getHours();
@@ -232,21 +231,71 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     updateBattery();
 
-    // ===== 今日状态 -> 实时本地天气（最高/最低℃） =====
-    function fetchWeather(lat, lon) {
+    // ===== 今日状态 -> 实时本地天气（最高/最低℃） + 穿衣建议 =====
+    var weatherData = { city: '当前位置', todayHi: null, todayLo: null, tomorrowHi: null, tomorrowLo: null };
+
+    function dressAdvice(hi, lo) {
+      var avg = (hi + lo) / 2;
+      if (avg >= 30) return '短袖短裤走起，清凉透气，出门记得防晒补水。';
+      if (avg >= 26) return '短袖或薄长袖，怕热就短裤，早晚可披件薄外套。';
+      if (avg >= 22) return '长袖T恤或卫衣正合适，可配件轻薄外套。';
+      if (avg >= 18) return '长袖+薄外套/夹克，温差大备件开衫。';
+      if (avg >= 14) return '毛衣或厚卫衣，外套别落下，注意保暖。';
+      if (avg >= 10) return '厚毛衣+风衣/棉服，围巾可以安排了。';
+      if (avg >= 5) return '羽绒服或厚棉服，围巾手套安排上。';
+      return '厚羽绒服全副武装，帽子围巾手套一样别少。';
+    }
+
+    function renderWeatherPanel() {
+      var elCity = document.getElementById('weatherCity');
+      var elTodayTemp = document.getElementById('weatherTodayTemp');
+      var elTodayDress = document.getElementById('weatherTodayDress');
+      var elTomorrowTemp = document.getElementById('weatherTomorrowTemp');
+      var elTomorrowDress = document.getElementById('weatherTomorrowDress');
+      if (elCity) elCity.textContent = weatherData.city || '当前位置';
+      if (weatherData.todayHi === null) {
+        if (elTodayTemp) elTodayTemp.textContent = '--/--℃';
+        if (elTodayDress) elTodayDress.textContent = '暂未获取到天气数据';
+        if (elTomorrowTemp) elTomorrowTemp.textContent = '--/--℃';
+        if (elTomorrowDress) elTomorrowDress.textContent = '暂未获取到天气数据';
+        return;
+      }
+      if (elTodayTemp) elTodayTemp.textContent = weatherData.todayHi + '/' + weatherData.todayLo + '℃';
+      if (elTodayDress) elTodayDress.textContent = '今天穿衣建议：' + dressAdvice(weatherData.todayHi, weatherData.todayLo);
+      if (weatherData.tomorrowHi === null) {
+        if (elTomorrowTemp) elTomorrowTemp.textContent = '--/--℃';
+        if (elTomorrowDress) elTomorrowDress.textContent = '暂未获取到明天数据';
+      } else {
+        if (elTomorrowTemp) elTomorrowTemp.textContent = weatherData.tomorrowHi + '/' + weatherData.tomorrowLo + '℃';
+        if (elTomorrowDress) elTomorrowDress.textContent = '明天穿衣建议：' + dressAdvice(weatherData.tomorrowHi, weatherData.tomorrowLo);
+      }
+    }
+
+    function fetchWeather(lat, lon, city) {
       fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
         '&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto')
         .then(function (r) { return r.json(); })
         .then(function (d) {
           var el = document.getElementById('weatherTemp');
           if (!el) return;
+          if (city) weatherData.city = city;
           if (d && d.daily && d.daily.temperature_2m_max && d.daily.temperature_2m_min) {
             var hi = Math.round(d.daily.temperature_2m_max[0]);
             var lo = Math.round(d.daily.temperature_2m_min[0]);
+            weatherData.todayHi = hi;
+            weatherData.todayLo = lo;
+            if (typeof d.daily.temperature_2m_max[1] === 'number' && typeof d.daily.temperature_2m_min[1] === 'number') {
+              weatherData.tomorrowHi = Math.round(d.daily.temperature_2m_max[1]);
+              weatherData.tomorrowLo = Math.round(d.daily.temperature_2m_min[1]);
+            }
             el.textContent = hi + '/' + lo + '℃';
           } else if (d && d.current_weather && typeof d.current_weather.temperature === 'number') {
-            el.textContent = Math.round(d.current_weather.temperature) + '℃';
+            var cur = Math.round(d.current_weather.temperature);
+            weatherData.todayHi = cur;
+            weatherData.todayLo = cur;
+            el.textContent = cur + '℃';
           }
+          renderWeatherPanel();
         }).catch(function () {});
     }
     function weatherByIP() {
@@ -254,7 +303,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
-            fetchWeather(d.latitude, d.longitude);
+            fetchWeather(d.latitude, d.longitude, d.city || '');
           }
         }).catch(function () {});
     }
@@ -265,6 +314,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }, function () { weatherByIP(); }, { timeout: 4000, maximumAge: 600000 });
     }
     updateWeather();
+
+    // 点击今日状态进入天气详情面板
+    var weatherTempEl = document.getElementById('weatherTemp');
+    var weatherOverlay = document.getElementById('weatherOverlay');
+    if (weatherTempEl) {
+      weatherTempEl.style.cursor = 'pointer';
+      weatherTempEl.addEventListener('click', function () {
+        renderWeatherPanel();
+        if (weatherOverlay) weatherOverlay.classList.add('open');
+      });
+    }
+    var weatherCloseBtn = document.getElementById('weatherClose');
+    if (weatherCloseBtn) {
+      weatherCloseBtn.addEventListener('click', function () {
+        if (weatherOverlay) weatherOverlay.classList.remove('open');
+      });
+    }
+    if (weatherOverlay) {
+      weatherOverlay.addEventListener('click', function (e) {
+        if (e.target === weatherOverlay) weatherOverlay.classList.remove('open');
+      });
+    }
 
     // ===== 默认状态 =====
     var defaultState = {

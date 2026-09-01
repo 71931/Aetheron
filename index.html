@@ -247,6 +247,28 @@
       </div>
     </div>
   </div>
+  <!-- 天气详情面板 -->
+  <div class="weather-overlay" id="weatherOverlay">
+    <div class="weather-panel">
+      <div class="settings-header">
+        <button class="settings-close" id="weatherClose"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <span class="title">天气</span>
+      </div>
+      <div class="weather-scroll">
+        <div class="weather-city" id="weatherCity">当前位置</div>
+        <div class="weather-block">
+          <div class="weather-daytag">今天</div>
+          <div class="weather-temp-big" id="weatherTodayTemp">--/--℃</div>
+          <div class="weather-dress" id="weatherTodayDress">加载中…</div>
+        </div>
+        <div class="weather-block">
+          <div class="weather-daytag">明天</div>
+          <div class="weather-temp-big" id="weatherTomorrowTemp">--/--℃</div>
+          <div class="weather-dress" id="weatherTomorrowDress">加载中…</div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="toast" id="toast"></div>
 
   <!-- 应用抽屉 -->
@@ -1020,7 +1042,7 @@
 
 <input type="file" id="uploadInput" accept="image/*" hidden>
 
-<script src="js/script.js?v=142"></script>
+<script src="js/script.js?v=143"></script>
   </div>
   </div>
   </div>
