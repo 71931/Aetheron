@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Aetheron 黑白桌面 · 可编辑组件 · v126</title>
-<link rel="stylesheet" href="css/style.css?v=140">
+<link rel="stylesheet" href="css/style.css?v=141">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -88,13 +88,16 @@
     <span class="tt-dot"></span>
     <span class="tt-dot"></span>
   </div>
-  <!-- 上玻璃卡片②：爱心进度滑块（当日状态完成度） -->
+  <!-- 上玻璃卡片②：爱心进度滑块（电量 / 歌词进度双模式） -->
   <div class="mood-slider">
     <div class="slider-track">
       <div class="slider-fill"></div>
       <svg class="slider-heart" viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.5 12C19 16.4 12 21 12 21z"/></svg>
     </div>
-    <span class="slider-val">65%</span>
+    <div class="slider-times">
+      <span class="slider-cur" id="sliderCur">0:00</span>
+      <span class="slider-total" id="sliderTotal">5:20</span>
+    </div>
   </div>
 
   <!-- 上半区：圆形头像（点击上传）+ 对话气泡 -->
@@ -1017,7 +1020,7 @@
 
 <input type="file" id="uploadInput" accept="image/*" hidden>
 
-<script src="js/script.js?v=140"></script>
+<script src="js/script.js?v=141"></script>
   </div>
   </div>
   </div>

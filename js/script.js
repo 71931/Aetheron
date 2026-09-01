@@ -171,75 +171,66 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.textContent = d.getHours() + ':' + pad2(d.getMinutes());
     }
     updateClock(); setInterval(updateClock, 10000);
-    /* v139：电量支持引导——不支持的浏览器提示换浏览器打开，安卓主流浏览器均可读真实电量 */
-    var batteryHintShown = false;
-    function batteryHint(msg) {
-      if (batteryHintShown) return;
-      batteryHintShown = true;
-      setTimeout(function () { toast(msg); }, 1200);
+    /* v141：爱心进度条双模式——能读电量→电量进度；读不到→歌词进度（0:00→5:20 循环） */
+    var LYRIC_TOTAL = 320; /* 5:20 = 320s */
+    var lyricPos = 0;
+    var lyricTimer = null;
+    function fmtMMSS(sec) {
+      var m = Math.floor(sec / 60);
+      var s = Math.floor(sec % 60);
+      return m + ':' + (s < 10 ? '0' + s : s);
     }
-    function batteryHintMsg() {
-      var ua = navigator.userAgent || '';
-      if (/MicroMessenger/i.test(ua)) return '微信内置浏览器读不到真实电量，点右上角"···"→"在浏览器中打开"，就能显示真实电量啦';
-      if (/Android/i.test(ua)) return '当前浏览器不支持读取真实电量（显示为模拟值），建议用 Chrome 或手机自带浏览器打开';
-      return '当前浏览器不支持读取真实电量（显示为模拟值），建议用 Chrome / Edge 打开';
+    function applySlider(pct, curTxt, totalTxt) {
+      var fill = document.querySelector('.slider-fill');
+      var heart = document.querySelector('.slider-heart');
+      var cur = document.getElementById('sliderCur');
+      var total = document.getElementById('sliderTotal');
+      var p = Math.max(0, Math.min(100, pct));
+      if (fill) fill.style.width = p + '%';
+      if (heart) heart.style.left = 'max(0px, calc(' + p + '% - 11px))';
+      if (cur) cur.textContent = curTxt;
+      if (total) total.textContent = totalTxt;
     }
-    function updateBattery() {
+    function runLyric() {
+      lyricPos = (lyricPos + 1) % LYRIC_TOTAL;
+      applySlider(lyricPos / LYRIC_TOTAL * 100, fmtMMSS(lyricPos), '5:20');
+    }
+    function applyBatteryTop(rawLevel, charging, isReal) {
       var el = document.getElementById('realBattery');
       if (!el) return;
-      function applyBattery(rawLevel, charging, isReal) {
-        var lv = Math.max(5, Math.min(100, Math.round(rawLevel)));
-        el.style.setProperty('--bat', lv + '%');
-        el.classList.toggle('charging', charging);
-        el.classList.toggle('simulated', !isReal);
-        el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '') + (isReal ? '' : '（模拟值，当前浏览器不支持读取真实电量）');
-        if (isReal) {
-          el.onclick = null;
-        } else {
-          var hintMsg = batteryHintMsg();
-          batteryHint(hintMsg);
-          el.onclick = function () { toast(hintMsg); };
-          el.style.cursor = 'pointer';
-        }
-        // v121：爱心电量滑块联动（爱心位置=电量；充电绿 / <20 红 / <30 橙 / <60 黄 / 其余灰）
-        // v124：改用 class 选择器匹配进度条 DOM（原 getElementById 拿不到，百分比一直停在 65%）
-        var fill = document.querySelector('.slider-fill');
-        var heart = document.querySelector('.slider-heart');
-        var val = document.querySelector('.slider-val');
-        var color = charging ? '#34c759' : (lv < 20 ? '#e03131' : (lv < 30 ? '#f76707' : (lv < 60 ? '#f5b301' : '#8f8f98')));
-        if (fill) {
-          fill.style.width = lv + '%';
-          fill.style.background = color;
-          fill.style.opacity = charging ? '0.9' : '0.38';
-        }
-        if (heart) {
-          heart.style.left = 'calc(' + lv + '% - 11px)';
-          heart.style.fill = color;
-          heart.style.stroke = color;
-        }
-        if (val) {
-          val.textContent = lv + '%';
-          val.style.color = charging ? '#2f9e44' : '#3a3a3f';
-        }
-      }
-      if (navigator.getBattery) {
-        navigator.getBattery().then(function (b) {
-          applyBattery((b.level || 0) * 100, !!b.charging, true);
-          b.addEventListener('levelchange', function () { applyBattery((b.level || 0) * 100, !!b.charging, true); });
-          b.addEventListener('chargingchange', function () { applyBattery((b.level || 0) * 100, !!b.charging, true); });
-        }).catch(function () {
-          // Battery API 拿不到：按时间段给模拟电量兜底，保证滑块/爱心/顶栏电池联动可见
-          var h = new Date().getHours();
-          applyBattery(h < 7 ? 35 : (h < 12 ? 68 : (h < 18 ? 82 : 55)), false, false);
+      var lv = Math.max(5, Math.min(100, Math.round(rawLevel)));
+      el.style.setProperty('--bat', lv + '%');
+      el.classList.toggle('charging', charging);
+      el.classList.toggle('simulated', !isReal);
+      el.title = '电量 ' + lv + '%' + (charging ? '（充电中）' : '') + (isReal ? '' : '（模拟值，当前浏览器不支持读取真实电量）');
+    }
+    function enterLyricMode() {
+      var h = new Date().getHours();
+      applyBatteryTop(h < 7 ? 35 : (h < 12 ? 68 : (h < 18 ? 82 : 55)), false, false);
+      applySlider(0, '0:00', '5:20');
+      lyricPos = 0;
+      if (lyricTimer) clearInterval(lyricTimer);
+      lyricTimer = setInterval(runLyric, 1000);
+    }
+    function updateBattery() {
+      if (!navigator.getBattery) { enterLyricMode(); return; }
+      navigator.getBattery().then(function (b) {
+        if (lyricTimer) { clearInterval(lyricTimer); lyricTimer = null; }
+        applyBatteryTop((b.level || 0) * 100, !!b.charging, true);
+        /* 电量模式：爱心进度条=真实电量，左端电量% 右端100% */
+        applySlider(((b.level || 0) * 100), Math.round((b.level || 0) * 100) + '%', '100%');
+        b.addEventListener('levelchange', function () {
+          applyBatteryTop((b.level || 0) * 100, !!b.charging, true);
+          applySlider(((b.level || 0) * 100), Math.round((b.level || 0) * 100) + '%', '100%');
         });
-      } else {
-        // 浏览器不支持 Battery API：同样用模拟电量兜底
-        var h2 = new Date().getHours();
-        applyBattery(h2 < 7 ? 35 : (h2 < 12 ? 68 : (h2 < 18 ? 82 : 55)), false, false);
-      }
+        b.addEventListener('chargingchange', function () {
+          applyBatteryTop((b.level || 0) * 100, !!b.charging, true);
+        });
+      }).catch(function () {
+        enterLyricMode();
+      });
     }
     updateBattery();
-    setInterval(updateBattery, 60000);
 
     // ===== 默认状态 =====
     var defaultState = {
