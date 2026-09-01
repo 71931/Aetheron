@@ -8345,12 +8345,55 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   load();
 })();
 
-/* ===== v148 闹钟模块：实时时钟 + 日期 + 闹钟设置与响铃 ===== */
+/* ===== v151 闹钟模块：实时时钟 + 日期 + 闹钟设置与响铃（持久化+音频解锁） ===== */
 (function () {
+  var ALARM_KEY = 'aetheron_alarm_v151';
   var alarmHour = 7, alarmMinute = 30, alarmEnabled = false, alarmFired = false;
-  var audioCtx = null, ringTimer = null;
+  var audioCtx = null, ringTimer = null, audioUnlocked = false;
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  /* ---- localStorage 持久化 ---- */
+  function saveAlarm() {
+    try {
+      localStorage.setItem(ALARM_KEY, JSON.stringify({
+        hour: alarmHour, minute: alarmMinute, enabled: alarmEnabled
+      }));
+    } catch (e) {}
+  }
+
+  function loadAlarm() {
+    try {
+      var raw = localStorage.getItem(ALARM_KEY);
+      if (!raw) return;
+      var obj = JSON.parse(raw);
+      if (typeof obj.hour === 'number' && obj.hour >= 0 && obj.hour < 24) alarmHour = obj.hour;
+      if (typeof obj.minute === 'number' && obj.minute >= 0 && obj.minute < 60) alarmMinute = obj.minute;
+      if (typeof obj.enabled === 'boolean') alarmEnabled = obj.enabled;
+    } catch (e) {}
+  }
+
+  /* ---- 音频解锁：必须在用户手势中调用，否则浏览器拦截播放 ---- */
+  function unlockAudio() {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().then(function () {
+          audioUnlocked = true;
+        }).catch(function () {});
+      } else {
+        audioUnlocked = true;
+      }
+      // 播放一个极短静音，强制激活输出通道
+      var buf = audioCtx.createBuffer(1, 1, 22050);
+      var src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+    } catch (e) {}
+  }
 
   function fmtDate(d) {
     var mm = pad(d.getMonth() + 1), dd = pad(d.getDate());
@@ -8398,19 +8441,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       audioCtx = audioCtx || new AC();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(function () {});
+      }
       var i = 0;
       ringTimer = setInterval(function () {
-        var osc = audioCtx.createOscillator();
-        var gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = (i % 2 === 0) ? 880 : 660;
-        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.45);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.5);
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        var t = audioCtx.currentTime;
+        // 双音交替 + 音量稍大
+        [880, 660].forEach(function (freq) {
+          var osc = audioCtx.createOscillator();
+          var gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = (i % 2 === 0) ? freq : freq * 0.75;
+          gain.gain.setValueAtTime(0.0001, t);
+          gain.gain.exponentialRampToValueAtTime(0.4, t + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start(t);
+          osc.stop(t + 0.5);
+        });
         i++;
       }, 500);
     } catch (e) {}
@@ -8427,6 +8477,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function openPop() {
     var pop = document.getElementById('alarmPop');
     if (!pop) return;
+    unlockAudio(); // 用户手势，解锁音频
     syncPickerScroll();
     pop.classList.add('show');
   }
@@ -8481,6 +8532,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   /* ---- 初始化 ---- */
   function init() {
+    loadAlarm(); // 读取持久化的闹钟设置
+
     var ringBtn = document.getElementById('ncRingBtn');
     if (ringBtn) ringBtn.addEventListener('click', function (e) { e.stopPropagation(); openPop(); });
 
@@ -8504,17 +8557,27 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
 
     var en = document.getElementById('alarmEnabled');
-    if (en) en.addEventListener('change', function () { alarmEnabled = en.checked; });
+    if (en) {
+      en.checked = alarmEnabled; // 恢复开关状态
+      en.addEventListener('change', function () { alarmEnabled = en.checked; });
+    }
 
     var saveBtn = document.getElementById('alarmSave');
     if (saveBtn) saveBtn.addEventListener('click', function () {
       alarmFired = false;
+      unlockAudio(); // 保存按钮也是用户手势，确保音频可用
+      saveAlarm();   // 持久化到 localStorage，刷新不再丢失
       stopRing();
       closePop();
     });
 
     var stopBtn = document.getElementById('alarmRingStop');
     if (stopBtn) stopBtn.addEventListener('click', stopRing);
+
+    // 页面切回前台时立即校准一次（避免后台节流导致检查延迟）
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) tickClock();
+    });
 
     tickClock();
     syncAlarmDisplay();
