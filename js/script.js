@@ -8344,3 +8344,179 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   load();
 })();
+
+/* ===== v148 闹钟模块：实时时钟 + 日期 + 闹钟设置与响铃 ===== */
+(function () {
+  var alarmHour = 7, alarmMinute = 30, alarmEnabled = false, alarmFired = false;
+  var audioCtx = null, ringTimer = null;
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function fmtDate(d) {
+    var mm = pad(d.getMonth() + 1), dd = pad(d.getDate());
+    return 'Today ' + mm + '-' + dd;
+  }
+
+  function tickClock() {
+    var now = new Date();
+    var elTime = document.getElementById('ncTimeNow');
+    if (elTime) elTime.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    var elToday = document.getElementById('ncToday');
+    if (elToday && elToday.lastChild && elToday.lastChild.nodeType === 3) {
+      elToday.lastChild.textContent = ' ' + fmtDate(now);
+    }
+    checkAlarm(now);
+  }
+
+  /* ---- 闹钟检查 ---- */
+  function checkAlarm(now) {
+    if (!alarmEnabled || alarmFired) return;
+    if (now.getHours() === alarmHour && now.getMinutes() === alarmMinute) {
+      alarmFired = true;
+      fireRing();
+    }
+  }
+
+  /* ---- 响铃：Web Audio 合成铃声 + 振动 ---- */
+  function fireRing() {
+    var pop = document.getElementById('alarmRingPop');
+    var tEl = document.getElementById('alarmRingTime');
+    if (tEl) tEl.textContent = pad(alarmHour) + ':' + pad(alarmMinute);
+    if (pop) pop.classList.add('show');
+    if (navigator.vibrate) {
+      try { navigator.vibrate([400, 200, 400, 200, 800]); } catch (e) {}
+    }
+    startBeep();
+  }
+
+  function startBeep() {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = audioCtx || new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var i = 0;
+      ringTimer = setInterval(function () {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = (i % 2 === 0) ? 880 : 660;
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.45);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+        i++;
+      }, 500);
+    } catch (e) {}
+  }
+
+  function stopRing() {
+    var pop = document.getElementById('alarmRingPop');
+    if (pop) pop.classList.remove('show');
+    if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
+    if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+  }
+
+  /* ---- 弹层开关 ---- */
+  function openPop() {
+    var pop = document.getElementById('alarmPop');
+    if (!pop) return;
+    syncPickerScroll();
+    pop.classList.add('show');
+  }
+  function closePop() {
+    var pop = document.getElementById('alarmPop');
+    if (pop) pop.classList.remove('show');
+  }
+
+  /* ---- 滚轮选择器 ---- */
+  function buildCol(elId, count, current, onPick) {
+    var col = document.getElementById(elId);
+    if (!col) return;
+    col.innerHTML = '';
+    for (var i = 0; i < count; i++) {
+      var item = document.createElement('div');
+      item.className = 'ap-item' + (i === current ? ' on' : '');
+      item.textContent = pad(i);
+      item.dataset.val = i;
+      item.addEventListener('click', function () {
+        onPick(parseInt(this.dataset.val, 10));
+        syncPickerScroll();
+      });
+      col.appendChild(item);
+    }
+    col.addEventListener('scroll', function () {
+      var idx = Math.round(col.scrollTop / 44);
+      if (idx >= 0 && idx < count) onPick(idx);
+    });
+    // 初始滚动到选中项
+    col.scrollTop = current * 44;
+  }
+
+  function syncPickerScroll() {
+    var hCol = document.getElementById('apHours');
+    var mCol = document.getElementById('apMinutes');
+    if (hCol) {
+      hCol.scrollTop = alarmHour * 44;
+      markItems(hCol, alarmHour);
+    }
+    if (mCol) {
+      mCol.scrollTop = alarmMinute * 44;
+      markItems(mCol, alarmMinute);
+    }
+  }
+
+  function markItems(col, cur) {
+    var items = col.querySelectorAll('.ap-item');
+    items.forEach(function (it, idx) {
+      it.classList.toggle('on', idx === cur);
+    });
+  }
+
+  /* ---- 初始化 ---- */
+  function init() {
+    var ringBtn = document.getElementById('ncRingBtn');
+    if (ringBtn) ringBtn.addEventListener('click', function (e) { e.stopPropagation(); openPop(); });
+
+    var closeBtn = document.getElementById('alarmClose');
+    if (closeBtn) closeBtn.addEventListener('click', closePop);
+
+    var pop = document.getElementById('alarmPop');
+    if (pop) pop.addEventListener('click', function (e) {
+      if (e.target === pop) closePop();
+    });
+
+    buildCol('apHours', 24, alarmHour, function (v) {
+      alarmHour = v;
+      document.getElementById('alarmHour').textContent = pad(v);
+    });
+    buildCol('apMinutes', 60, alarmMinute, function (v) {
+      alarmMinute = v;
+      document.getElementById('alarmMinute').textContent = pad(v);
+    });
+
+    var en = document.getElementById('alarmEnabled');
+    if (en) en.addEventListener('change', function () { alarmEnabled = en.checked; });
+
+    var saveBtn = document.getElementById('alarmSave');
+    if (saveBtn) saveBtn.addEventListener('click', function () {
+      alarmFired = false;
+      stopRing();
+      closePop();
+    });
+
+    var stopBtn = document.getElementById('alarmRingStop');
+    if (stopBtn) stopBtn.addEventListener('click', stopRing);
+
+    tickClock();
+    setInterval(tickClock, 1000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
