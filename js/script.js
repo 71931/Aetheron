@@ -232,7 +232,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     updateBattery();
 
     // ===== 今日状态 -> 实时本地天气（最高/最低℃） + 穿衣建议 =====
-    var weatherData = { city: '当前位置', todayHi: null, todayLo: null, tomorrowHi: null, tomorrowLo: null };
+    var weatherData = { city: '当前位置', todayHi: null, todayLo: null, tomorrowHi: null, tomorrowLo: null, todayRain: null, tomorrowRain: null };
 
     function dressAdvice(hi, lo) {
       var avg = (hi + lo) / 2;
@@ -246,34 +246,58 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       return '厚羽绒服全副武装，帽子围巾手套一样别少。';
     }
 
+    function rainText(prob, sum) {
+      var p = (typeof prob === 'number') ? prob : 0;
+      var s = (typeof sum === 'number') ? sum : 0;
+      if (s > 0.5) return { txt: '有雨，记得带伞 ☔', rain: true };
+      if (p >= 60) return { txt: '大概率下雨，备把伞 ☂', rain: true };
+      if (p >= 35) return { txt: '可能有雨，建议带伞', rain: true };
+      return { txt: '无雨，放心出门', rain: false };
+    }
+
     function renderWeatherPanel() {
       var elCity = document.getElementById('weatherCity');
       var elTodayTemp = document.getElementById('weatherTodayTemp');
+      var elTodayRain = document.getElementById('weatherTodayRain');
       var elTodayDress = document.getElementById('weatherTodayDress');
       var elTomorrowTemp = document.getElementById('weatherTomorrowTemp');
+      var elTomorrowRain = document.getElementById('weatherTomorrowRain');
       var elTomorrowDress = document.getElementById('weatherTomorrowDress');
       if (elCity) elCity.textContent = weatherData.city || '当前位置';
       if (weatherData.todayHi === null) {
         if (elTodayTemp) elTodayTemp.textContent = '--/--℃';
+        if (elTodayRain) { elTodayRain.textContent = '--'; elTodayRain.className = 'weather-rain'; }
         if (elTodayDress) elTodayDress.textContent = '暂未获取到天气数据';
         if (elTomorrowTemp) elTomorrowTemp.textContent = '--/--℃';
+        if (elTomorrowRain) { elTomorrowRain.textContent = '--'; elTomorrowRain.className = 'weather-rain'; }
         if (elTomorrowDress) elTomorrowDress.textContent = '暂未获取到天气数据';
         return;
       }
       if (elTodayTemp) elTodayTemp.textContent = weatherData.todayHi + '/' + weatherData.todayLo + '℃';
+      if (elTodayRain) {
+        var tr = rainText(weatherData.todayRain, weatherData.todayRainSum);
+        elTodayRain.textContent = tr.txt;
+        elTodayRain.className = 'weather-rain' + (tr.rain ? ' rain' : ' dry');
+      }
       if (elTodayDress) elTodayDress.textContent = '今天穿衣建议：' + dressAdvice(weatherData.todayHi, weatherData.todayLo);
       if (weatherData.tomorrowHi === null) {
         if (elTomorrowTemp) elTomorrowTemp.textContent = '--/--℃';
+        if (elTomorrowRain) { elTomorrowRain.textContent = '--'; elTomorrowRain.className = 'weather-rain'; }
         if (elTomorrowDress) elTomorrowDress.textContent = '暂未获取到明天数据';
       } else {
         if (elTomorrowTemp) elTomorrowTemp.textContent = weatherData.tomorrowHi + '/' + weatherData.tomorrowLo + '℃';
+        if (elTomorrowRain) {
+          var mr = rainText(weatherData.tomorrowRain, weatherData.tomorrowRainSum);
+          elTomorrowRain.textContent = mr.txt;
+          elTomorrowRain.className = 'weather-rain' + (mr.rain ? ' rain' : ' dry');
+        }
         if (elTomorrowDress) elTomorrowDress.textContent = '明天穿衣建议：' + dressAdvice(weatherData.tomorrowHi, weatherData.tomorrowLo);
       }
     }
 
     function fetchWeather(lat, lon, city) {
       fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
-        '&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto')
+        '&current_weather=true&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto')
         .then(function (r) { return r.json(); })
         .then(function (d) {
           var el = document.getElementById('weatherTemp');
@@ -284,9 +308,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             var lo = Math.round(d.daily.temperature_2m_min[0]);
             weatherData.todayHi = hi;
             weatherData.todayLo = lo;
+            if (d.daily.precipitation_probability_max) weatherData.todayRain = d.daily.precipitation_probability_max[0];
+            if (d.daily.precipitation_sum) weatherData.todayRainSum = d.daily.precipitation_sum[0];
             if (typeof d.daily.temperature_2m_max[1] === 'number' && typeof d.daily.temperature_2m_min[1] === 'number') {
               weatherData.tomorrowHi = Math.round(d.daily.temperature_2m_max[1]);
               weatherData.tomorrowLo = Math.round(d.daily.temperature_2m_min[1]);
+              if (d.daily.precipitation_probability_max) weatherData.tomorrowRain = d.daily.precipitation_probability_max[1];
+              if (d.daily.precipitation_sum) weatherData.tomorrowRainSum = d.daily.precipitation_sum[1];
             }
             el.textContent = hi + '/' + lo + '℃';
           } else if (d && d.current_weather && typeof d.current_weather.temperature === 'number') {

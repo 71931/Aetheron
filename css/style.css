@@ -390,12 +390,22 @@
     font-size: 42px; font-weight: 800; color: var(--text);
     letter-spacing: 1px; line-height: 1.1;
   }
+  .weather-rain {
+    margin-top: 8px; font-size: 13px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px; padding: 5px 12px;
+    color: var(--text);
+  }
+  .weather-rain.rain { color: #5ac8fa; }
+  .weather-rain.dry { color: #30d158; }
   .weather-dress {
     margin-top: 12px; font-size: 14px; line-height: 1.6; color: var(--text-dim);
     padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.07);
   }
   body.light .weather-block { background: #ffffff; border-color: rgba(0,0,0,0.06); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   body.light .weather-daytag { background: rgba(0,0,0,0.06); }
+  body.light .weather-rain { background: rgba(0,0,0,0.06); }
   body.light .weather-dress { border-top-color: rgba(0,0,0,0.07); }
 
   /* ============ 设置面板 ============ */
