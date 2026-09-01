@@ -232,6 +232,40 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     updateBattery();
 
+    // ===== 今日状态 -> 实时本地天气（最高/最低℃） =====
+    function fetchWeather(lat, lon) {
+      fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+        '&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var el = document.getElementById('weatherTemp');
+          if (!el) return;
+          if (d && d.daily && d.daily.temperature_2m_max && d.daily.temperature_2m_min) {
+            var hi = Math.round(d.daily.temperature_2m_max[0]);
+            var lo = Math.round(d.daily.temperature_2m_min[0]);
+            el.textContent = hi + '/' + lo + '℃';
+          } else if (d && d.current_weather && typeof d.current_weather.temperature === 'number') {
+            el.textContent = Math.round(d.current_weather.temperature) + '℃';
+          }
+        }).catch(function () {});
+    }
+    function weatherByIP() {
+      fetch('https://ipapi.co/json/')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
+            fetchWeather(d.latitude, d.longitude);
+          }
+        }).catch(function () {});
+    }
+    function updateWeather() {
+      if (!navigator.geolocation) { weatherByIP(); return; }
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        fetchWeather(pos.coords.latitude, pos.coords.longitude);
+      }, function () { weatherByIP(); }, { timeout: 4000, maximumAge: 600000 });
+    }
+    updateWeather();
+
     // ===== 默认状态 =====
     var defaultState = {
       cover: { img: '', posY: 0 },
