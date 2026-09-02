@@ -456,6 +456,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var homeTop = document.getElementById('homeTop');
     var statusModule = document.getElementById('statusModule');
     var homeCanvas = document.getElementById('homeCanvas');
+    var hubModule = document.getElementById('hubModule');
     var homeBottom = document.getElementById('homeBottom');
     var nameEl = document.querySelector('.name');
     var handleEl = document.querySelector('.handle');
@@ -489,10 +490,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         cover.classList.add('has-img');
       }
       if (state.avatar) { avatar.style.backgroundImage = "url('" + state.avatar + "')"; avatar.classList.add('has-img'); }
-      if (state.topBg || state.bottomBg) {
-        var pageBg = state.topBg || state.bottomBg;
-        homeCanvas.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + pageBg + "')";
-        homeCanvas.classList.add('has-img');
+      if (state.topBg) {
+        statusModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + state.topBg + "')";
+        statusModule.classList.add('has-img');
+      }
+      if (state.bottomBg) {
+        hubModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + state.bottomBg + "')";
+        hubModule.classList.add('has-img');
       }
       if (state.twAvatar) { twAvatar.style.backgroundImage = "url('" + state.twAvatar + "')"; }
       if (state.name) nameEl.textContent = state.name;
@@ -746,11 +750,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             if (appIcons[i] === uploadTarget) { iconIdx = i; break; }
           }
           if (iconIdx >= 0) state.apps['app-' + iconIdx] = url;
-        } else if (uploadTarget === statusModule || uploadTarget === homeBottom || uploadTarget === homeTop) {
-          // v121：上半区/下半区背景图统一为整页背景，铺满整个 home-canvas
-          homeCanvas.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + url + "')";
-          homeCanvas.classList.add('has-img');
+        } else if (uploadTarget === statusModule || uploadTarget === homeTop) {
+          // v156：上半区背景单独铺在上半模块（不再铺满整页）
+          statusModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + url + "')";
+          statusModule.classList.add('has-img');
           state.topBg = url;
+        } else if (uploadTarget === homeBottom) {
+          // v156：下半区背景单独铺在下半模块
+          hubModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + url + "')";
+          hubModule.classList.add('has-img');
+          state.bottomBg = url;
         } else if (uploadMode === 'polaroid') {
           state.polaroid = state.polaroid || {};
           state.polaroid.img = url;
@@ -8387,6 +8396,142 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   load();
 })();
 
+/* ===== v156: 气泡长按调色（长按弹出面板，改底色/文字色，持久化） ===== */
+(function () {
+  var KEY = 'aetheron_bubble_colors_v156';
+  var DEFAULTS = { sent: { bg: '#6e6e6e', fg: '#ffffff' }, received: { bg: '#ffffff', fg: '#210202' } };
+  var bubbles = document.querySelectorAll('.ins-bubble[data-key]');
+  var panel = document.getElementById('bubblePanel');
+  var bgInput = document.getElementById('bpBgColor');
+  var fgInput = document.getElementById('bpFgColor');
+  var curLabel = document.getElementById('bpCur');
+  var current = null;   // 当前调色的气泡元素
+  var longTimer = null;
+  var suppressClick = false;
+
+  if (!panel || !bgInput || !fgInput) return;
+
+  function roleOf(el) { return el.classList.contains('message-sent') ? 'sent' : 'received'; }
+  function defaultsOf(el) { return DEFAULTS[roleOf(el)]; }
+  function currentColor(el) {
+    var d = defaultsOf(el);
+    return {
+      bg: getComputedStyle(el).getPropertyValue('--bbg').trim() || d.bg,
+      fg: getComputedStyle(el).getPropertyValue('--bfg').trim() || d.fg
+    };
+  }
+
+  function loadSaved() {
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+    bubbles.forEach(function (el) {
+      var k = el.getAttribute('data-key');
+      var c = saved[k];
+      if (!c) return;
+      el.style.setProperty('--bbg', c.bg);
+      el.style.setProperty('--bfg', c.fg);
+    });
+  }
+
+  function persist(el) {
+    var obj = {};
+    try { obj = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+    obj[el.getAttribute('data-key')] = {
+      bg: getComputedStyle(el).getPropertyValue('--bbg').trim(),
+      fg: getComputedStyle(el).getPropertyValue('--bfg').trim()
+    };
+    try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch (e) {}
+  }
+
+  function syncPanel() {
+    var c = currentColor(current);
+    bgInput.value = c.bg;
+    fgInput.value = c.fg;
+    curLabel.textContent = roleOf(current) === 'sent' ? '我发出的' : '收到的';
+  }
+
+  function openPanel(el, x, y) {
+    current = el;
+    syncPanel();
+    panel.hidden = false;
+    panel.style.left = '0px';
+    panel.style.top = '0px';
+    var pw = panel.offsetWidth, ph = panel.offsetHeight;
+    var left = Math.max(4, Math.min(x, window.innerWidth - pw - 4));
+    var top = y + 12;
+    if (top + ph > window.innerHeight - 4) top = Math.max(4, y - ph - 12);
+    panel.style.left = left + 'px';
+    panel.style.top = top + 'px';
+  }
+
+  function closePanel() {
+    if (panel.hidden) return;
+    panel.hidden = true;
+    current = null;
+  }
+
+  bgInput.addEventListener('input', function () {
+    if (!current) return;
+    current.style.setProperty('--bbg', bgInput.value);
+    persist(current);
+  });
+  fgInput.addEventListener('input', function () {
+    if (!current) return;
+    current.style.setProperty('--bfg', fgInput.value);
+    persist(current);
+  });
+
+  document.getElementById('bpReset').addEventListener('click', function () {
+    if (!current) return;
+    var d = defaultsOf(current);
+    current.style.setProperty('--bbg', d.bg);
+    current.style.setProperty('--bfg', d.fg);
+    var obj = {};
+    try { obj = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+    delete obj[current.getAttribute('data-key')];
+    try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch (e) {}
+    syncPanel();
+  });
+  document.getElementById('bpApply').addEventListener('click', closePanel);
+
+  function startLong(el, x, y) {
+    stopLong();
+    longTimer = setTimeout(function () {
+      longTimer = null;
+      suppressClick = true;
+      setTimeout(function () { suppressClick = false; }, 600);
+      openPanel(el, x, y);
+    }, 500);
+  }
+  function stopLong() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } }
+
+  bubbles.forEach(function (el) {
+    el.addEventListener('touchstart', function (e) {
+      var t = e.touches[0];
+      startLong(el, t.clientX, t.clientY);
+    }, { passive: true });
+    el.addEventListener('touchmove', stopLong, { passive: true });
+    el.addEventListener('touchend', stopLong);
+    el.addEventListener('touchcancel', stopLong);
+    el.addEventListener('mousedown', function (e) { startLong(el, e.clientX, e.clientY); });
+    el.addEventListener('mouseup', stopLong);
+    el.addEventListener('mouseleave', stopLong);
+    el.addEventListener('click', function (e) {
+      if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+  });
+
+  document.addEventListener('mousedown', function (e) {
+    if (!panel.hidden && !panel.contains(e.target)) closePanel();
+  });
+  document.addEventListener('touchstart', function (e) {
+    if (!panel.hidden && !panel.contains(e.target)) closePanel();
+  }, { passive: true });
+  window.addEventListener('resize', closePanel);
+
+  loadSaved();
+})();
+
 /* ===== v154 闹钟模块：主页开关列表 → 完整列表管理 → 编辑向导(时间/循环/命名) ===== */
 (function () {
   var ALARM_KEY = 'aetheron_alarm_v154';
@@ -8780,59 +8925,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
   }
 
-  /* ---- 滚轮选择器（只更新草稿 + 顶部数字） ---- */
-  function buildCol(elId, count, getCur, onPick) {
-    var col = document.getElementById(elId);
-    if (!col) return;
-    col.innerHTML = '';
-    for (var i = 0; i < count; i++) {
-      var item = document.createElement('div');
-      item.className = 'ap-item';
-      item.textContent = pad(i);
-      item.dataset.val = i;
-      item.addEventListener('click', function () {
-        onPick(parseInt(this.dataset.val, 10));
-      });
-      col.appendChild(item);
-    }
-    var scrollTimer = null;
-    col.addEventListener('scroll', function () {
-      if (scrollTimer) clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(function () {
-        var idx = Math.round(col.scrollTop / 44);
-        if (idx >= 0 && idx < count) onPick(idx);
-      }, 160);
-    });
-    col.addEventListener('click', function (e) { e.stopPropagation(); });
-    col.scrollTop = getCur() * 44;
-  }
-
+  /* ---- 顶部时间数字刷新（v156 已移除滚轮，仅同步数字） ---- */
   function syncPickerScroll() {
-    var hCol = document.getElementById('apHours');
-    var mCol = document.getElementById('apMinutes');
-    if (hCol) {
-      hCol.scrollTop = editDraftHour * 44;
-      markItems(hCol, editDraftHour);
-    }
-    if (mCol) {
-      mCol.scrollTop = editDraftMin * 44;
-      markItems(mCol, editDraftMin);
-    }
     var hEl = document.getElementById('alarmHour');
     var mEl = document.getElementById('alarmMinute');
     if (hEl && hEl.tagName !== 'INPUT') hEl.textContent = pad(editDraftHour);
     if (mEl && mEl.tagName !== 'INPUT') mEl.textContent = pad(editDraftMin);
-  }
-
-  function markItems(col, cur) {
-    var items = col.querySelectorAll('.ap-item');
-    items.forEach(function (it, idx) {
-      it.classList.toggle('on', idx === cur);
-    });
-  }
-
-  function commitDraftTime() {
-    syncPickerScroll();
   }
 
   /* ---- 顶部时间数字：点击改为可编辑输入 ---- */
@@ -8860,7 +8958,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         input.replaceWith(span);
         bindNumEdit(span, maxVal, setter);
         syncPickerScroll();
-        commitDraftTime();
       }
       input.addEventListener('blur', commit);
       input.addEventListener('keydown', function (e) {
@@ -8960,16 +9057,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       showView('list');
     });
 
-    // 时间滚轮
-    buildCol('apHours', 24, function () { return editDraftHour; }, function (v) {
-      editDraftHour = v;
-      syncPickerScroll();
-    });
-    buildCol('apMinutes', 60, function () { return editDraftMin; }, function (v) {
-      editDraftMin = v;
-      syncPickerScroll();
-    });
-    // 顶部时间数字点击改写
+    // 顶部时间数字点击改写（v156 已移除滚轮）
     bindNumEdit(document.getElementById('alarmHour'), 23, function (v) { editDraftHour = v; });
     bindNumEdit(document.getElementById('alarmMinute'), 59, function (v) { editDraftMin = v; });
 

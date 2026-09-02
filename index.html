@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · 可编辑组件 · v155</title>
-<link rel="stylesheet" href="css/style.css?v=155">
+<title>Aetheron 黑白桌面 · 可编辑组件 · v156</title>
+<link rel="stylesheet" href="css/style.css?v=156">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -222,8 +222,18 @@
         </div>
       </div>
       <div class="ins-col">
-        <div class="message-received ins-bubble" id="bubble-0" data-key="0">又是一个下雨天</div>
-        <div class="message-sent ins-bubble" id="bubble-1" data-key="1">我可以拥抱你吗？</div>
+        <div class="message-received ins-bubble" id="bubble-0" data-key="0" title="单击编辑文字 / 长按调色">又是一个下雨天</div>
+        <div class="message-sent ins-bubble" id="bubble-1" data-key="1" title="单击编辑文字 / 长按调色">我可以拥抱你吗？</div>
+      </div>
+    </div>
+    <!-- v156：气泡长按调色面板 -->
+    <div class="bubble-panel" id="bubblePanel" hidden>
+      <div class="bp-head">气泡调色<span class="bp-cur" id="bpCur"></span></div>
+      <div class="bp-row"><label>底色</label><input type="color" id="bpBgColor" value="#ffffff"></div>
+      <div class="bp-row"><label>文字</label><input type="color" id="bpFgColor" value="#210202"></div>
+      <div class="bp-actions">
+        <button id="bpReset" type="button">恢复默认</button>
+        <button id="bpApply" type="button">完成</button>
       </div>
     </div>
   </div>
@@ -1119,17 +1129,14 @@
         <span class="alarm-head-spacer"></span>
       </div>
 
-      <!-- 步骤1：时间（滚动选取 / 点数字手改） -->
+      <!-- 步骤1：时间（点数字直接手改，v156 已去掉滚轮） -->
       <div class="alarm-step" id="alarmStepTime">
         <div class="alarm-time-row">
           <span class="alarm-hm" id="alarmHour" contenteditable="false">07</span>
           <span class="alarm-colon">:</span>
           <span class="alarm-hm" id="alarmMinute" contenteditable="false">30</span>
         </div>
-        <div class="alarm-picker">
-          <div class="ap-col" id="apHours"></div>
-          <div class="ap-col" id="apMinutes"></div>
-        </div>
+        <p class="alarm-step-tip">点击数字直接输入时间</p>
         <button class="alarm-save" id="alarmTimeOk" type="button">确定</button>
       </div>
 
