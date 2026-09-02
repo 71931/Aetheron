@@ -8390,11 +8390,27 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 /* ===== v151 闹钟模块：实时时钟 + 日期 + 闹钟设置与响铃（持久化+音频解锁） ===== */
 (function () {
   var ALARM_KEY = 'aetheron_alarm_v152';
-  var alarms = [];           // [{hour, minute, enabled, fired}]
+  var alarms = [];           // [{hour, minute, enabled, fired, repeat, lastFire, weekday}]
   var editIdx = -1;          // 当前滚轮编辑的闹钟下标，-1 表示新增
   var audioCtx = null, ringTimer = null, audioUnlocked = false;
+  var toastTimer = null;
+  var REPEAT_LABEL = { once: '不循环', daily: '每天', weekly: '每周' };
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
 
   /* ---- localStorage 持久化 ---- */
   function saveAlarm() {
@@ -8412,15 +8428,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         alarms = obj;
       } else if (typeof obj.hour === 'number') {
         // v151 单闹钟数据迁移
-        alarms = [{ hour: obj.hour, minute: obj.minute, enabled: !!obj.enabled, fired: false }];
+        alarms = [{ hour: obj.hour, minute: obj.minute, enabled: !!obj.enabled, fired: false, repeat: 'once' }];
       }
       alarms.forEach(function (a) {
         if (typeof a.enabled !== 'boolean') a.enabled = false;
+        if (!a.repeat) a.repeat = 'once';
         a.fired = false;
       });
-      if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+      if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
     } catch (e) {
-      alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+      alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
     }
   }
 
@@ -8477,10 +8494,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* ---- 闹钟检查：遍历所有启用的闹钟 ---- */
   function checkAlarm(now) {
     var h = now.getHours(), m = now.getMinutes();
+    var today = todayStr();
     alarms.forEach(function (a) {
-      if (!a.enabled || a.fired) return;
+      if (!a.enabled) return;
+      var rep = a.repeat || 'once';
+      if (rep === 'once') {
+        if (a.fired) return;
+      } else if (rep === 'daily') {
+        if (a.lastFire === today) return;
+      } else if (rep === 'weekly') {
+        if (typeof a.weekday !== 'number' || a.weekday !== now.getDay()) return;
+        if (a.lastFire === today) return;
+      }
       if (a.hour === h && a.minute === m) {
         a.fired = true;
+        a.lastFire = today;
         fireRing(a);
       }
     });
@@ -8539,14 +8567,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function curHour() { return editIdx >= 0 ? alarms[editIdx].hour : alarms[0].hour; }
   function curMinute() { return editIdx >= 0 ? alarms[editIdx].minute : alarms[0].minute; }
 
+  function syncRepeatUI() {
+    var opts = document.querySelectorAll('#alarmRepeat button');
+    if (!opts.length) return;
+    var cur = (editIdx >= 0 && alarms[editIdx]) ? (alarms[editIdx].repeat || 'once') : 'once';
+    opts.forEach(function (btn) {
+      btn.classList.toggle('on', btn.dataset.r === cur);
+    });
+  }
+
   function openPop() {
     var pop = document.getElementById('alarmPop');
     if (!pop) return;
     unlockAudio(); // 用户手势，解锁音频
-    if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+    if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
     if (editIdx < 0) editIdx = 0;
     var en = document.getElementById('alarmEnabled');
     if (en) en.checked = !!alarms[editIdx].enabled;
+    syncRepeatUI();
     syncPickerScroll();
     renderList();
     pop.classList.add('show');
@@ -8570,7 +8608,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       time.textContent = pad(a.hour) + ':' + pad(a.minute);
       var st = document.createElement('span');
       st.className = 'alarm-row-state';
-      st.textContent = a.enabled ? '已启用' : '已关闭';
+      st.textContent = (a.enabled ? '已启用' : '已关闭') + ' · ' + (REPEAT_LABEL[a.repeat] || '不循环');
       var del = document.createElement('button');
       del.className = 'alarm-row-del';
       del.type = 'button';
@@ -8582,16 +8620,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       row.addEventListener('click', function (e) {
         if (e.target === del) return;
         editIdx = idx;
+        syncRepeatUI();
         syncPickerScroll();
       });
       // 删除闹钟
       del.addEventListener('click', function (e) {
         e.stopPropagation();
         alarms.splice(idx, 1);
-        if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+        if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
         if (editIdx >= alarms.length) editIdx = alarms.length - 1;
         saveAlarm();
         renderList();
+        syncRepeatUI();
         syncPickerScroll();
         syncAlarmDisplay();
       });
@@ -8687,22 +8727,42 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (addBtn) addBtn.addEventListener('click', function () {
       var h = parseInt(document.getElementById('alarmHour').textContent, 10) || 7;
       var m = parseInt(document.getElementById('alarmMinute').textContent, 10) || 0;
+      // 最多 5 个闹钟
+      if (alarms.length >= 5) { showToast('最多设置 5 个闹钟'); return; }
       // 查重：相同时间已存在则不重复添加
       for (var i = 0; i < alarms.length; i++) {
-        if (alarms[i].hour === h && alarms[i].minute === m) { editIdx = i; syncPickerScroll(); renderList(); return; }
+        if (alarms[i].hour === h && alarms[i].minute === m) { editIdx = i; syncPickerScroll(); renderList(); syncRepeatUI(); return; }
       }
-      alarms.push({ hour: h, minute: m, enabled: true, fired: false });
+      alarms.push({ hour: h, minute: m, enabled: true, fired: false, repeat: 'once' });
       editIdx = alarms.length - 1;
       var en = document.getElementById('alarmEnabled');
       if (en) en.checked = true;
+      syncRepeatUI();
       saveAlarm();
       renderList();
       syncPickerScroll();
       syncAlarmDisplay();
     });
 
+    // 循环模式切换
+    var repBtns = document.querySelectorAll('#alarmRepeat button');
+    repBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (editIdx < 0 || !alarms[editIdx]) return;
+        alarms[editIdx].repeat = btn.dataset.r;
+        if (btn.dataset.r !== 'weekly') alarms[editIdx].weekday = null;
+        syncRepeatUI();
+        renderList();
+      });
+    });
+
     var saveBtn = document.getElementById('alarmSave');
     if (saveBtn) saveBtn.addEventListener('click', function () {
+      // 每周闹钟记录星期几（按保存当天）
+      var today = new Date();
+      alarms.forEach(function (a) {
+        if (a.enabled && a.repeat === 'weekly' && typeof a.weekday !== 'number') a.weekday = today.getDay();
+      });
       // 让启用的闹钟同步到系统闹钟，保证关掉 App 也能响
       alarms.forEach(function (a) {
         a.fired = false;
@@ -8777,7 +8837,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     try {
       var cap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AetheronAlarm;
       if (!cap || !cap.setAlarm) return;
-      cap.setAlarm({ hour: a.hour, minute: a.minute, msg: 'Aetheron 闹钟 ' + pad(a.hour) + ':' + pad(a.minute) }).catch(function () {});
+      cap.setAlarm({ hour: a.hour, minute: a.minute, repeat: a.repeat || 'once', msg: 'Aetheron 闹钟 ' + pad(a.hour) + ':' + pad(a.minute) }).catch(function () {});
     } catch (e) {}
   }
 

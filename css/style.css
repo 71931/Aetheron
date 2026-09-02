@@ -2127,6 +2127,21 @@
 .ap-item.on { color: #1d1d22; font-size: 22px; font-weight: 800; transform: scale(1.05); }
 .alarm-foot { display: flex; align-items: center; justify-content: space-between; }
 .alarm-list { max-height: 132px; overflow-y: auto; margin: 4px 0 10px; border-radius: 12px; background: rgba(255,255,255,0.35); border: 1px solid rgba(0,0,0,0.05); }
+
+.alarm-repeat { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; font-size: 13px; color: #55555c; }
+
+.alarm-repeat-label { font-weight: 600; }
+
+.alarm-repeat-opts { display: flex; gap: 6px; }
+
+.alarm-repeat-opts button {
+  border: 1px solid rgba(0,0,0,0.12); background: rgba(255,255,255,0.55); color: #55555c;
+  font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 9px; cursor: pointer; transition: all .15s;
+}
+
+.alarm-repeat-opts button.on { background: #1d1d22; color: #fff; border-color: #1d1d22; }
+
+.alarm-repeat-opts button:active { transform: scale(0.95); }
 .alarm-list::-webkit-scrollbar { display: none; }
 .alarm-row {
   display: flex; align-items: center; gap: 8px; padding: 8px 12px;
