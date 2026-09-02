@@ -357,10 +357,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }).catch(function () {});
     }
     function updateWeather() {
+      // APK(WebView) 内 geolocation 常因授权缺失静默失败：Capacitor 环境优先走 IP 定位兜底
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        weatherByIP();
+        return;
+      }
       if (!navigator.geolocation) { weatherByIP(); return; }
+      var done = false;
+      var ipFallback = setTimeout(function () { if (!done) { done = true; weatherByIP(); } }, 4500);
       navigator.geolocation.getCurrentPosition(function (pos) {
+        if (done) return; done = true; clearTimeout(ipFallback);
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
-      }, function () { weatherByIP(); }, { timeout: 4000, maximumAge: 600000 });
+      }, function () {
+        if (done) return; done = true; clearTimeout(ipFallback);
+        weatherByIP();
+      }, { timeout: 4000, maximumAge: 600000 });
     }
     updateWeather();
 
@@ -460,6 +471,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var polaroidWidget = document.querySelector('.media-ecg .heart-photo-widget');
     var polaroidStyleEl = document.getElementById('polaroidStyle');
     var avatarEls = document.querySelectorAll('.media-ecg .link-avatar');
+    var ncAvatarEl = document.querySelector('.nc-avatar');
+    var ncMsgEl = document.querySelector('.nc-msg');
+    var ncUserEl = document.querySelector('.nc-user');
     var ecgEditBar = document.getElementById('ecgEditBar');
     var polaroidPanel = document.getElementById('polaroidPanel');
 
@@ -498,6 +512,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (state.ecgBg) { mediaEcg.style.backgroundImage = "url('" + state.ecgBg + "')"; mediaEcg.classList.add('has-img'); }
       if (state.avatarL && avatarEls[0]) avatarEls[0].style.backgroundImage = "url('" + state.avatarL + "')";
       if (state.avatarR && avatarEls[1]) avatarEls[1].style.backgroundImage = "url('" + state.avatarR + "')";
+      if (state.ncAvatar && ncAvatarEl) { ncAvatarEl.style.backgroundImage = "url('" + state.ncAvatar + "')"; ncAvatarEl.classList.add('has-img'); }
+      if (state.ncMsg && ncMsgEl) ncMsgEl.textContent = state.ncMsg;
+      if (state.ncUser && ncUserEl) ncUserEl.textContent = state.ncUser;
     }
     state.polaroid = Object.assign({ img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 }, state.polaroid || {});
     applyState();
@@ -568,15 +585,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.addEventListener('click', function () { openPicker(el, 'bg'); });
     });
 
-    // v112：点击上下半区空白上传对应背景（与头像/气泡/卡片内部交互区分）
-    statusModule.addEventListener('click', function (e) {
-      if (e.target.closest && (e.target.closest('.avatar') || e.target.closest('.wire-bubble') || e.target.closest('.music-card') || e.target.closest('.notify-card') || e.target.closest('.nc-widget'))) return;
-      openPicker(statusModule, 'bg');
-    });
-    homeBottom.addEventListener('click', function (e) {
-      if (e.target.closest && (e.target.closest('.bottom-card') || e.target.closest('.app') || e.target.closest('.bubble-col') || e.target.closest('.media-ecg') || e.target.closest('.ecg-editbar') || e.target.closest('.polaroid-panel'))) return;
-      openPicker(homeBottom, 'bg');
-    });
+    // v112：上下半区空白长按上传对应背景（单击不再误触，避免点天气/点空白进相册）
+    function bindBgLongPress(el) {
+      var t = null;
+      el.addEventListener('touchstart', function () {
+        t = setTimeout(function () { openPicker(el, 'bg'); }, 600);
+      });
+      el.addEventListener('touchend', function () { clearTimeout(t); });
+      el.addEventListener('touchmove', function () { clearTimeout(t); });
+      el.addEventListener('contextmenu', function (e) { e.preventDefault(); openPicker(el, 'bg'); });
+    }
+    bindBgLongPress(statusModule);
+    bindBgLongPress(homeBottom);
 
     // v135：小组件内交互 —— 拍立得换图 / 头像替换 / 组件背景上传
     polaroidWidget.addEventListener('click', function (e) {
@@ -590,9 +610,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     });
 
+    // v152：通知卡片头像点击换图；文案点击直接编辑
+    if (ncAvatarEl) {
+      ncAvatarEl.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openPicker(ncAvatarEl, 'avatar');
+      });
+    }
+    [ncMsgEl, ncUserEl].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+      });
+      el.addEventListener('blur', function () {
+        var txt = el.textContent.trim();
+        if (el === ncMsgEl) state.ncMsg = txt;
+        else if (el === ncUserEl) state.ncUser = txt;
+        saveState();
+      });
+    });
+
     // v135：长按组件弹出编辑美化栏；点击组件其它区域关闭
+    // v152：拍立得长按只弹调色面板（不再弹多按钮编辑栏）
     var ecgLongTimer = null, ecgLongPressed = false;
-    function showEcgEditBar() { ecgEditBar.hidden = false; }
+    function showEcgEditBar() { if (polaroidPanel) { syncPanelFromState(); polaroidPanel.hidden = false; } }
     function hideEcgEditBar() { ecgEditBar.hidden = true; }
     mediaEcg.addEventListener('touchstart', function () {
       ecgLongPressed = false;
@@ -721,6 +762,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           else if (uploadTarget === twAvatar) state.twAvatar = url;
           else if (avatarEls[0] && uploadTarget === avatarEls[0]) state.avatarL = url;
           else if (avatarEls[1] && uploadTarget === avatarEls[1]) state.avatarR = url;
+          else if (ncAvatarEl && uploadTarget === ncAvatarEl) state.ncAvatar = url;
         } else if (uploadMode === 'ecgBg') {
           uploadTarget.style.backgroundImage = "url('" + url + "')";
           uploadTarget.style.backgroundSize = 'cover';
@@ -8347,8 +8389,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
 /* ===== v151 闹钟模块：实时时钟 + 日期 + 闹钟设置与响铃（持久化+音频解锁） ===== */
 (function () {
-  var ALARM_KEY = 'aetheron_alarm_v151';
-  var alarmHour = 7, alarmMinute = 30, alarmEnabled = false, alarmFired = false;
+  var ALARM_KEY = 'aetheron_alarm_v152';
+  var alarms = [];           // [{hour, minute, enabled, fired}]
+  var editIdx = -1;          // 当前滚轮编辑的闹钟下标，-1 表示新增
   var audioCtx = null, ringTimer = null, audioUnlocked = false;
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -8356,9 +8399,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* ---- localStorage 持久化 ---- */
   function saveAlarm() {
     try {
-      localStorage.setItem(ALARM_KEY, JSON.stringify({
-        hour: alarmHour, minute: alarmMinute, enabled: alarmEnabled
-      }));
+      localStorage.setItem(ALARM_KEY, JSON.stringify(alarms));
     } catch (e) {}
   }
 
@@ -8367,10 +8408,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var raw = localStorage.getItem(ALARM_KEY);
       if (!raw) return;
       var obj = JSON.parse(raw);
-      if (typeof obj.hour === 'number' && obj.hour >= 0 && obj.hour < 24) alarmHour = obj.hour;
-      if (typeof obj.minute === 'number' && obj.minute >= 0 && obj.minute < 60) alarmMinute = obj.minute;
-      if (typeof obj.enabled === 'boolean') alarmEnabled = obj.enabled;
-    } catch (e) {}
+      if (Array.isArray(obj)) {
+        alarms = obj;
+      } else if (typeof obj.hour === 'number') {
+        // v151 单闹钟数据迁移
+        alarms = [{ hour: obj.hour, minute: obj.minute, enabled: !!obj.enabled, fired: false }];
+      }
+      alarms.forEach(function (a) {
+        if (typeof a.enabled !== 'boolean') a.enabled = false;
+        a.fired = false;
+      });
+      if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+    } catch (e) {
+      alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+    }
   }
 
   /* ---- 音频解锁：必须在用户手势中调用，否则浏览器拦截播放 ---- */
@@ -8403,7 +8454,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* 时间栏显示闹钟设定时间 */
   function syncAlarmDisplay() {
     var elTime = document.getElementById('ncTimeNow');
-    if (elTime) elTime.textContent = pad(alarmHour) + ':' + pad(alarmMinute);
+    var on = alarms.some(function (a) { return a.enabled; });
+    if (elTime) {
+      if (on) {
+        var a = alarms[0];
+        elTime.textContent = pad(a.hour) + ':' + pad(a.minute);
+      } else {
+        elTime.textContent = '--:--';
+      }
+    }
   }
 
   function tickClock() {
@@ -8415,20 +8474,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     checkAlarm(now);
   }
 
-  /* ---- 闹钟检查 ---- */
+  /* ---- 闹钟检查：遍历所有启用的闹钟 ---- */
   function checkAlarm(now) {
-    if (!alarmEnabled || alarmFired) return;
-    if (now.getHours() === alarmHour && now.getMinutes() === alarmMinute) {
-      alarmFired = true;
-      fireRing();
-    }
+    var h = now.getHours(), m = now.getMinutes();
+    alarms.forEach(function (a) {
+      if (!a.enabled || a.fired) return;
+      if (a.hour === h && a.minute === m) {
+        a.fired = true;
+        fireRing(a);
+      }
+    });
   }
 
   /* ---- 响铃：Web Audio 合成铃声 + 振动 ---- */
-  function fireRing() {
+  function fireRing(a) {
     var pop = document.getElementById('alarmRingPop');
     var tEl = document.getElementById('alarmRingTime');
-    if (tEl) tEl.textContent = pad(alarmHour) + ':' + pad(alarmMinute);
+    if (tEl) tEl.textContent = pad(a.hour) + ':' + pad(a.minute);
     if (pop) pop.classList.add('show');
     if (navigator.vibrate) {
       try { navigator.vibrate([400, 200, 400, 200, 800]); } catch (e) {}
@@ -8474,16 +8536,67 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   /* ---- 弹层开关 ---- */
+  function curHour() { return editIdx >= 0 ? alarms[editIdx].hour : alarms[0].hour; }
+  function curMinute() { return editIdx >= 0 ? alarms[editIdx].minute : alarms[0].minute; }
+
   function openPop() {
     var pop = document.getElementById('alarmPop');
     if (!pop) return;
     unlockAudio(); // 用户手势，解锁音频
+    if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+    if (editIdx < 0) editIdx = 0;
+    var en = document.getElementById('alarmEnabled');
+    if (en) en.checked = !!alarms[editIdx].enabled;
     syncPickerScroll();
+    renderList();
     pop.classList.add('show');
   }
   function closePop() {
     var pop = document.getElementById('alarmPop');
     if (pop) pop.classList.remove('show');
+    editIdx = -1;
+  }
+
+  /* ---- 列表渲染：展示已设置的所有闹钟 ---- */
+  function renderList() {
+    var list = document.getElementById('alarmList');
+    if (!list) return;
+    list.innerHTML = '';
+    alarms.forEach(function (a, idx) {
+      var row = document.createElement('div');
+      row.className = 'alarm-row' + (a.enabled ? ' on' : '');
+      var time = document.createElement('span');
+      time.className = 'alarm-row-time';
+      time.textContent = pad(a.hour) + ':' + pad(a.minute);
+      var st = document.createElement('span');
+      st.className = 'alarm-row-state';
+      st.textContent = a.enabled ? '已启用' : '已关闭';
+      var del = document.createElement('button');
+      del.className = 'alarm-row-del';
+      del.type = 'button';
+      del.textContent = '删除';
+      row.appendChild(time);
+      row.appendChild(st);
+      row.appendChild(del);
+      // 点击行：载入滚轮编辑
+      row.addEventListener('click', function (e) {
+        if (e.target === del) return;
+        editIdx = idx;
+        syncPickerScroll();
+      });
+      // 删除闹钟
+      del.addEventListener('click', function (e) {
+        e.stopPropagation();
+        alarms.splice(idx, 1);
+        if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false }];
+        if (editIdx >= alarms.length) editIdx = alarms.length - 1;
+        saveAlarm();
+        renderList();
+        syncPickerScroll();
+        syncAlarmDisplay();
+      });
+      list.appendChild(row);
+    });
   }
 
   /* ---- 滚轮选择器 ---- */
@@ -8502,10 +8615,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
       col.appendChild(item);
     }
+    var scrollTimer = null;
     col.addEventListener('scroll', function () {
-      var idx = Math.round(col.scrollTop / 44);
-      if (idx >= 0 && idx < count) onPick(idx);
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(function () {
+        var idx = Math.round(col.scrollTop / 44);
+        if (idx >= 0 && idx < count) onPick(idx);
+      }, 180);
     });
+    col.addEventListener('click', function (e) { e.stopPropagation(); });
     // 初始滚动到选中项
     col.scrollTop = current * 44;
   }
@@ -8513,13 +8631,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function syncPickerScroll() {
     var hCol = document.getElementById('apHours');
     var mCol = document.getElementById('apMinutes');
+    var h = curHour(), m = curMinute();
     if (hCol) {
-      hCol.scrollTop = alarmHour * 44;
-      markItems(hCol, alarmHour);
+      hCol.scrollTop = h * 44;
+      markItems(hCol, h);
     }
     if (mCol) {
-      mCol.scrollTop = alarmMinute * 44;
-      markItems(mCol, alarmMinute);
+      mCol.scrollTop = m * 44;
+      markItems(mCol, m);
     }
   }
 
@@ -8545,26 +8664,50 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (e.target === pop) closePop();
     });
 
-    buildCol('apHours', 24, alarmHour, function (v) {
-      alarmHour = v;
+    buildCol('apHours', 24, 7, function (v) {
+      if (editIdx >= 0) { alarms[editIdx].hour = v; renderList(); }
       document.getElementById('alarmHour').textContent = pad(v);
       syncAlarmDisplay();
     });
-    buildCol('apMinutes', 60, alarmMinute, function (v) {
-      alarmMinute = v;
+    buildCol('apMinutes', 60, 30, function (v) {
+      if (editIdx >= 0) { alarms[editIdx].minute = v; renderList(); }
       document.getElementById('alarmMinute').textContent = pad(v);
       syncAlarmDisplay();
     });
 
     var en = document.getElementById('alarmEnabled');
     if (en) {
-      en.checked = alarmEnabled; // 恢复开关状态
-      en.addEventListener('change', function () { alarmEnabled = en.checked; });
+      en.addEventListener('change', function () {
+        if (editIdx >= 0) alarms[editIdx].enabled = en.checked;
+      });
     }
+
+    // 添加新闹钟：滚轮当前值入列表并选中编辑
+    var addBtn = document.getElementById('alarmAdd');
+    if (addBtn) addBtn.addEventListener('click', function () {
+      var h = parseInt(document.getElementById('alarmHour').textContent, 10) || 7;
+      var m = parseInt(document.getElementById('alarmMinute').textContent, 10) || 0;
+      // 查重：相同时间已存在则不重复添加
+      for (var i = 0; i < alarms.length; i++) {
+        if (alarms[i].hour === h && alarms[i].minute === m) { editIdx = i; syncPickerScroll(); renderList(); return; }
+      }
+      alarms.push({ hour: h, minute: m, enabled: true, fired: false });
+      editIdx = alarms.length - 1;
+      var en = document.getElementById('alarmEnabled');
+      if (en) en.checked = true;
+      saveAlarm();
+      renderList();
+      syncPickerScroll();
+      syncAlarmDisplay();
+    });
 
     var saveBtn = document.getElementById('alarmSave');
     if (saveBtn) saveBtn.addEventListener('click', function () {
-      alarmFired = false;
+      // 让启用的闹钟同步到系统闹钟，保证关掉 App 也能响
+      alarms.forEach(function (a) {
+        a.fired = false;
+        if (a.enabled) syncSystemAlarm(a);
+      });
       unlockAudio(); // 保存按钮也是用户手势，确保音频可用
       saveAlarm();   // 持久化到 localStorage，刷新不再丢失
       stopRing();
@@ -8574,6 +8717,51 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var stopBtn = document.getElementById('alarmRingStop');
     if (stopBtn) stopBtn.addEventListener('click', stopRing);
 
+    // v152：App 内更新通知 —— 检测新版本，点确定自动下载安装
+    var ncBtn = document.querySelector('.nc-btn');
+    var ncMsgEl2 = document.querySelector('.nc-msg');
+    function checkAppUpdate() {
+      try {
+        var cap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AetheronUpdate;
+        if (!cap || !cap.checkUpdate) return;
+        cap.checkUpdate({}).then(function (res) {
+          if (!res || !res.hasUpdate) return;
+          var note = res.note ? ' ' + res.note : '';
+          if (ncMsgEl2) ncMsgEl2.textContent = '发现新版本 v' + res.versionName + '，点击确认更新' + note;
+          state.ncMsg = ncMsgEl2 ? ncMsgEl2.textContent : state.ncMsg;
+          if (ncBtn) {
+            ncBtn.textContent = '更新';
+            ncBtn.dataset.update = '1';
+          }
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    if (ncBtn) {
+      ncBtn.addEventListener('click', function () {
+        if (ncBtn.dataset.update !== '1') return;
+        try {
+          var cap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AetheronUpdate;
+          if (!cap || !cap.downloadAndInstall) return;
+          ncBtn.textContent = '下载中…';
+          ncBtn.dataset.update = '2';
+          cap.downloadAndInstall({}).then(function (r) {
+            if (r && r.needPermission) {
+              toast('请允许安装未知来源应用后重试');
+              ncBtn.textContent = '更新';
+              ncBtn.dataset.update = '1';
+            } else {
+              toast('已开始安装新版本');
+            }
+          }).catch(function () {
+            toast('更新失败，请稍后重试');
+            ncBtn.textContent = '更新';
+            ncBtn.dataset.update = '1';
+          });
+        } catch (e) {}
+      });
+    }
+    checkAppUpdate();
+
     // 页面切回前台时立即校准一次（避免后台节流导致检查延迟）
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) tickClock();
@@ -8582,6 +8770,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     tickClock();
     syncAlarmDisplay();
     setInterval(tickClock, 1000);
+  }
+
+  /* ---- 调用 Capacitor 原生系统闹钟插件（关 App 也能响） ---- */
+  function syncSystemAlarm(a) {
+    try {
+      var cap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AetheronAlarm;
+      if (!cap || !cap.setAlarm) return;
+      cap.setAlarm({ hour: a.hour, minute: a.minute, msg: 'Aetheron 闹钟 ' + pad(a.hour) + ':' + pad(a.minute) }).catch(function () {});
+    } catch (e) {}
   }
 
   if (document.readyState === 'loading') {

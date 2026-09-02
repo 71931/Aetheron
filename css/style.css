@@ -1587,7 +1587,8 @@
     box-shadow: 0 3px 10px rgba(60,60,70,0.06), inset 0 1px 0 rgba(255,255,255,0.75);
   }
   .nc-notice-top { display:flex; align-items:center; gap:9px; min-width:0; }
-  .nc-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; flex:none; border:2px solid #ffffff; box-shadow:0 3px 10px rgba(60,60,70,0.16); background:#fff; }
+  .nc-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; flex:none; border:2px solid #ffffff; box-shadow:0 3px 10px rgba(60,60,70,0.16); background:#fff; cursor:pointer; background-size:cover; background-position:center; }
+  .nc-avatar.has-img svg { display:none; }
   .nc-avatar svg { width:100%; height:100%; display:block; }
   .nc-user-ico { width:18px; height:18px; flex:none; }
   .nc-msg {
@@ -1595,6 +1596,7 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     flex:1; min-width:0; letter-spacing:.2px;
   }
+  .nc-msg:focus, .nc-user:focus { outline:1px dashed rgba(59,130,246,0.7); outline-offset:2px; border-radius:4px; }
   .nc-btn {
     flex:none; background:transparent; color:#3b82f6; border:none;
     font-size:13px; font-weight:800; cursor:pointer; padding:4px 2px; letter-spacing:.5px;
@@ -2124,6 +2126,26 @@
 }
 .ap-item.on { color: #1d1d22; font-size: 22px; font-weight: 800; transform: scale(1.05); }
 .alarm-foot { display: flex; align-items: center; justify-content: space-between; }
+.alarm-list { max-height: 132px; overflow-y: auto; margin: 4px 0 10px; border-radius: 12px; background: rgba(255,255,255,0.35); border: 1px solid rgba(0,0,0,0.05); }
+.alarm-list::-webkit-scrollbar { display: none; }
+.alarm-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer;
+}
+.alarm-row:last-child { border-bottom: none; }
+.alarm-row-time { font-size: 20px; font-weight: 800; color: #1d1d22; min-width: 58px; }
+.alarm-row-state { font-size: 12px; color: #9a9aa2; flex: 1; }
+.alarm-row.on .alarm-row-state { color: #3b82f6; }
+.alarm-row-del {
+  border: none; background: rgba(0,0,0,0.06); color: #8a5a5a;
+  font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer;
+}
+.alarm-row-del:active { transform: scale(0.94); opacity: .8; }
+.alarm-add {
+  border: 1px dashed rgba(0,0,0,0.18); background: rgba(255,255,255,0.5); color: #1d1d22;
+  font-size: 12px; font-weight: 700; padding: 7px 14px; border-radius: 10px; cursor: pointer;
+}
+.alarm-add:active { transform: scale(0.96); opacity: .8; }
 .alarm-switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #55555c; cursor: pointer; user-select: none; }
 .alarm-switch input { display: none; }
 .alarm-toggle {

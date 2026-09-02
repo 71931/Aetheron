@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · 可编辑组件 · v151</title>
-<link rel="stylesheet" href="css/style.css?v=149">
+<title>Aetheron 黑白桌面 · 可编辑组件 · v152</title>
+<link rel="stylesheet" href="css/style.css?v=152">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -136,12 +136,12 @@
             </svg>
           </div>
           <svg class="nc-user-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6" fill="#cfcfd6"/><path d="M4.5 20c0-4.5 3.2-7 7.5-7s7.5 2.5 7.5 7" fill="#cfcfd6"/></svg>
-          <span class="nc-msg">미녀 고교가 입학하다</span>
+          <span class="nc-msg" contenteditable="true" spellcheck="false">미녀 고교가 입학하다</span>
           <button class="nc-btn" type="button">확인</button>
         </div>
         <div class="nc-divider"></div>
         <div class="nc-notice-bottom">
-          <span class="nc-user">Xiaoubabe</span>
+          <span class="nc-user" contenteditable="true" spellcheck="false">Xiaoubabe</span>
           <span class="nc-time" id="ncToday"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="#b5b5bd" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Today --</span>
         </div>
       </div>
@@ -1097,7 +1097,9 @@
       <div class="ap-col" id="apHours"></div>
       <div class="ap-col" id="apMinutes"></div>
     </div>
+    <div class="alarm-list" id="alarmList"></div>
     <div class="alarm-foot">
+      <button class="alarm-add" id="alarmAdd" type="button">+ 添加</button>
       <label class="alarm-switch">
         <span>启用闹钟</span>
         <input type="checkbox" id="alarmEnabled">
@@ -1116,6 +1118,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=150"></script>
+<script src="js/script.js?v=152"></script>
   </body>
 </html>
