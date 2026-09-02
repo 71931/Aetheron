@@ -1609,8 +1609,9 @@
   .nc-time svg { width:13px; height:13px; flex:none; }
   /* v112 分割线：弱化，去掉白色小三角，仅留细线+深色小角 */
   /* v125：横线恢复为一条整体，不再断开；空心三角悬于线上方 */
-  .home-divider { position:relative; border-top:1px solid var(--wire-line); opacity:.5; margin:14px 0 12px; }
-  .home-divider::before { content:''; position:absolute; left:1.5cm; top:-7px; transform:translateX(-50%) rotate(45deg); width:10px; height:10px; border-left:1.6px solid var(--wire-line); border-top:1.6px solid var(--wire-line); border-radius:1.5px; background:transparent; }
+  /* v154：连贯折线分割线：左端朝上尖角，线与三角一体，下方无横线 */
+  .home-divider { display:block; width:100%; height:10px; opacity:.55; margin:14px 0 12px; overflow:visible; }
+  .home-divider path { stroke: var(--wire-line); stroke-width:1.6; }
 
   /* ===== v112 上下半区背景分离 ===== */
   .home-bottom { position:relative; background-size:cover; background-position:center; background-repeat:no-repeat; cursor:pointer; }
@@ -2205,3 +2206,90 @@
   font-size: 14px; font-weight: 700; padding: 11px 34px; border-radius: 14px; cursor: pointer;
 }
 .alarm-ring-stop:active { transform: scale(0.95); opacity: .9; }
+
+/* ===== v154 闹钟三层交互（主页开关列表 / 完整列表 / 编辑向导） ===== */
+.alarm-card { width: 320px; max-width: 88vw; }
+.alarm-view { display: flex; flex-direction: column; }
+.alarm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.alarm-head-right { display: flex; align-items: center; gap: 6px; }
+.alarm-icon-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.08); background: rgba(255,255,255,0.6);
+  color: #6a6a72; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+}
+.alarm-icon-btn:active { transform: scale(0.92); opacity: .8; }
+.alarm-head-spacer { width: 30px; }
+
+.alarm-home-empty {
+  text-align: center; color: #9a9aa2; font-size: 13px; line-height: 1.8;
+  padding: 30px 0 20px; user-select: none;
+}
+.alarm-home-list, .alarm-manage-list { max-height: 300px; overflow-y: auto; border-radius: 14px; background: rgba(255,255,255,0.35); border: 1px solid rgba(0,0,0,0.05); }
+.alarm-home-list::-webkit-scrollbar, .alarm-manage-list::-webkit-scrollbar, .alarm-picker .ap-col::-webkit-scrollbar, .alarm-list::-webkit-scrollbar { display: none; }
+
+/* 主页行：开关卡片 */
+.home-alarm-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.home-alarm-row:last-child { border-bottom: none; }
+.home-alarm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.home-alarm-time { font-size: 24px; font-weight: 800; color: #1d1d22; letter-spacing: 1px; }
+.home-alarm-meta { font-size: 11px; color: #9a9aa2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-alarm-row.off .home-alarm-time { color: #b5b5bd; }
+.home-alarm-row.off .home-alarm-meta { color: #c4c4cb; }
+
+/* 管理列表行 */
+.mng-alarm-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer;
+}
+.mng-alarm-row:last-child { border-bottom: none; }
+.mng-alarm-row:active { background: rgba(0,0,0,0.04); }
+.mng-alarm-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mng-alarm-time { font-size: 17px; font-weight: 800; color: #1d1d22; }
+.mng-alarm-meta { font-size: 11px; color: #9a9aa2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mng-alarm-del {
+  border: none; background: rgba(0,0,0,0.06); color: #8a5a5a;
+  font-size: 11px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; flex: none;
+}
+.mng-alarm-del:active { transform: scale(0.94); opacity: .8; }
+.mng-alarm-edit {
+  border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.6); color: #55555c;
+  font-size: 11px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; flex: none;
+}
+.mng-alarm-edit:active { transform: scale(0.94); opacity: .8; }
+
+.alarm-add-btn {
+  width: 100%; margin-top: 10px;
+  border: 1px dashed rgba(0,0,0,0.18); background: rgba(255,255,255,0.5); color: #1d1d22;
+  font-size: 13px; font-weight: 700; padding: 10px 14px; border-radius: 12px; cursor: pointer;
+}
+.alarm-add-btn:active { transform: scale(0.98); opacity: .8; }
+
+.alarm-step { display: flex; flex-direction: column; }
+.alarm-step-label { font-size: 13px; font-weight: 700; color: #55555c; text-align: center; margin: 6px 0 8px; }
+.alarm-week-wrap { margin-top: 4px; }
+.alarm-week-opts { display: flex; justify-content: center; gap: 6px; }
+.alarm-week-opts button {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.12); background: rgba(255,255,255,0.55); color: #55555c;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s;
+}
+.alarm-week-opts button.on { background: #1d1d22; color: #fff; border-color: #1d1d22; }
+.alarm-week-opts button:active { transform: scale(0.92); }
+
+.alarm-name-input {
+  width: 100%; box-sizing: border-box; margin: 2px 0 14px;
+  border: 1px solid rgba(0,0,0,0.12); background: rgba(255,255,255,0.7); color: #1d1d22;
+  font-size: 16px; font-weight: 600; text-align: center; padding: 12px 10px; border-radius: 14px; outline: none;
+}
+.alarm-name-input:focus { border-color: rgba(0,0,0,0.35); }
+.alarm-save { display: block; width: 100%; margin-top: 2px; text-align: center; }
+.alarm-ring-name { font-size: 13px; font-weight: 700; color: #55555c; margin: -6px 0 2px; min-height: 16px; }
+.alarm-hm-input {
+  width: 78px; text-align: center; border: none; border-bottom: 2px solid #1d1d22;
+  background: transparent; color: #1d1d22; font-size: 56px; font-weight: 200; outline: none;
+  padding: 0; line-height: 1.1;
+}
+.alarm-hm { cursor: pointer; }

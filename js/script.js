@@ -8387,14 +8387,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   load();
 })();
 
-/* ===== v151 闹钟模块：实时时钟 + 日期 + 闹钟设置与响铃（持久化+音频解锁） ===== */
+/* ===== v154 闹钟模块：主页开关列表 → 完整列表管理 → 编辑向导(时间/循环/命名) ===== */
 (function () {
-  var ALARM_KEY = 'aetheron_alarm_v152';
-  var alarms = [];           // [{hour, minute, enabled, fired, repeat, lastFire, weekday}]
-  var editIdx = -1;          // 当前滚轮编辑的闹钟下标，-1 表示新增
+  var ALARM_KEY = 'aetheron_alarm_v154';
+  var alarms = [];           // [{hour, minute, enabled, fired, repeat, days:[], lastFire, name}]
+  var editIdx = -1;          // 当前编辑下标，-1 新增
+  var editRepeat = 'once';   // 编辑草稿 repeat
+  var editDays = [];         // 编辑草稿 weekly 选中的星期
+  var editDraftHour = 7, editDraftMin = 0; // 编辑草稿时间
   var audioCtx = null, ringTimer = null, audioUnlocked = false;
   var toastTimer = null;
   var REPEAT_LABEL = { once: '不循环', daily: '每天', weekly: '每周' };
+  var WEEK_CN = ['日', '一', '二', '三', '四', '五', '六'];
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -8414,47 +8418,52 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   /* ---- localStorage 持久化 ---- */
   function saveAlarm() {
-    try {
-      localStorage.setItem(ALARM_KEY, JSON.stringify(alarms));
-    } catch (e) {}
+    try { localStorage.setItem(ALARM_KEY, JSON.stringify(alarms)); } catch (e) {}
+  }
+
+  function normAlarm(a) {
+    return {
+      hour: typeof a.hour === 'number' ? a.hour : 7,
+      minute: typeof a.minute === 'number' ? a.minute : 0,
+      enabled: a.enabled !== false,
+      fired: false,
+      repeat: (a.repeat === 'daily' || a.repeat === 'weekly') ? a.repeat : 'once',
+      days: Array.isArray(a.days) ? a.days.slice() : (typeof a.weekday === 'number' ? [a.weekday] : []),
+      lastFire: a.lastFire || null,
+      name: typeof a.name === 'string' ? a.name.slice(0, 8) : ''
+    };
   }
 
   function loadAlarm() {
     try {
       var raw = localStorage.getItem(ALARM_KEY);
+      if (!raw) {
+        // v152/v153 数据迁移
+        var old = localStorage.getItem('aetheron_alarm_v152');
+        if (!old) old = localStorage.getItem('aetheron_alarm_v151');
+        raw = old;
+      }
       if (!raw) return;
       var obj = JSON.parse(raw);
-      if (Array.isArray(obj)) {
-        alarms = obj;
-      } else if (typeof obj.hour === 'number') {
-        // v151 单闹钟数据迁移
-        alarms = [{ hour: obj.hour, minute: obj.minute, enabled: !!obj.enabled, fired: false, repeat: 'once' }];
-      }
-      alarms.forEach(function (a) {
-        if (typeof a.enabled !== 'boolean') a.enabled = false;
-        if (!a.repeat) a.repeat = 'once';
-        a.fired = false;
-      });
-      if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
+      var arr = Array.isArray(obj) ? obj : [obj];
+      alarms = arr.map(normAlarm);
+      if (!alarms.length) alarms = [];
     } catch (e) {
-      alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
+      alarms = [];
     }
   }
 
-  /* ---- 音频解锁：必须在用户手势中调用，否则浏览器拦截播放 ---- */
+  /* ---- 音频解锁 ---- */
   function unlockAudio() {
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       if (!audioCtx) audioCtx = new AC();
       if (audioCtx.state === 'suspended') {
-        audioCtx.resume().then(function () {
-          audioUnlocked = true;
-        }).catch(function () {});
+        audioCtx.resume().then(function () { audioUnlocked = true; }).catch(function () {});
       } else {
         audioUnlocked = true;
       }
-      // 播放一个极短静音，强制激活输出通道
       var buf = audioCtx.createBuffer(1, 1, 22050);
       var src = audioCtx.createBufferSource();
       src.buffer = buf;
@@ -8464,22 +8473,47 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   function fmtDate(d) {
-    var mm = pad(d.getMonth() + 1), dd = pad(d.getDate());
-    return 'Today ' + mm + '-' + dd;
+    return 'Today ' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
 
-  /* 时间栏显示闹钟设定时间 */
+  /* ---- 闹钟时间标签 ---- */
+  function repeatLabel(a) {
+    var rep = a.repeat || 'once';
+    if (rep === 'weekly') {
+      var days = (Array.isArray(a.days) && a.days.length) ? a.days : [];
+      if (!days.length) return '每周';
+      return '每周' + days.map(function (d) { return WEEK_CN[d]; }).join('');
+    }
+    return REPEAT_LABEL[rep] || '不循环';
+  }
+
+  function alarmTitle(a) {
+    var base = a.name ? a.name : '闹钟';
+    return base;
+  }
+
+  /* ---- 时间栏显示下一个将响的启用闹钟 ---- */
   function syncAlarmDisplay() {
     var elTime = document.getElementById('ncTimeNow');
-    var on = alarms.some(function (a) { return a.enabled; });
-    if (elTime) {
-      if (on) {
-        var a = alarms[0];
-        elTime.textContent = pad(a.hour) + ':' + pad(a.minute);
-      } else {
-        elTime.textContent = '--:--';
+    if (!elTime) return;
+    var now = new Date();
+    var today = todayStr();
+    var curMin = now.getHours() * 60 + now.getMinutes();
+    var next = null, nextDelta = 1e9;
+    alarms.forEach(function (a) {
+      if (!a.enabled) return;
+      var rep = a.repeat || 'once';
+      if (rep === 'once' && a.fired) return;
+      if (a.lastFire === today && rep !== 'once') return;
+      if (rep === 'weekly') {
+        var act = Array.isArray(a.days) && a.days.length;
+        if (!act || a.days.indexOf(now.getDay()) < 0) return;
       }
-    }
+      var m = a.hour * 60 + a.minute;
+      var delta = (m - curMin + 1440) % 1440;
+      if (delta < nextDelta) { nextDelta = delta; next = a; }
+    });
+    elTime.textContent = next ? pad(next.hour) + ':' + pad(next.minute) : '--:--';
   }
 
   function tickClock() {
@@ -8491,7 +8525,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     checkAlarm(now);
   }
 
-  /* ---- 闹钟检查：遍历所有启用的闹钟 ---- */
+  /* ---- 响铃检查：遍历所有启用闹钟 ---- */
   function checkAlarm(now) {
     var h = now.getHours(), m = now.getMinutes();
     var today = todayStr();
@@ -8503,7 +8537,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       } else if (rep === 'daily') {
         if (a.lastFire === today) return;
       } else if (rep === 'weekly') {
-        if (typeof a.weekday !== 'number' || a.weekday !== now.getDay()) return;
+        var act = Array.isArray(a.days) && a.days.length;
+        if (!act || a.days.indexOf(now.getDay()) < 0) return;
         if (a.lastFire === today) return;
       }
       if (a.hour === h && a.minute === m) {
@@ -8514,11 +8549,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
   }
 
-  /* ---- 响铃：Web Audio 合成铃声 + 振动 ---- */
   function fireRing(a) {
     var pop = document.getElementById('alarmRingPop');
     var tEl = document.getElementById('alarmRingTime');
+    var nameEl = document.getElementById('alarmRingName');
     if (tEl) tEl.textContent = pad(a.hour) + ':' + pad(a.minute);
+    if (nameEl) nameEl.textContent = a.name || '';
     if (pop) pop.classList.add('show');
     if (navigator.vibrate) {
       try { navigator.vibrate([400, 200, 400, 200, 800]); } catch (e) {}
@@ -8531,14 +8567,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       audioCtx = audioCtx || new AC();
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume().catch(function () {});
-      }
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
       var i = 0;
       ringTimer = setInterval(function () {
         if (!audioCtx || audioCtx.state !== 'running') return;
         var t = audioCtx.currentTime;
-        // 双音交替 + 音量稍大
         [880, 660].forEach(function (freq) {
           var osc = audioCtx.createOscillator();
           var gain = audioCtx.createGain();
@@ -8561,97 +8594,204 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (pop) pop.classList.remove('show');
     if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
     if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+    // 已响过的闹钟 fired/lastFire 在 checkAlarm 中记录，今日不再触发
   }
 
-  /* ---- 弹层开关 ---- */
-  function curHour() { return editIdx >= 0 ? alarms[editIdx].hour : alarms[0].hour; }
-  function curMinute() { return editIdx >= 0 ? alarms[editIdx].minute : alarms[0].minute; }
+  /* ---- 视图切换 ---- */
+  function showView(name) {
+    var home = document.getElementById('alarmHomeView');
+    var list = document.getElementById('alarmListView');
+    var edit = document.getElementById('alarmEditView');
+    if (home) home.hidden = name !== 'home';
+    if (list) list.hidden = name !== 'list';
+    if (edit) edit.hidden = name !== 'edit';
+    if (name === 'list') renderManage();
+    if (name === 'home') renderHome();
+  }
+
+  /* ---- 主页：已列闹钟 + 开关 ---- */
+  function renderHome() {
+    var wrap = document.getElementById('alarmHomeList');
+    var empty = document.getElementById('alarmHomeEmpty');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var showEmpty = document.getElementById('alarmHomeEmpty');
+    if (showEmpty) showEmpty.style.display = alarms.length ? 'none' : '';
+    alarms.forEach(function (a, idx) {
+      var row = document.createElement('div');
+      row.className = 'home-alarm-row' + (a.enabled ? '' : ' off');
+      var main = document.createElement('div');
+      main.className = 'home-alarm-main';
+      var time = document.createElement('div');
+      time.className = 'home-alarm-time';
+      time.textContent = pad(a.hour) + ':' + pad(a.minute);
+      var meta = document.createElement('div');
+      meta.className = 'home-alarm-meta';
+      meta.textContent = alarmTitle(a) + ' · ' + repeatLabel(a);
+      main.appendChild(time);
+      main.appendChild(meta);
+      var sw = document.createElement('label');
+      sw.className = 'alarm-switch';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!a.enabled;
+      (function (al, i) {
+        cb.addEventListener('change', function () {
+          al.enabled = cb.checked;
+          // 不重置 fired/lastFire：响铃后关闭当日不再响
+          saveAlarm();
+          if (al.enabled) syncSystemAlarm(al);
+          renderHome();
+          syncAlarmDisplay();
+        });
+      })(a, idx);
+      var tg = document.createElement('i');
+      tg.className = 'alarm-toggle';
+      sw.appendChild(cb);
+      sw.appendChild(tg);
+      row.appendChild(main);
+      row.appendChild(sw);
+      wrap.appendChild(row);
+    });
+  }
+
+  /* ---- 完整列表：点击行编辑 / 行内删除 ---- */
+  function renderManage() {
+    var wrap = document.getElementById('alarmManageList');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    if (!alarms.length) {
+      var tip = document.createElement('div');
+      tip.className = 'alarm-home-empty';
+      tip.textContent = '还没有闹钟';
+      wrap.appendChild(tip);
+    }
+    alarms.forEach(function (a, idx) {
+      var row = document.createElement('div');
+      row.className = 'mng-alarm-row';
+      var body = document.createElement('div');
+      body.className = 'mng-alarm-body';
+      var time = document.createElement('div');
+      time.className = 'mng-alarm-time';
+      time.textContent = pad(a.hour) + ':' + pad(a.minute);
+      var meta = document.createElement('div');
+      meta.className = 'mng-alarm-meta';
+      meta.textContent = alarmTitle(a) + ' · ' + (a.enabled ? '已启用' : '已关闭') + ' · ' + repeatLabel(a);
+      body.appendChild(time);
+      body.appendChild(meta);
+      var editBtn = document.createElement('button');
+      editBtn.className = 'mng-alarm-edit';
+      editBtn.type = 'button';
+      editBtn.textContent = '编辑';
+      var delBtn = document.createElement('button');
+      delBtn.className = 'mng-alarm-del';
+      delBtn.type = 'button';
+      delBtn.textContent = '删除';
+      row.appendChild(body);
+      row.appendChild(editBtn);
+      row.appendChild(delBtn);
+      // 点击行或编辑按钮：进入编辑向导
+      function goEdit() {
+        openEditor(idx);
+      }
+      row.addEventListener('click', function (e) {
+        if (e.target === delBtn || e.target === editBtn) return;
+        goEdit();
+      });
+      editBtn.addEventListener('click', goEdit);
+      // 删除
+      delBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        alarms.splice(idx, 1);
+        saveAlarm();
+        renderManage();
+        syncAlarmDisplay();
+      });
+      wrap.appendChild(row);
+    });
+  }
+
+  /* ---- 编辑向导 ---- */
+  function openEditor(idx) {
+    editIdx = idx;
+    var a = idx >= 0 ? alarms[idx] : null;
+    editDraftHour = a ? a.hour : 7;
+    editDraftMin = a ? a.minute : 0;
+    editRepeat = a ? (a.repeat || 'once') : 'once';
+    editDays = a && Array.isArray(a.days) ? a.days.slice() : [];
+    var title = document.getElementById('alarmEditTitle');
+    if (title) title.textContent = idx >= 0 ? '编辑闹钟' : '添加闹钟';
+    // 步骤 1 展示，2/3 隐藏
+    showStep(1);
+    syncPickerScroll();
+    syncRepeatUI();
+    syncWeekUI();
+    var nameInput = document.getElementById('alarmNameInput');
+    if (nameInput) nameInput.value = a ? (a.name || '') : '';
+    showView('edit');
+  }
+
+  function showStep(n) {
+    var s1 = document.getElementById('alarmStepTime');
+    var s2 = document.getElementById('alarmStepRepeat');
+    var s3 = document.getElementById('alarmStepName');
+    if (s1) s1.hidden = n !== 1;
+    if (s2) s2.hidden = n !== 2;
+    if (s3) s3.hidden = n !== 3;
+    if (n === 2) {
+      var ww = document.getElementById('alarmWeekWrap');
+      if (ww) ww.hidden = editRepeat !== 'weekly';
+    }
+    if (n === 3) {
+      var ni = document.getElementById('alarmNameInput');
+      if (ni) { ni.focus(); }
+    }
+  }
 
   function syncRepeatUI() {
     var opts = document.querySelectorAll('#alarmRepeat button');
     if (!opts.length) return;
-    var cur = (editIdx >= 0 && alarms[editIdx]) ? (alarms[editIdx].repeat || 'once') : 'once';
     opts.forEach(function (btn) {
-      btn.classList.toggle('on', btn.dataset.r === cur);
+      btn.classList.toggle('on', btn.dataset.r === editRepeat);
     });
+    var ww = document.getElementById('alarmWeekWrap');
+    if (ww) ww.hidden = editRepeat !== 'weekly';
   }
 
-  function openPop() {
-    var pop = document.getElementById('alarmPop');
-    if (!pop) return;
-    unlockAudio(); // 用户手势，解锁音频
-    if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
-    if (editIdx < 0) editIdx = 0;
-    var en = document.getElementById('alarmEnabled');
-    if (en) en.checked = !!alarms[editIdx].enabled;
-    syncRepeatUI();
-    syncPickerScroll();
-    renderList();
-    pop.classList.add('show');
-  }
-  function closePop() {
-    var pop = document.getElementById('alarmPop');
-    if (pop) pop.classList.remove('show');
-    editIdx = -1;
-  }
-
-  /* ---- 列表渲染：展示已设置的所有闹钟 ---- */
-  function renderList() {
-    var list = document.getElementById('alarmList');
-    if (!list) return;
-    list.innerHTML = '';
-    alarms.forEach(function (a, idx) {
-      var row = document.createElement('div');
-      row.className = 'alarm-row' + (a.enabled ? ' on' : '');
-      var time = document.createElement('span');
-      time.className = 'alarm-row-time';
-      time.textContent = pad(a.hour) + ':' + pad(a.minute);
-      var st = document.createElement('span');
-      st.className = 'alarm-row-state';
-      st.textContent = (a.enabled ? '已启用' : '已关闭') + ' · ' + (REPEAT_LABEL[a.repeat] || '不循环');
-      var del = document.createElement('button');
-      del.className = 'alarm-row-del';
-      del.type = 'button';
-      del.textContent = '删除';
-      row.appendChild(time);
-      row.appendChild(st);
-      row.appendChild(del);
-      // 点击行：载入滚轮编辑
-      row.addEventListener('click', function (e) {
-        if (e.target === del) return;
-        editIdx = idx;
-        syncRepeatUI();
-        syncPickerScroll();
-      });
-      // 删除闹钟
-      del.addEventListener('click', function (e) {
-        e.stopPropagation();
-        alarms.splice(idx, 1);
-        if (!alarms.length) alarms = [{ hour: 7, minute: 30, enabled: false, fired: false, repeat: 'once' }];
-        if (editIdx >= alarms.length) editIdx = alarms.length - 1;
-        saveAlarm();
-        renderList();
-        syncRepeatUI();
-        syncPickerScroll();
-        syncAlarmDisplay();
-      });
-      list.appendChild(row);
-    });
+  function syncWeekUI() {
+    var wrap = document.getElementById('alarmWeekOpts');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    for (var d = 0; d < 7; d++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = WEEK_CN[d];
+      b.dataset.d = d;
+      b.classList.toggle('on', editDays.indexOf(d) >= 0);
+      (function (day) {
+        b.addEventListener('click', function () {
+          var i = editDays.indexOf(day);
+          if (i >= 0) { editDays.splice(i, 1); }
+          else { editDays.push(day); }
+          syncWeekUI();
+        });
+      })(d);
+      wrap.appendChild(b);
+    }
   }
 
-  /* ---- 滚轮选择器 ---- */
-  function buildCol(elId, count, current, onPick) {
+  /* ---- 滚轮选择器（只更新草稿 + 顶部数字） ---- */
+  function buildCol(elId, count, getCur, onPick) {
     var col = document.getElementById(elId);
     if (!col) return;
     col.innerHTML = '';
     for (var i = 0; i < count; i++) {
       var item = document.createElement('div');
-      item.className = 'ap-item' + (i === current ? ' on' : '');
+      item.className = 'ap-item';
       item.textContent = pad(i);
       item.dataset.val = i;
       item.addEventListener('click', function () {
         onPick(parseInt(this.dataset.val, 10));
-        syncPickerScroll();
       });
       col.appendChild(item);
     }
@@ -8661,25 +8801,27 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       scrollTimer = setTimeout(function () {
         var idx = Math.round(col.scrollTop / 44);
         if (idx >= 0 && idx < count) onPick(idx);
-      }, 180);
+      }, 160);
     });
     col.addEventListener('click', function (e) { e.stopPropagation(); });
-    // 初始滚动到选中项
-    col.scrollTop = current * 44;
+    col.scrollTop = getCur() * 44;
   }
 
   function syncPickerScroll() {
     var hCol = document.getElementById('apHours');
     var mCol = document.getElementById('apMinutes');
-    var h = curHour(), m = curMinute();
     if (hCol) {
-      hCol.scrollTop = h * 44;
-      markItems(hCol, h);
+      hCol.scrollTop = editDraftHour * 44;
+      markItems(hCol, editDraftHour);
     }
     if (mCol) {
-      mCol.scrollTop = m * 44;
-      markItems(mCol, m);
+      mCol.scrollTop = editDraftMin * 44;
+      markItems(mCol, editDraftMin);
     }
+    var hEl = document.getElementById('alarmHour');
+    var mEl = document.getElementById('alarmMinute');
+    if (hEl && hEl.tagName !== 'INPUT') hEl.textContent = pad(editDraftHour);
+    if (mEl && mEl.tagName !== 'INPUT') mEl.textContent = pad(editDraftMin);
   }
 
   function markItems(col, cur) {
@@ -8689,95 +8831,188 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
   }
 
+  function commitDraftTime() {
+    syncPickerScroll();
+  }
+
+  /* ---- 顶部时间数字：点击改为可编辑输入 ---- */
+  function bindNumEdit(el, maxVal, setter) {
+    if (!el) return;
+    el.addEventListener('click', function () {
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.pattern = '[0-9]*';
+      input.className = 'alarm-hm-input';
+      input.value = el.textContent;
+      el.replaceWith(input);
+      input.focus();
+      input.select();
+      function commit() {
+        var v = parseInt(input.value, 10);
+        if (isNaN(v)) v = 0;
+        v = Math.max(0, Math.min(maxVal, v));
+        setter(v);
+        var span = document.createElement('span');
+        span.className = 'alarm-hm';
+        span.textContent = pad(v);
+        span.style.cursor = 'pointer';
+        input.replaceWith(span);
+        bindNumEdit(span, maxVal, setter);
+        syncPickerScroll();
+        commitDraftTime();
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      });
+    });
+  }
+
+  /* ---- 保存 ---- */
+  function doSave() {
+    var nameEl = document.getElementById('alarmNameInput');
+    var name = nameEl ? nameEl.value.trim().slice(0, 8) : '';
+    if (editRepeat === 'weekly' && !editDays.length) {
+      showToast('请选择每周重复日');
+      return;
+    }
+    var rec = {
+      hour: editDraftHour,
+      minute: editDraftMin,
+      enabled: true,
+      fired: false,
+      repeat: editRepeat,
+      days: editRepeat === 'weekly' ? editDays.slice() : [],
+      lastFire: null,
+      name: name
+    };
+    if (editIdx >= 0 && alarms[editIdx]) {
+      var old = alarms[editIdx];
+      rec.enabled = old.enabled;
+      rec.fired = false;
+      rec.lastFire = null;   // 重新设定后当天可再次响
+      alarms[editIdx] = rec;
+    } else {
+      // 最多 5 个
+      if (alarms.length >= 5) { showToast('最多设置 5 个闹钟'); return; }
+      // 查重：同时间已存在则跳到编辑它
+      for (var i = 0; i < alarms.length; i++) {
+        if (alarms[i].hour === rec.hour && alarms[i].minute === rec.minute) {
+          showToast('该时间闹钟已存在');
+          openEditor(i);
+          return;
+        }
+      }
+      alarms.push(rec);
+    }
+    saveAlarm();
+    // 启用则同步系统闹钟
+    alarms.forEach(function (a) { if (a.enabled) syncSystemAlarm(a); });
+    unlockAudio();
+    stopRing();
+    renderHome();
+    renderManage();
+    syncAlarmDisplay();
+    showView('list');
+  }
+
   /* ---- 初始化 ---- */
   function init() {
-    loadAlarm(); // 读取持久化的闹钟设置
+    loadAlarm();
 
     var ringBtn = document.getElementById('ncRingBtn');
     if (ringBtn) ringBtn.addEventListener('click', function (e) { e.stopPropagation(); openPop(); });
 
+    // 打开闹钟弹层：展示主页开关列表
+    function openPop() {
+      unlockAudio();
+      renderHome();
+      showView('home');
+      var pop = document.getElementById('alarmPop');
+      if (pop) pop.classList.add('show');
+    }
+    function closePop() {
+      var pop = document.getElementById('alarmPop');
+      if (pop) pop.classList.remove('show');
+      editIdx = -1;
+    }
+
     var closeBtn = document.getElementById('alarmClose');
     if (closeBtn) closeBtn.addEventListener('click', closePop);
+    var closeBtn2 = document.getElementById('alarmClose2');
+    if (closeBtn2) closeBtn2.addEventListener('click', closePop);
+
+    // 主页 → 完整列表
+    var listBtn = document.getElementById('alarmListBtn');
+    if (listBtn) listBtn.addEventListener('click', function () { renderManage(); showView('list'); });
+    // 列表 → 主页
+    var backHome = document.getElementById('alarmBackHome');
+    if (backHome) backHome.addEventListener('click', function () { renderHome(); showView('home'); });
+    // 添加按钮：打开编辑向导步骤1
+    var addTop = document.getElementById('alarmAddTop');
+    if (addTop) addTop.addEventListener('click', function () { openEditor(-1); });
+    // 编辑向导：返回列表
+    var backList = document.getElementById('alarmBackList');
+    if (backList) backList.addEventListener('click', function () {
+      editIdx = -1;
+      renderManage();
+      showView('list');
+    });
+
+    // 时间滚轮
+    buildCol('apHours', 24, function () { return editDraftHour; }, function (v) {
+      editDraftHour = v;
+      syncPickerScroll();
+    });
+    buildCol('apMinutes', 60, function () { return editDraftMin; }, function (v) {
+      editDraftMin = v;
+      syncPickerScroll();
+    });
+    // 顶部时间数字点击改写
+    bindNumEdit(document.getElementById('alarmHour'), 23, function (v) { editDraftHour = v; });
+    bindNumEdit(document.getElementById('alarmMinute'), 59, function (v) { editDraftMin = v; });
+
+    // 步骤1：确定 → 步骤2 循环
+    var timeOk = document.getElementById('alarmTimeOk');
+    if (timeOk) timeOk.addEventListener('click', function () { showStep(2); syncRepeatUI(); syncWeekUI(); });
+
+    // 循环模式
+    var repBtns = document.querySelectorAll('#alarmRepeat button');
+    repBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        editRepeat = btn.dataset.r;
+        if (editRepeat !== 'weekly') editDays = [];
+        syncRepeatUI();
+      });
+    });
+
+    // 步骤2：下一步 → 步骤3 命名
+    var repOk = document.getElementById('alarmRepeatOk');
+    if (repOk) repOk.addEventListener('click', function () {
+      if (editRepeat === 'weekly' && !editDays.length) {
+        showToast('请选择每周重复日');
+        return;
+      }
+      showStep(3);
+    });
+
+    // 步骤3：保存
+    var saveNew = document.getElementById('alarmSaveNew');
+    if (saveNew) saveNew.addEventListener('click', doSave);
 
     var pop = document.getElementById('alarmPop');
     if (pop) pop.addEventListener('click', function (e) {
       if (e.target === pop) closePop();
     });
 
-    buildCol('apHours', 24, 7, function (v) {
-      if (editIdx >= 0) { alarms[editIdx].hour = v; renderList(); }
-      document.getElementById('alarmHour').textContent = pad(v);
-      syncAlarmDisplay();
-    });
-    buildCol('apMinutes', 60, 30, function (v) {
-      if (editIdx >= 0) { alarms[editIdx].minute = v; renderList(); }
-      document.getElementById('alarmMinute').textContent = pad(v);
-      syncAlarmDisplay();
-    });
-
-    var en = document.getElementById('alarmEnabled');
-    if (en) {
-      en.addEventListener('change', function () {
-        if (editIdx >= 0) alarms[editIdx].enabled = en.checked;
-      });
-    }
-
-    // 添加新闹钟：滚轮当前值入列表并选中编辑
-    var addBtn = document.getElementById('alarmAdd');
-    if (addBtn) addBtn.addEventListener('click', function () {
-      var h = parseInt(document.getElementById('alarmHour').textContent, 10) || 7;
-      var m = parseInt(document.getElementById('alarmMinute').textContent, 10) || 0;
-      // 最多 5 个闹钟
-      if (alarms.length >= 5) { showToast('最多设置 5 个闹钟'); return; }
-      // 查重：相同时间已存在则不重复添加
-      for (var i = 0; i < alarms.length; i++) {
-        if (alarms[i].hour === h && alarms[i].minute === m) { editIdx = i; syncPickerScroll(); renderList(); syncRepeatUI(); return; }
-      }
-      alarms.push({ hour: h, minute: m, enabled: true, fired: false, repeat: 'once' });
-      editIdx = alarms.length - 1;
-      var en = document.getElementById('alarmEnabled');
-      if (en) en.checked = true;
-      syncRepeatUI();
-      saveAlarm();
-      renderList();
-      syncPickerScroll();
-      syncAlarmDisplay();
-    });
-
-    // 循环模式切换
-    var repBtns = document.querySelectorAll('#alarmRepeat button');
-    repBtns.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        if (editIdx < 0 || !alarms[editIdx]) return;
-        alarms[editIdx].repeat = btn.dataset.r;
-        if (btn.dataset.r !== 'weekly') alarms[editIdx].weekday = null;
-        syncRepeatUI();
-        renderList();
-      });
-    });
-
-    var saveBtn = document.getElementById('alarmSave');
-    if (saveBtn) saveBtn.addEventListener('click', function () {
-      // 每周闹钟记录星期几（按保存当天）
-      var today = new Date();
-      alarms.forEach(function (a) {
-        if (a.enabled && a.repeat === 'weekly' && typeof a.weekday !== 'number') a.weekday = today.getDay();
-      });
-      // 让启用的闹钟同步到系统闹钟，保证关掉 App 也能响
-      alarms.forEach(function (a) {
-        a.fired = false;
-        if (a.enabled) syncSystemAlarm(a);
-      });
-      unlockAudio(); // 保存按钮也是用户手势，确保音频可用
-      saveAlarm();   // 持久化到 localStorage，刷新不再丢失
-      stopRing();
-      closePop();
-    });
-
     var stopBtn = document.getElementById('alarmRingStop');
-    if (stopBtn) stopBtn.addEventListener('click', stopRing);
+    if (stopBtn) stopBtn.addEventListener('click', function () {
+      // 停止响铃：当日不再响（fired/lastFire 已在 checkAlarm 置位）
+      stopRing();
+    });
 
-    // v152：App 内更新通知 —— 检测新版本，点确定自动下载安装
+    /* ---- v152 App 内更新通知（保留） ---- */
     var ncBtn = document.querySelector('.nc-btn');
     var ncMsgEl2 = document.querySelector('.nc-msg');
     function checkAppUpdate() {
@@ -8788,7 +9023,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (!res || !res.hasUpdate) return;
           var note = res.note ? ' ' + res.note : '';
           if (ncMsgEl2) ncMsgEl2.textContent = '发现新版本 v' + res.versionName + '，点击确认更新' + note;
-          state.ncMsg = ncMsgEl2 ? ncMsgEl2.textContent : state.ncMsg;
           if (ncBtn) {
             ncBtn.textContent = '更新';
             ncBtn.dataset.update = '1';
@@ -8822,7 +9056,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     checkAppUpdate();
 
-    // 页面切回前台时立即校准一次（避免后台节流导致检查延迟）
+    // 切回前台校准
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) tickClock();
     });
@@ -8832,7 +9066,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     setInterval(tickClock, 1000);
   }
 
-  /* ---- 调用 Capacitor 原生系统闹钟插件（关 App 也能响） ---- */
+  /* ---- Capacitor 系统闹钟 ---- */
   function syncSystemAlarm(a) {
     try {
       var cap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AetheronAlarm;

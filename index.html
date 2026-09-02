@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · 可编辑组件 · v153</title>
-<link rel="stylesheet" href="css/style.css?v=153">
+<title>Aetheron 黑白桌面 · 可编辑组件 · v154</title>
+<link rel="stylesheet" href="css/style.css?v=154">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -148,8 +148,10 @@
     </div>
   </div><!-- /home-top -->
   </div><!-- /status-module -->
-  <!-- 分隔线：带左端朝上尖角，上下区域无框分隔 -->
-  <div class="home-divider"></div>
+  <!-- 分隔线 v154：一条连贯折线，左端起三角尖，下方无线 -->
+  <svg class="home-divider" viewBox="0 0 320 10" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 7 L38 7 L44 0 L50 7 L320 7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
   <!-- ===== Aetheron v121 下部中枢模组 HubModule ===== -->
   <div class="hub-module" id="hubModule">
   <!-- 下半区：小组件（v138 已移除下方左四app/右双气泡与分页器） -->
@@ -1081,51 +1083,91 @@
 
 <input type="file" id="uploadInput" accept="image/*" hidden>
 
-<!-- 闹钟设置弹层 -->
+<!-- 闹钟弹层 v154：主页列表(开关) → 完整列表(管理) → 编辑向导(时间/循环/命名) -->
 <div class="alarm-pop" id="alarmPop">
   <div class="alarm-card">
-    <div class="alarm-head">
-      <span class="alarm-title">闹钟</span>
-      <button class="alarm-close" id="alarmClose" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+
+    <!-- ===== 视图1：闹钟主页（已列闹钟 + 开关） ===== -->
+    <div class="alarm-view" id="alarmHomeView">
+      <div class="alarm-head">
+        <span class="alarm-title">闹钟</span>
+        <div class="alarm-head-right">
+          <button class="alarm-icon-btn" id="alarmListBtn" type="button" title="闹钟列表"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></button>
+          <button class="alarm-icon-btn alarm-close" id="alarmClose" type="button" title="关闭"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+      </div>
+      <div class="alarm-home-list" id="alarmHomeList"></div>
+      <div class="alarm-home-empty" id="alarmHomeEmpty">还没有闹钟<br>点右上角列表按钮添加</div>
     </div>
-    <div class="alarm-time-row">
-      <span class="alarm-hm" id="alarmHour">07</span>
-      <span class="alarm-colon">:</span>
-      <span class="alarm-hm" id="alarmMinute">30</span>
+
+    <!-- ===== 视图2：完整闹钟列表（编辑/删除/添加） ===== -->
+    <div class="alarm-view" id="alarmListView" hidden>
+      <div class="alarm-head">
+        <button class="alarm-icon-btn" id="alarmBackHome" type="button" title="返回"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <span class="alarm-title">闹钟列表</span>
+        <button class="alarm-icon-btn alarm-close" id="alarmClose2" type="button" title="关闭"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="alarm-manage-list" id="alarmManageList"></div>
+      <button class="alarm-add-btn" id="alarmAddTop" type="button">+ 添加闹钟</button>
     </div>
-    <div class="alarm-picker">
-      <div class="ap-col" id="apHours"></div>
-      <div class="ap-col" id="apMinutes"></div>
-    </div>
-    <div class="alarm-repeat">
-      <span class="alarm-repeat-label">循环</span>
-      <div class="alarm-repeat-opts" id="alarmRepeat">
-        <button type="button" data-r="once" class="on">不循环</button>
-        <button type="button" data-r="daily">每天</button>
-        <button type="button" data-r="weekly">每周</button>
+
+    <!-- ===== 视图3：编辑向导（步骤1 时间 → 步骤2 循环 → 步骤3 命名） ===== -->
+    <div class="alarm-view" id="alarmEditView" hidden>
+      <div class="alarm-head">
+        <button class="alarm-icon-btn" id="alarmBackList" type="button" title="返回列表"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <span class="alarm-title" id="alarmEditTitle">添加闹钟</span>
+        <span class="alarm-head-spacer"></span>
+      </div>
+
+      <!-- 步骤1：时间（滚动选取 / 点数字手改） -->
+      <div class="alarm-step" id="alarmStepTime">
+        <div class="alarm-time-row">
+          <span class="alarm-hm" id="alarmHour" contenteditable="false">07</span>
+          <span class="alarm-colon">:</span>
+          <span class="alarm-hm" id="alarmMinute" contenteditable="false">30</span>
+        </div>
+        <div class="alarm-picker">
+          <div class="ap-col" id="apHours"></div>
+          <div class="ap-col" id="apMinutes"></div>
+        </div>
+        <button class="alarm-save" id="alarmTimeOk" type="button">确定</button>
+      </div>
+
+      <!-- 步骤2：循环 -->
+      <div class="alarm-step" id="alarmStepRepeat" hidden>
+        <p class="alarm-step-label">是否循环？</p>
+        <div class="alarm-repeat-opts" id="alarmRepeat">
+          <button type="button" data-r="once" class="on">单次不循环</button>
+          <button type="button" data-r="daily">每天</button>
+          <button type="button" data-r="weekly">每周</button>
+        </div>
+        <div class="alarm-week-wrap" id="alarmWeekWrap" hidden>
+          <p class="alarm-step-label">每周重复日</p>
+          <div class="alarm-week-opts" id="alarmWeekOpts"></div>
+        </div>
+        <button class="alarm-save" id="alarmRepeatOk" type="button">下一步</button>
+      </div>
+
+      <!-- 步骤3：命名（≤8字） -->
+      <div class="alarm-step" id="alarmStepName" hidden>
+        <p class="alarm-step-label">给闹钟起个名字（≤8字）</p>
+        <input class="alarm-name-input" id="alarmNameInput" maxlength="8" placeholder="例如：起床">
+        <button class="alarm-save" id="alarmSaveNew" type="button">保存</button>
       </div>
     </div>
-    <div class="alarm-list" id="alarmList"></div>
-    <div class="alarm-foot">
-      <button class="alarm-add" id="alarmAdd" type="button">+ 添加</button>
-      <label class="alarm-switch">
-        <span>启用闹钟</span>
-        <input type="checkbox" id="alarmEnabled">
-        <i class="alarm-toggle"></i>
-      </label>
-      <button class="alarm-save" id="alarmSave" type="button">保存</button>
-    </div>
+
   </div>
 </div>
 <!-- 闹钟响铃层 -->
 <div class="alarm-ring-pop" id="alarmRingPop">
   <div class="alarm-ring-card">
     <div class="alarm-ring-title">闹钟</div>
+    <div class="alarm-ring-name" id="alarmRingName"></div>
     <div class="alarm-ring-time" id="alarmRingTime">07:30</div>
     <button class="alarm-ring-stop" id="alarmRingStop" type="button">停止</button>
   </div>
 </div>
 
-<script src="js/script.js?v=153"></script>
+<script src="js/script.js?v=154"></script>
   </body>
 </html>
