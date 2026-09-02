@@ -2210,6 +2210,7 @@
 /* ===== v154 闹钟三层交互（主页开关列表 / 完整列表 / 编辑向导） ===== */
 .alarm-card { width: 320px; max-width: 88vw; }
 .alarm-view { display: flex; flex-direction: column; }
+.alarm-view[hidden] { display: none !important; }
 .alarm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .alarm-head-right { display: flex; align-items: center; gap: 6px; }
 .alarm-icon-btn {
