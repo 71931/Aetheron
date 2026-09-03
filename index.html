@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Aetheron 黑白桌面 · 可编辑组件 · v157</title>
-<link rel="stylesheet" href="css/style.css?v=157">
+<link rel="stylesheet" href="css/style.css?v=158">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -1097,6 +1097,29 @@
   <div class="beauty-overlay" id="beautyOverlay" hidden>
     <div class="beauty-card">
       <div class="beauty-head"><span class="beauty-title">UI 美化中心</span><button type="button" class="beauty-x" id="beautyClose">×</button></div>
+      <div class="beauty-stage-wrap">
+        <div class="beauty-stage-label">实时预览（编辑即时生效，取消即还原）</div>
+        <div class="beauty-stage" id="beautyStage">
+          <div class="bs-shot">
+            <div class="bs-wall bs-wall-default" id="bsWall"></div>
+            <div class="bs-body">
+              <div class="mood-slider" id="bsSlider">
+                <div class="slider-track"><div class="slider-fill" style="width:62%"></div><svg class="slider-heart" style="left:calc(62% - 11px)" viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.5 12C19 16.4 12 21 12 21z"/></svg></div>
+                <div class="slider-times"><span>0:42</span><span>5:20</span></div>
+              </div>
+              <div class="bs-row">
+                <div class="bs-pp" id="bsPolaroid">
+                  <div class="bs-pp-photo" id="bsPolaroidPhoto"></div>
+                </div>
+                <div class="bs-bubbox" id="bsBubbles">
+                  <div class="message-received ins-bubble" id="bsBubble0">又是一个下雨天</div>
+                  <div class="message-sent ins-bubble" id="bsBubble1">我可以拥抱你吗？</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="beauty-scroll" id="beautyScroll">
         <div class="beauty-sec" data-sec="wall">
           <div class="beauty-sec-title">壁纸（整页全屏）</div>
@@ -1131,8 +1154,18 @@
           <div class="beauty-sec-desc">更换后点“确定应用”统一生效。</div>
           <div id="beautyAvatarRows" class="beauty-avatar-rows"></div>
         </div>
+        <div class="beauty-sec" data-sec="slider">
+          <div class="beauty-sec-title">爱心进度条</div>
+          <div class="beauty-sec-desc">主界面爱心进度条（电量 / 歌词模式共用）颜色，实时预览。</div>
+          <div class="beauty-field-row"><label>进度 / 爱心</label><input type="color" id="beautySlFill" value="#2c2c31"></div>
+          <div class="beauty-field-row"><label>时间文字</label><input type="color" id="beautySlTime" value="#5a5a62"></div>
+          <div class="beauty-btn-row">
+            <button type="button" class="beauty-btn ghost sm" id="beautySlDefault">恢复默认黑白渐变</button>
+          </div>
+        </div>
       </div>
       <div class="beauty-foot">
+        <button type="button" class="beauty-btn" id="beautyCancel">取消</button>
         <button type="button" class="beauty-btn ghost" id="beautyReset">恢复默认配色</button>
         <button type="button" class="beauty-btn primary big" id="beautyApply">确定应用</button>
       </div>
@@ -1221,6 +1254,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=157"></script>
+<script src="js/script.js?v=158"></script>
   </body>
 </html>

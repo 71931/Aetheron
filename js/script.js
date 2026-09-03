@@ -407,6 +407,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       wall: '',
       ecgBg: '',
       polaroid: { img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 },
+      slider: { fill: '', time: '' },
       name: 'user',
       handle: '@user',
       bio: '>ㅅ<可惡 萌也是罪嗎!! ⊹.',
@@ -522,16 +523,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     state.polaroid = Object.assign({ img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 }, state.polaroid || {});
     applyState();
+    applySavedSliderColors();
 
     // ===== 拍立得样式重写（换图 / 调色统一入口） =====
-    function applyPolaroidStyle() {
-      var p = state.polaroid || {};
-      var bg = p.bg || '#F0F2F0';
-      var op = (p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp;
-      var bd = p.border || '#DCDCDC';
-      var r = (p.radius === undefined || p.radius === null) ? 4 : p.radius;
-      var img = p.img || 'https://i.postimg.cc/XvFDdTKY/Smart-Select-20251013-023208.jpg';
+    function applyPolaroidStyle() { applyPolaroidStyleFrom(state.polaroid || {}); }
+
+    // v158：拍立得样式支持从任意草稿对象应用（美化中心实时预览复用）
+    function applyPolaroidStyleFrom(p) {
+      var bg = (p && p.bg) || '#F0F2F0';
+      var op = (!p || p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp;
+      var bd = (p && p.border) || '#DCDCDC';
+      var r = (!p || p.radius === undefined || p.radius === null) ? 4 : p.radius;
+      var img = (p && p.img) || 'https://i.postimg.cc/XvFDdTKY/Smart-Select-20251013-023208.jpg';
       var bdDark = shadeColor(bd, -18);
+      if (!polaroidStyleEl) return;
       polaroidStyleEl.textContent =
         '.media-ecg .heart-photo-widget { background-color: ' + rgba(bg, op) + '; border: 1px solid ' + bd + '; border-bottom-color: ' + bdDark + '; border-right-color: ' + bdDark + '; border-radius: ' + r + 'px; }' +
         '.media-ecg .heart-photo-widget::after { background-image: url(\'' + img + '\'); }';
@@ -610,6 +615,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var beautyScroll = document.getElementById('beautyScroll');
     var beautyDraft = null;
     var beautyUploadKind = '';
+    var beautyApplied = false;      // v158：点过“确定应用”后关闭不再还原
+    var beautyAvatarSnap = {};      // v158：中心打开时头像 DOM 快照
+    var beautyOpenGuard = 0;        // v158：长按/双击入口防抖
     var BUBBLE_COLOR_KEY = 'aetheron_bubble_colors_v156';
     var AVATAR_TARGETS = [
       { key: 'avatar', label: '主页大头像' },
@@ -663,6 +671,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           border: pp.border || '#DCDCDC',
           radius: pp.radius != null ? pp.radius : 4
         },
+        slider: {
+          fill: (state.slider && state.slider.fill) || '',
+          time: (state.slider && state.slider.time) || ''
+        },
         avatars: {},
         bubbles: []
       };
@@ -710,10 +722,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         lab.textContent = '气泡 ' + b.key;
         var l1 = document.createElement('label'); l1.textContent = '底色';
         var i1 = document.createElement('input'); i1.type = 'color'; i1.value = b.bg;
-        i1.addEventListener('input', function () { b.bg = i1.value; });
+        i1.addEventListener('input', function () { b.bg = i1.value; liveApplyBeautyDraft(); });
         var l2 = document.createElement('label'); l2.textContent = '文字';
         var i2 = document.createElement('input'); i2.type = 'color'; i2.value = b.fg;
-        i2.addEventListener('input', function () { b.fg = i2.value; });
+        i2.addEventListener('input', function () { b.fg = i2.value; liveApplyBeautyDraft(); });
         row.appendChild(lab); row.appendChild(l1); row.appendChild(i1); row.appendChild(l2); row.appendChild(i2);
         rows.appendChild(row);
       });
@@ -749,12 +761,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var pr = document.getElementById('beautyPpRadius'); if (pr) pr.value = beautyDraft.polaroid.radius;
       var ps = document.getElementById('beautyPpState');
       if (ps) ps.textContent = beautyDraft.polaroid.img ? '已设置图片' : '默认图片';
+      var pov = document.getElementById('beautyPpOpVal'); if (pov) pov.textContent = Math.round(beautyDraft.polaroid.bgOp * 100) + '%';
+      var prv = document.getElementById('beautyPpRadiusVal'); if (prv) prv.textContent = beautyDraft.polaroid.radius + 'px';
+      var sf = document.getElementById('beautySlFill'); if (sf) sf.value = beautyDraft.slider.fill || '#2c2c31';
+      var st = document.getElementById('beautySlTime'); if (st) st.value = beautyDraft.slider.time || '#5a5a62';
+      renderBeautyStage();
     }
 
+    // ===== v158：UI 美化中心实时预览 =====
+    // 进入中心时：草稿驱动主界面 + 顶部舞台实时变化；取消/×/点遮罩关闭会还原到打开前；确定应用才保存
     function openBeautyCenter(focus) {
       if (!beautyOverlay) return;
+      var now = Date.now();
+      if (now - beautyOpenGuard < 650) { beautyOpenGuard = now; return; }
+      beautyOpenGuard = now;
+      beautyApplied = false;
       beautyDraft = freshBeautyDraft();
+      snapAvatarDom();
       renderBeautyControls();
+      liveApplyBeautyDraft();
       beautyOverlay.hidden = false;
       if (focus && beautyScroll) {
         var sec = beautyScroll.querySelector('[data-sec="' + focus + '"]');
@@ -762,14 +787,143 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
     }
 
-    function closeBeautyCenter() { if (beautyOverlay) beautyOverlay.hidden = true; }
+    function closeBeautyCenter() {
+      if (!beautyOverlay) return;
+      beautyOverlay.hidden = true;
+      if (!beautyApplied) restoreBeautyLive();
+    }
+
+    // 进度条 CSS 变量写主界面（root 传 .mood-slider）
+    function setSliderVars(root, fill, time) {
+      if (!root) return;
+      if (fill) {
+        root.style.setProperty('--slFill', fill);
+        root.style.setProperty('--slHeart', fill);
+      } else {
+        root.style.removeProperty('--slFill');
+        root.style.removeProperty('--slHeart');
+      }
+      if (time) root.style.setProperty('--slTime', time);
+      else root.style.removeProperty('--slTime');
+    }
+
+    // 页面加载后把已保存的进度条配色写到主界面（未设置则回退默认黑白渐变）
+    function applySavedSliderColors() {
+      var m = document.querySelector('.mood-slider');
+      var sd = state.slider || {};
+      setSliderVars(m, sd.fill || '', sd.time || '');
+    }
+
+    // 壁纸草稿预览（不改 state）
+    function applyWallFromUrl(url) {
+      if (!homeCanvas) return;
+      if (url) {
+        homeCanvas.classList.add('has-img');
+        homeCanvas.style.backgroundImage = "linear-gradient(rgba(246,246,248,0.14), rgba(246,246,248,0.14)), url('" + url + "')";
+        homeCanvas.style.backgroundSize = 'cover';
+        homeCanvas.style.backgroundPosition = 'center';
+        homeCanvas.style.backgroundRepeat = 'no-repeat';
+      } else {
+        homeCanvas.classList.remove('has-img');
+        homeCanvas.style.backgroundImage = '';
+        homeCanvas.style.backgroundSize = '';
+        homeCanvas.style.backgroundPosition = '';
+        homeCanvas.style.backgroundRepeat = '';
+      }
+    }
+
+    // 把草稿整批实时应用到主界面（壁纸/拍立得/气泡/进度条；头像仅在更换时单独应用）
+    function liveApplyBeautyDraft() {
+      if (!beautyDraft) return;
+      applyWallFromUrl(beautyDraft.wall || '');
+      applyPolaroidStyleFrom(beautyDraft.polaroid);
+      (beautyDraft.bubbles || []).forEach(function (b) {
+        if (b.el) { b.el.style.setProperty('--bbg', b.bg); b.el.style.setProperty('--bfg', b.fg); }
+      });
+      var m = document.querySelector('.mood-slider');
+      setSliderVars(m, beautyDraft.slider.fill || '', beautyDraft.slider.time || '');
+      renderBeautyStage();
+    }
+
+    // 关闭未应用时还原主界面到打开前状态
+    function restoreBeautyLive() {
+      applyWallUI();
+      applyPolaroidStyle();
+      restoreAvatarDom();
+      var o = {};
+      try { o = JSON.parse(localStorage.getItem(BUBBLE_COLOR_KEY) || '{}'); } catch (e) {}
+      document.querySelectorAll('.ins-bubble[data-key]').forEach(function (el) {
+        var k = el.getAttribute('data-key');
+        var c = o[k];
+        if (c) { el.style.setProperty('--bbg', c.bg); el.style.setProperty('--bfg', c.fg); }
+        else { el.style.removeProperty('--bbg'); el.style.removeProperty('--bfg'); }
+      });
+      var sd = state.slider || {};
+      setSliderVars(document.querySelector('.mood-slider'), sd.fill || '', sd.time || '');
+    }
+
+    // 头像 DOM 快照/还原（头像被 live 改过才需要）
+    function avatarKeyEl(key) {
+      var map = { avatar: avatar, twAvatar: twAvatar, avatarL: avatarEls && avatarEls[0], avatarR: avatarEls && avatarEls[1], ncAvatar: ncAvatarEl };
+      return map[key] || null;
+    }
+    function snapAvatarDom() {
+      beautyAvatarSnap = {};
+      AVATAR_TARGETS.forEach(function (t) {
+        var el = avatarKeyEl(t.key);
+        beautyAvatarSnap[t.key] = { bi: el ? (el.style.backgroundImage || '') : '', has: el ? el.classList.contains('has-img') : false };
+      });
+    }
+    function restoreAvatarDom() {
+      AVATAR_TARGETS.forEach(function (t) {
+        var el = avatarKeyEl(t.key);
+        var s = beautyAvatarSnap[t.key];
+        if (!el || !s) return;
+        if (s.bi) { el.style.backgroundImage = s.bi; }
+        else { el.style.removeProperty('background-image'); }
+        if (s.has) el.classList.add('has-img'); else el.classList.remove('has-img');
+      });
+    }
+
+    // 卡片顶部舞台：壁纸/拍立得/气泡/进度条的迷你实时预览
+    function renderBeautyStage() {
+      if (!beautyDraft) return;
+      var wall = document.getElementById('bsWall');
+      if (wall) {
+        if (beautyDraft.wall) { wall.classList.remove('bs-wall-default'); wall.style.backgroundImage = "url('" + beautyDraft.wall + "')"; }
+        else { wall.classList.add('bs-wall-default'); wall.style.backgroundImage = ''; }
+      }
+      var sm = document.getElementById('bsSlider');
+      if (sm) setSliderVars(sm, beautyDraft.slider.fill || '', beautyDraft.slider.time || '');
+      var pw = document.getElementById('bsPolaroid');
+      if (pw) {
+        var p = beautyDraft.polaroid || {};
+        pw.style.backgroundColor = rgba(p.bg || '#F0F2F0', (p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp);
+        pw.style.border = '1px solid ' + (p.border || '#DCDCDC');
+        pw.style.borderRadius = ((p.radius === undefined || p.radius === null) ? 4 : p.radius) + 'px';
+      }
+      var pph = document.getElementById('bsPolaroidPhoto');
+      if (pph) pph.style.backgroundImage = "url('" + ((beautyDraft.polaroid && beautyDraft.polaroid.img) || 'https://i.postimg.cc/XvFDdTKY/Smart-Select-20251013-023208.jpg') + "')";
+      var b0 = document.getElementById('bsBubble0');
+      var b1 = document.getElementById('bsBubble1');
+      var bub = beautyDraft.bubbles || [];
+      if (b0) {
+        if (bub.length > 0) { b0.style.setProperty('--bbg', bub[0].bg); b0.style.setProperty('--bfg', bub[0].fg); b0.style.display = ''; }
+        else b0.style.display = 'none';
+      }
+      if (b1) {
+        if (bub.length > 1) { b1.style.setProperty('--bbg', bub[1].bg); b1.style.setProperty('--bfg', bub[1].fg); b1.style.display = ''; }
+        else b1.style.display = 'none';
+      }
+    }
 
     function beautySetAvatar(key, url) {
       if (!beautyDraft) return;
       beautyDraft.avatars[key] = url || '';
+      beautyApplyAvatarDom(key, url || '');
       var st = document.getElementById('beautyAv' + key);
-      if (st) st.textContent = url ? '已设置（待应用）' : '默认';
-      beautyToast('头像已放入草稿，点“确定应用”生效');
+      if (st) st.textContent = url ? '已更换（实时预览，确定应用后保存）' : '默认（实时预览，确定应用后生效）';
+      beautyToast('头像已应用到预览，点“确定应用”保存');
     }
 
     function beautyApplyAvatarDom(key, url) {
@@ -786,6 +940,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     function applyBeautyDraft() {
       if (!beautyDraft) return;
+      beautyApplied = true;
       state.wall = beautyDraft.wall || '';
       applyWallUI();
       state.polaroid = {
@@ -800,6 +955,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         state[t.key] = beautyDraft.avatars[t.key] || '';
         beautyApplyAvatarDom(t.key, state[t.key]);
       });
+      state.slider = {
+        fill: (beautyDraft.slider && beautyDraft.slider.fill) || '',
+        time: (beautyDraft.slider && beautyDraft.slider.time) || ''
+      };
+      setSliderVars(document.querySelector('.mood-slider'), state.slider.fill, state.slider.time);
       var o = {};
       beautyDraft.bubbles.forEach(function (b) {
         if (!b.el || !b.key) return;
@@ -821,6 +981,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       beautyDraft.polaroid.border = '#DCDCDC';
       beautyDraft.polaroid.radius = 4;
       renderBeautyControls();
+      liveApplyBeautyDraft();
       beautyToast('已恢复默认配色（壁纸/拍立得），点“确定应用”生效');
     }
 
@@ -837,19 +998,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (a) a.addEventListener('click', applyBeautyDraft);
       var r = document.getElementById('beautyReset');
       if (r) r.addEventListener('click', resetBeautyDraft);
+      var cc = document.getElementById('beautyCancel');
+      if (cc) cc.addEventListener('click', closeBeautyCenter);
+      var sd = document.getElementById('beautySlDefault');
+      if (sd) sd.addEventListener('click', function () {
+        if (!beautyDraft) return;
+        beautyDraft.slider.fill = '';
+        beautyDraft.slider.time = '';
+        var sf2 = document.getElementById('beautySlFill'); if (sf2) sf2.value = '#2c2c31';
+        var st2 = document.getElementById('beautySlTime'); if (st2) st2.value = '#5a5a62';
+        liveApplyBeautyDraft();
+        beautyToast('进度条恢复默认黑白渐变，点“确定应用”生效');
+      });
       beautyOverlay.addEventListener('click', function (e) { if (e.target === beautyOverlay) closeBeautyCenter(); });
       var wu = document.getElementById('beautyWallUpload');
       if (wu) wu.addEventListener('click', function () { beautyUploadKind = 'wall'; if (beautyWallInput) beautyWallInput.click(); });
       var wc = document.getElementById('beautyWallClear');
-      if (wc) wc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.wall = ''; renderBeautyWall(); } });
+      if (wc) wc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.wall = ''; renderBeautyWall(); liveApplyBeautyDraft(); } });
       var pu = document.getElementById('beautyPpUpload');
       if (pu) pu.addEventListener('click', function () { beautyUploadKind = 'polaroid'; if (beautyWallInput) beautyWallInput.click(); });
       var pc = document.getElementById('beautyPpClear');
-      if (pc) pc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.polaroid.img = ''; renderBeautyControls(); } });
-      bindBeautyInput('beautyPpBg', function () { if (beautyDraft) beautyDraft.polaroid.bg = this.value; });
-      bindBeautyInput('beautyPpOp', function () { if (beautyDraft) beautyDraft.polaroid.bgOp = parseInt(this.value, 10) / 100; });
-      bindBeautyInput('beautyPpBorder', function () { if (beautyDraft) beautyDraft.polaroid.border = this.value; });
-      bindBeautyInput('beautyPpRadius', function () { if (beautyDraft) beautyDraft.polaroid.radius = parseInt(this.value, 10); });
+      if (pc) pc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.polaroid.img = ''; renderBeautyControls(); liveApplyBeautyDraft(); } });
+      bindBeautyInput('beautyPpBg', function () { if (beautyDraft) { beautyDraft.polaroid.bg = this.value; liveApplyBeautyDraft(); } });
+      bindBeautyInput('beautyPpOp', function () { if (beautyDraft) { beautyDraft.polaroid.bgOp = parseInt(this.value, 10) / 100; var ov = document.getElementById('beautyPpOpVal'); if (ov) ov.textContent = this.value + '%'; liveApplyBeautyDraft(); } });
+      bindBeautyInput('beautyPpBorder', function () { if (beautyDraft) { beautyDraft.polaroid.border = this.value; liveApplyBeautyDraft(); } });
+      bindBeautyInput('beautyPpRadius', function () { if (beautyDraft) { beautyDraft.polaroid.radius = parseInt(this.value, 10); var rv = document.getElementById('beautyPpRadiusVal'); if (rv) rv.textContent = this.value + 'px'; liveApplyBeautyDraft(); } });
+      bindBeautyInput('beautySlFill', function () { if (beautyDraft) { beautyDraft.slider.fill = this.value; liveApplyBeautyDraft(); } });
+      bindBeautyInput('beautySlTime', function () { if (beautyDraft) { beautyDraft.slider.time = this.value; liveApplyBeautyDraft(); } });
       var avBox = document.getElementById('beautyAvatarRows');
       if (avBox) avBox.addEventListener('click', function (e) {
         var btn = e.target.closest ? e.target.closest('[data-avatar]') : null;
@@ -865,8 +1040,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var outType = (kind.indexOf('avatar-') === 0) ? 'image/png' : 'image/jpeg';
         var size = (kind === 'wall') ? 1600 : 1080;
         compressImage(f, size, outType, 0.85, function (url) {
-          if (kind === 'wall') { beautyDraft.wall = url; renderBeautyWall(); beautyToast('壁纸已放入草稿，点“确定应用”生效'); }
-          else if (kind === 'polaroid') { beautyDraft.polaroid.img = url; renderBeautyControls(); beautyToast('拍立得图片已放入草稿，点“确定应用”生效'); }
+          if (kind === 'wall') { beautyDraft.wall = url; renderBeautyWall(); liveApplyBeautyDraft(); beautyToast('壁纸已应用到预览，点“确定应用”保存'); }
+          else if (kind === 'polaroid') { beautyDraft.polaroid.img = url; renderBeautyControls(); liveApplyBeautyDraft(); beautyToast('拍立得图片已应用到预览，点“确定应用”保存'); }
           else if (kind.indexOf('avatar-') === 0) { beautySetAvatar(kind.slice(7), url); }
           beautyUploadKind = '';
         });
@@ -875,15 +1050,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     initBeautyCenter();
 
 
-    // v135：小组件内交互 —— 拍立得换图 / 头像替换 / 组件背景上传
+    // v158：恢复组件“单点快捷动作”——拍立得 / 左右小头像 / 通知头像单击直接换图
+    // UI 美化中心统一改为长按主界面空白区域进入，不再抢占组件单点
     polaroidWidget.addEventListener('click', function (e) {
       e.stopPropagation();
-      openBeautyCenter('polaroid');
+      openPicker(polaroidWidget, 'polaroid');
     });
     avatarEls.forEach(function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        openBeautyCenter('avatar');
+        openPicker(el, 'avatar');
       });
     });
 
@@ -891,7 +1067,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (ncAvatarEl) {
       ncAvatarEl.addEventListener('click', function (e) {
         e.stopPropagation();
-        openBeautyCenter('avatar');
+        openPicker(ncAvatarEl, 'avatar');
       });
     }
     [ncMsgEl, ncUserEl].forEach(function (el) {
@@ -907,14 +1083,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     });
 
-    // v157：组件长按统一唤起 UI 美化中心（不再弹单个调色面板）
+    // v158：媒体组件长按仍进美化中心（定位拍立得）；单击空白弹 v135 快捷编辑栏
     var ecgLongTimer = null, ecgLongPressed = false;
-    function showEcgEditBar() { openBeautyCenter('polaroid'); }
-    function hideEcgEditBar() { ecgEditBar.hidden = true; }
+    function showEcgEditBar() { if (ecgEditBar) ecgEditBar.hidden = false; }
+    function hideEcgEditBar() { if (ecgEditBar) ecgEditBar.hidden = true; }
     mediaEcg.addEventListener('touchstart', function () {
       ecgLongPressed = false;
       clearTimeout(ecgLongTimer);
-      ecgLongTimer = setTimeout(function () { ecgLongPressed = true; showEcgEditBar(); }, 500);
+      ecgLongTimer = setTimeout(function () { ecgLongPressed = true; openBeautyCenter('polaroid'); }, 500);
     });
     mediaEcg.addEventListener('touchend', function () { clearTimeout(ecgLongTimer); });
     mediaEcg.addEventListener('touchmove', function () { clearTimeout(ecgLongTimer); });
@@ -926,7 +1102,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (ecgLongPressed) { ecgLongPressed = false; return; }
       if (!ecgEditBar.hidden) { hideEcgEditBar(); return; }
       if (e.target.closest && (e.target.closest('.heart-photo-widget') || e.target.closest('.link-avatar') || e.target.closest('.ecg-editbar') || e.target.closest('.polaroid-panel'))) return;
-      openBeautyCenter('polaroid');
+      showEcgEditBar();
     });
     ecgEditBar.addEventListener('click', function (e) {
       var btn = e.target.closest('.eb-btn');
