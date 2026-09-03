@@ -404,8 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       twAvatar: '',
       avatarL: '',
       avatarR: '',
-      topBg: '',
-      bottomBg: '',
+      wall: '',
       ecgBg: '',
       polaroid: { img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 },
       name: 'user',
@@ -443,6 +442,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
 
     var state = loadState();
+
+    // v157：老数据 topBg/bottomBg 迁移为整页全屏壁纸 wall
+    if (!state.wall && (state.topBg || state.bottomBg)) {
+      state.wall = state.topBg || state.bottomBg;
+      delete state.topBg;
+      delete state.bottomBg;
+      try { dbSet(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+    }
 
     // ===== 背景图交互变量 =====
     var posY = 0;
@@ -490,14 +497,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         cover.classList.add('has-img');
       }
       if (state.avatar) { avatar.style.backgroundImage = "url('" + state.avatar + "')"; avatar.classList.add('has-img'); }
-      if (state.topBg) {
-        statusModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + state.topBg + "')";
-        statusModule.classList.add('has-img');
-      }
-      if (state.bottomBg) {
-        hubModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + state.bottomBg + "')";
-        hubModule.classList.add('has-img');
-      }
+      applyWallUI();
       if (state.twAvatar) { twAvatar.style.backgroundImage = "url('" + state.twAvatar + "')"; }
       if (state.name) nameEl.textContent = state.name;
       if (state.handle) handleEl.textContent = state.handle;
@@ -589,28 +589,301 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.addEventListener('click', function () { openPicker(el, 'bg'); });
     });
 
-    // v112：上下半区空白长按上传对应背景（单击不再误触，避免点天气/点空白进相册）
-    function bindBgLongPress(el) {
+    // v157：长按主界面空白 / 组件，统一进入 UI 美化中心（草稿编辑 -> 确定应用）
+    function bindLongPressOpenBeauty(el) {
       var t = null;
+      function cancel() { if (t) { clearTimeout(t); t = null; } }
       el.addEventListener('touchstart', function () {
-        t = setTimeout(function () { openPicker(el, 'bg'); }, 600);
-      });
-      el.addEventListener('touchend', function () { clearTimeout(t); });
-      el.addEventListener('touchmove', function () { clearTimeout(t); });
-      el.addEventListener('contextmenu', function (e) { e.preventDefault(); openPicker(el, 'bg'); });
+        t = setTimeout(function () { t = null; openBeautyCenter(); }, 500);
+      }, { passive: true });
+      el.addEventListener('touchend', cancel);
+      el.addEventListener('touchmove', cancel, { passive: true });
+      el.addEventListener('touchcancel', cancel);
+      el.addEventListener('contextmenu', function (e) { e.preventDefault(); openBeautyCenter(); });
     }
-    bindBgLongPress(statusModule);
-    bindBgLongPress(homeBottom);
+    bindLongPressOpenBeauty(statusModule);
+    bindLongPressOpenBeauty(homeBottom);
+
+    // ===================== v157：UI 美化中心 =====================
+    var beautyOverlay = document.getElementById('beautyOverlay');
+    var beautyWallInput = document.getElementById('beautyWallInput');
+    var beautyScroll = document.getElementById('beautyScroll');
+    var beautyDraft = null;
+    var beautyUploadKind = '';
+    var BUBBLE_COLOR_KEY = 'aetheron_bubble_colors_v156';
+    var AVATAR_TARGETS = [
+      { key: 'avatar', label: '主页大头像' },
+      { key: 'twAvatar', label: '推文头像' },
+      { key: 'avatarL', label: '左侧小头像' },
+      { key: 'avatarR', label: '右侧小头像' },
+      { key: 'ncAvatar', label: '通知头像' }
+    ];
+
+    function beautyToast(msg) { if (typeof toast === 'function') toast(msg); }
+
+    // 全屏壁纸应用（旧 topBg/bottomBg 残留在模块上的样式一并清理）
+    function applyWallUI() {
+      if (state.wall) {
+        homeCanvas.classList.add('has-img');
+        homeCanvas.style.backgroundImage = "linear-gradient(rgba(246,246,248,0.14), rgba(246,246,248,0.14)), url('" + state.wall + "')";
+        homeCanvas.style.backgroundSize = 'cover';
+        homeCanvas.style.backgroundPosition = 'center';
+        homeCanvas.style.backgroundRepeat = 'no-repeat';
+      } else {
+        homeCanvas.classList.remove('has-img');
+        homeCanvas.style.backgroundImage = '';
+        homeCanvas.style.backgroundSize = '';
+        homeCanvas.style.backgroundPosition = '';
+        homeCanvas.style.backgroundRepeat = '';
+      }
+      if (statusModule) { statusModule.style.backgroundImage = ''; statusModule.classList.remove('has-img'); }
+      if (hubModule) { hubModule.style.backgroundImage = ''; hubModule.classList.remove('has-img'); }
+    }
+
+    function rgbToHex(v) {
+      var m = /rgba?\(([^)]+)\)/.exec(v || '');
+      if (!m) return (v || '').trim();
+      var p = m[1].split(',');
+      function h2(x) { x = parseInt(x, 10); if (isNaN(x)) return '00'; x = x > 255 ? 255 : x < 0 ? 0 : x; return (x < 16 ? '0' : '') + x.toString(16); }
+      return '#' + h2(p[0]) + h2(p[1]) + h2(p[2]);
+    }
+
+    function bubbleDefaultBg(el) {
+      return el && el.classList.contains('message-sent') ? '#6e6e6e' : '#ffffff';
+    }
+
+    function freshBeautyDraft() {
+      var pp = state.polaroid || {};
+      var d = {
+        wall: state.wall || '',
+        polaroid: {
+          img: pp.img || '',
+          bg: pp.bg || '#F0F2F0',
+          bgOp: pp.bgOp != null ? pp.bgOp : 1,
+          border: pp.border || '#DCDCDC',
+          radius: pp.radius != null ? pp.radius : 4
+        },
+        avatars: {},
+        bubbles: []
+      };
+      AVATAR_TARGETS.forEach(function (t) { d.avatars[t.key] = state[t.key] || ''; });
+      document.querySelectorAll('.ins-bubble[data-key]').forEach(function (el) {
+        d.bubbles.push({
+          el: el,
+          key: el.getAttribute('data-key'),
+          bg: rgbToHex(getComputedStyle(el).getPropertyValue('--bbg')) || bubbleDefaultBg(el),
+          fg: rgbToHex(getComputedStyle(el).getPropertyValue('--bfg')) || '#ffffff'
+        });
+      });
+      return d;
+    }
+
+    function renderBeautyWall() {
+      var pv = document.getElementById('beautyWallPreview');
+      if (!pv || !beautyDraft) return;
+      pv.innerHTML = '';
+      if (beautyDraft.wall) {
+        var im = document.createElement('img');
+        im.src = beautyDraft.wall;
+        im.alt = '壁纸预览';
+        pv.appendChild(im);
+      } else {
+        var sp = document.createElement('span');
+        sp.className = 'beauty-wall-empty';
+        sp.textContent = '未设置壁纸（使用默认底纹）';
+        pv.appendChild(sp);
+      }
+    }
+
+    function renderBeautyBubbles() {
+      var rows = document.getElementById('beautyBubbleRows');
+      var empty = document.getElementById('beautyBubbleEmpty');
+      if (!rows) return;
+      rows.innerHTML = '';
+      if (!beautyDraft || !beautyDraft.bubbles.length) { if (empty) empty.hidden = false; return; }
+      if (empty) empty.hidden = true;
+      beautyDraft.bubbles.forEach(function (b) {
+        var row = document.createElement('div');
+        row.className = 'beauty-bubble-row';
+        var lab = document.createElement('span');
+        lab.className = 'beauty-bubble-name';
+        lab.textContent = '气泡 ' + b.key;
+        var l1 = document.createElement('label'); l1.textContent = '底色';
+        var i1 = document.createElement('input'); i1.type = 'color'; i1.value = b.bg;
+        i1.addEventListener('input', function () { b.bg = i1.value; });
+        var l2 = document.createElement('label'); l2.textContent = '文字';
+        var i2 = document.createElement('input'); i2.type = 'color'; i2.value = b.fg;
+        i2.addEventListener('input', function () { b.fg = i2.value; });
+        row.appendChild(lab); row.appendChild(l1); row.appendChild(i1); row.appendChild(l2); row.appendChild(i2);
+        rows.appendChild(row);
+      });
+    }
+
+    function renderBeautyAvatars() {
+      var box = document.getElementById('beautyAvatarRows');
+      if (!box || !beautyDraft) return;
+      box.innerHTML = '';
+      AVATAR_TARGETS.forEach(function (t) {
+        var has = !!beautyDraft.avatars[t.key];
+        var row = document.createElement('div');
+        row.className = 'beauty-field-row';
+        var lab = document.createElement('label'); lab.className = 'beauty-av-label'; lab.textContent = t.label;
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'beauty-btn sm'; btn.textContent = has ? '更换图片' : '设置图片';
+        btn.setAttribute('data-avatar', t.key);
+        var st = document.createElement('span'); st.className = 'beauty-av-state'; st.id = 'beautyAv' + t.key;
+        st.textContent = has ? '已设置（待应用）' : '默认';
+        row.appendChild(lab); row.appendChild(btn); row.appendChild(st);
+        box.appendChild(row);
+      });
+    }
+
+    function renderBeautyControls() {
+      renderBeautyWall();
+      renderBeautyBubbles();
+      renderBeautyAvatars();
+      if (!beautyDraft) return;
+      var pb = document.getElementById('beautyPpBg'); if (pb) pb.value = beautyDraft.polaroid.bg;
+      var po = document.getElementById('beautyPpOp'); if (po) po.value = Math.round(beautyDraft.polaroid.bgOp * 100);
+      var pe = document.getElementById('beautyPpBorder'); if (pe) pe.value = beautyDraft.polaroid.border;
+      var pr = document.getElementById('beautyPpRadius'); if (pr) pr.value = beautyDraft.polaroid.radius;
+      var ps = document.getElementById('beautyPpState');
+      if (ps) ps.textContent = beautyDraft.polaroid.img ? '已设置图片' : '默认图片';
+    }
+
+    function openBeautyCenter(focus) {
+      if (!beautyOverlay) return;
+      beautyDraft = freshBeautyDraft();
+      renderBeautyControls();
+      beautyOverlay.hidden = false;
+      if (focus && beautyScroll) {
+        var sec = beautyScroll.querySelector('[data-sec="' + focus + '"]');
+        if (sec) setTimeout(function () { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+      }
+    }
+
+    function closeBeautyCenter() { if (beautyOverlay) beautyOverlay.hidden = true; }
+
+    function beautySetAvatar(key, url) {
+      if (!beautyDraft) return;
+      beautyDraft.avatars[key] = url || '';
+      var st = document.getElementById('beautyAv' + key);
+      if (st) st.textContent = url ? '已设置（待应用）' : '默认';
+      beautyToast('头像已放入草稿，点“确定应用”生效');
+    }
+
+    function beautyApplyAvatarDom(key, url) {
+      var el = null;
+      if (key === 'avatar') el = avatar;
+      else if (key === 'twAvatar') el = twAvatar;
+      else if (key === 'avatarL') el = avatarEls && avatarEls[0];
+      else if (key === 'avatarR') el = avatarEls && avatarEls[1];
+      else if (key === 'ncAvatar') el = ncAvatarEl;
+      if (!el) return;
+      if (url) { el.style.backgroundImage = "url('" + url + "')"; el.classList.add('has-img'); }
+      else { el.style.backgroundImage = ''; el.classList.remove('has-img'); }
+    }
+
+    function applyBeautyDraft() {
+      if (!beautyDraft) return;
+      state.wall = beautyDraft.wall || '';
+      applyWallUI();
+      state.polaroid = {
+        img: beautyDraft.polaroid.img,
+        bg: beautyDraft.polaroid.bg,
+        bgOp: beautyDraft.polaroid.bgOp,
+        border: beautyDraft.polaroid.border,
+        radius: beautyDraft.polaroid.radius
+      };
+      if (typeof applyPolaroidStyle === 'function') applyPolaroidStyle();
+      AVATAR_TARGETS.forEach(function (t) {
+        state[t.key] = beautyDraft.avatars[t.key] || '';
+        beautyApplyAvatarDom(t.key, state[t.key]);
+      });
+      var o = {};
+      beautyDraft.bubbles.forEach(function (b) {
+        if (!b.el || !b.key) return;
+        b.el.style.setProperty('--bbg', b.bg);
+        b.el.style.setProperty('--bfg', b.fg);
+        o[b.key] = { bg: b.bg, fg: b.fg };
+      });
+      try { localStorage.setItem(BUBBLE_COLOR_KEY, JSON.stringify(o)); } catch (e) {}
+      saveState();
+      beautyToast('UI 美化已应用');
+      closeBeautyCenter();
+    }
+
+    function resetBeautyDraft() {
+      if (!beautyDraft) return;
+      beautyDraft.wall = '';
+      beautyDraft.polaroid.bg = '#F0F2F0';
+      beautyDraft.polaroid.bgOp = 1;
+      beautyDraft.polaroid.border = '#DCDCDC';
+      beautyDraft.polaroid.radius = 4;
+      renderBeautyControls();
+      beautyToast('已恢复默认配色（壁纸/拍立得），点“确定应用”生效');
+    }
+
+    function bindBeautyInput(id, fn) {
+      var el = document.getElementById(id);
+      if (el) { el.addEventListener('input', fn); el.addEventListener('change', fn); }
+    }
+
+    function initBeautyCenter() {
+      if (!beautyOverlay) return;
+      var c = document.getElementById('beautyClose');
+      if (c) c.addEventListener('click', closeBeautyCenter);
+      var a = document.getElementById('beautyApply');
+      if (a) a.addEventListener('click', applyBeautyDraft);
+      var r = document.getElementById('beautyReset');
+      if (r) r.addEventListener('click', resetBeautyDraft);
+      beautyOverlay.addEventListener('click', function (e) { if (e.target === beautyOverlay) closeBeautyCenter(); });
+      var wu = document.getElementById('beautyWallUpload');
+      if (wu) wu.addEventListener('click', function () { beautyUploadKind = 'wall'; if (beautyWallInput) beautyWallInput.click(); });
+      var wc = document.getElementById('beautyWallClear');
+      if (wc) wc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.wall = ''; renderBeautyWall(); } });
+      var pu = document.getElementById('beautyPpUpload');
+      if (pu) pu.addEventListener('click', function () { beautyUploadKind = 'polaroid'; if (beautyWallInput) beautyWallInput.click(); });
+      var pc = document.getElementById('beautyPpClear');
+      if (pc) pc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.polaroid.img = ''; renderBeautyControls(); } });
+      bindBeautyInput('beautyPpBg', function () { if (beautyDraft) beautyDraft.polaroid.bg = this.value; });
+      bindBeautyInput('beautyPpOp', function () { if (beautyDraft) beautyDraft.polaroid.bgOp = parseInt(this.value, 10) / 100; });
+      bindBeautyInput('beautyPpBorder', function () { if (beautyDraft) beautyDraft.polaroid.border = this.value; });
+      bindBeautyInput('beautyPpRadius', function () { if (beautyDraft) beautyDraft.polaroid.radius = parseInt(this.value, 10); });
+      var avBox = document.getElementById('beautyAvatarRows');
+      if (avBox) avBox.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('[data-avatar]') : null;
+        if (!btn || !beautyDraft) return;
+        beautyUploadKind = 'avatar-' + btn.getAttribute('data-avatar');
+        if (beautyWallInput) beautyWallInput.click();
+      });
+      if (beautyWallInput) beautyWallInput.addEventListener('change', function () {
+        var f = beautyWallInput.files && beautyWallInput.files[0];
+        var kind = beautyUploadKind;
+        beautyWallInput.value = '';
+        if (!f || !beautyDraft || !kind) return;
+        var outType = (kind.indexOf('avatar-') === 0) ? 'image/png' : 'image/jpeg';
+        var size = (kind === 'wall') ? 1600 : 1080;
+        compressImage(f, size, outType, 0.85, function (url) {
+          if (kind === 'wall') { beautyDraft.wall = url; renderBeautyWall(); beautyToast('壁纸已放入草稿，点“确定应用”生效'); }
+          else if (kind === 'polaroid') { beautyDraft.polaroid.img = url; renderBeautyControls(); beautyToast('拍立得图片已放入草稿，点“确定应用”生效'); }
+          else if (kind.indexOf('avatar-') === 0) { beautySetAvatar(kind.slice(7), url); }
+          beautyUploadKind = '';
+        });
+      });
+    }
+    initBeautyCenter();
+
 
     // v135：小组件内交互 —— 拍立得换图 / 头像替换 / 组件背景上传
     polaroidWidget.addEventListener('click', function (e) {
       e.stopPropagation();
-      openPicker(polaroidWidget, 'polaroid');
+      openBeautyCenter('polaroid');
     });
     avatarEls.forEach(function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        openPicker(el, 'avatar');
+        openBeautyCenter('avatar');
       });
     });
 
@@ -618,7 +891,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (ncAvatarEl) {
       ncAvatarEl.addEventListener('click', function (e) {
         e.stopPropagation();
-        openPicker(ncAvatarEl, 'avatar');
+        openBeautyCenter('avatar');
       });
     }
     [ncMsgEl, ncUserEl].forEach(function (el) {
@@ -634,10 +907,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     });
 
-    // v135：长按组件弹出编辑美化栏；点击组件其它区域关闭
-    // v152：拍立得长按只弹调色面板（不再弹多按钮编辑栏）
+    // v157：组件长按统一唤起 UI 美化中心（不再弹单个调色面板）
     var ecgLongTimer = null, ecgLongPressed = false;
-    function showEcgEditBar() { if (polaroidPanel) { syncPanelFromState(); polaroidPanel.hidden = false; } }
+    function showEcgEditBar() { openBeautyCenter('polaroid'); }
     function hideEcgEditBar() { ecgEditBar.hidden = true; }
     mediaEcg.addEventListener('touchstart', function () {
       ecgLongPressed = false;
@@ -654,7 +926,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (ecgLongPressed) { ecgLongPressed = false; return; }
       if (!ecgEditBar.hidden) { hideEcgEditBar(); return; }
       if (e.target.closest && (e.target.closest('.heart-photo-widget') || e.target.closest('.link-avatar') || e.target.closest('.ecg-editbar') || e.target.closest('.polaroid-panel'))) return;
-      openPicker(mediaEcg, 'ecgBg');
+      openBeautyCenter('polaroid');
     });
     ecgEditBar.addEventListener('click', function (e) {
       var btn = e.target.closest('.eb-btn');
@@ -750,16 +1022,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             if (appIcons[i] === uploadTarget) { iconIdx = i; break; }
           }
           if (iconIdx >= 0) state.apps['app-' + iconIdx] = url;
-        } else if (uploadTarget === statusModule || uploadTarget === homeTop) {
-          // v156：上半区背景单独铺在上半模块（不再铺满整页）
-          statusModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + url + "')";
-          statusModule.classList.add('has-img');
-          state.topBg = url;
-        } else if (uploadTarget === homeBottom) {
-          // v156：下半区背景单独铺在下半模块
-          hubModule.style.backgroundImage = "linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)), url('" + url + "')";
-          hubModule.classList.add('has-img');
-          state.bottomBg = url;
+        } else if (uploadMode === 'wall') {
+          // v157：整页全屏壁纸（兼容旧入口，主入口为 UI 美化中心）
+          state.wall = url;
+          applyWallUI();
         } else if (uploadMode === 'polaroid') {
           state.polaroid = state.polaroid || {};
           state.polaroid.img = url;
@@ -8396,141 +8662,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   load();
 })();
 
-/* ===== v156: 气泡长按调色（长按弹出面板，改底色/文字色，持久化） ===== */
+/* ===== v157: 气泡配色改为在 UI 美化中心统一设置（此处仅负责加载已存颜色） ===== */
 (function () {
   var KEY = 'aetheron_bubble_colors_v156';
-  var DEFAULTS = { sent: { bg: '#6e6e6e', fg: '#ffffff' }, received: { bg: '#ffffff', fg: '#210202' } };
   var bubbles = document.querySelectorAll('.ins-bubble[data-key]');
-  var panel = document.getElementById('bubblePanel');
-  var bgInput = document.getElementById('bpBgColor');
-  var fgInput = document.getElementById('bpFgColor');
-  var curLabel = document.getElementById('bpCur');
-  var current = null;   // 当前调色的气泡元素
-  var longTimer = null;
-  var suppressClick = false;
-
-  if (!panel || !bgInput || !fgInput) return;
-
-  function roleOf(el) { return el.classList.contains('message-sent') ? 'sent' : 'received'; }
-  function defaultsOf(el) { return DEFAULTS[roleOf(el)]; }
-  function currentColor(el) {
-    var d = defaultsOf(el);
-    return {
-      bg: getComputedStyle(el).getPropertyValue('--bbg').trim() || d.bg,
-      fg: getComputedStyle(el).getPropertyValue('--bfg').trim() || d.fg
-    };
-  }
-
-  function loadSaved() {
-    var saved = {};
-    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    bubbles.forEach(function (el) {
-      var k = el.getAttribute('data-key');
-      var c = saved[k];
-      if (!c) return;
-      el.style.setProperty('--bbg', c.bg);
-      el.style.setProperty('--bfg', c.fg);
-    });
-  }
-
-  function persist(el) {
-    var obj = {};
-    try { obj = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    obj[el.getAttribute('data-key')] = {
-      bg: getComputedStyle(el).getPropertyValue('--bbg').trim(),
-      fg: getComputedStyle(el).getPropertyValue('--bfg').trim()
-    };
-    try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch (e) {}
-  }
-
-  function syncPanel() {
-    var c = currentColor(current);
-    bgInput.value = c.bg;
-    fgInput.value = c.fg;
-    curLabel.textContent = roleOf(current) === 'sent' ? '我发出的' : '收到的';
-  }
-
-  function openPanel(el, x, y) {
-    current = el;
-    syncPanel();
-    panel.hidden = false;
-    panel.style.left = '0px';
-    panel.style.top = '0px';
-    var pw = panel.offsetWidth, ph = panel.offsetHeight;
-    var left = Math.max(4, Math.min(x, window.innerWidth - pw - 4));
-    var top = y + 12;
-    if (top + ph > window.innerHeight - 4) top = Math.max(4, y - ph - 12);
-    panel.style.left = left + 'px';
-    panel.style.top = top + 'px';
-  }
-
-  function closePanel() {
-    if (panel.hidden) return;
-    panel.hidden = true;
-    current = null;
-  }
-
-  bgInput.addEventListener('input', function () {
-    if (!current) return;
-    current.style.setProperty('--bbg', bgInput.value);
-    persist(current);
-  });
-  fgInput.addEventListener('input', function () {
-    if (!current) return;
-    current.style.setProperty('--bfg', fgInput.value);
-    persist(current);
-  });
-
-  document.getElementById('bpReset').addEventListener('click', function () {
-    if (!current) return;
-    var d = defaultsOf(current);
-    current.style.setProperty('--bbg', d.bg);
-    current.style.setProperty('--bfg', d.fg);
-    var obj = {};
-    try { obj = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    delete obj[current.getAttribute('data-key')];
-    try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch (e) {}
-    syncPanel();
-  });
-  document.getElementById('bpApply').addEventListener('click', closePanel);
-
-  function startLong(el, x, y) {
-    stopLong();
-    longTimer = setTimeout(function () {
-      longTimer = null;
-      suppressClick = true;
-      setTimeout(function () { suppressClick = false; }, 600);
-      openPanel(el, x, y);
-    }, 500);
-  }
-  function stopLong() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } }
-
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
   bubbles.forEach(function (el) {
-    el.addEventListener('touchstart', function (e) {
-      var t = e.touches[0];
-      startLong(el, t.clientX, t.clientY);
-    }, { passive: true });
-    el.addEventListener('touchmove', stopLong, { passive: true });
-    el.addEventListener('touchend', stopLong);
-    el.addEventListener('touchcancel', stopLong);
-    el.addEventListener('mousedown', function (e) { startLong(el, e.clientX, e.clientY); });
-    el.addEventListener('mouseup', stopLong);
-    el.addEventListener('mouseleave', stopLong);
-    el.addEventListener('click', function (e) {
-      if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
-    }, true);
+    var k = el.getAttribute('data-key');
+    var c = saved[k];
+    if (!c) return;
+    el.style.setProperty('--bbg', c.bg);
+    el.style.setProperty('--bfg', c.fg);
   });
-
-  document.addEventListener('mousedown', function (e) {
-    if (!panel.hidden && !panel.contains(e.target)) closePanel();
-  });
-  document.addEventListener('touchstart', function (e) {
-    if (!panel.hidden && !panel.contains(e.target)) closePanel();
-  }, { passive: true });
-  window.addEventListener('resize', closePanel);
-
-  loadSaved();
 })();
+
 
 /* ===== v154 闹钟模块：主页开关列表 → 完整列表管理 → 编辑向导(时间/循环/命名) ===== */
 (function () {

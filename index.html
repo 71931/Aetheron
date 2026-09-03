@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · 可编辑组件 · v156</title>
-<link rel="stylesheet" href="css/style.css?v=156">
+<title>Aetheron 黑白桌面 · 可编辑组件 · v157</title>
+<link rel="stylesheet" href="css/style.css?v=157">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -1091,7 +1091,53 @@
 </div>
 </div>
 
-<input type="file" id="uploadInput" accept="image/*" hidden>
+  <input type="file" id="uploadInput" accept="image/*" hidden>
+  <!-- v157：主界面 UI 美化中心（长按主界面唤起，编辑完点“确定应用”） -->
+  <input type="file" id="beautyWallInput" accept="image/*" hidden>
+  <div class="beauty-overlay" id="beautyOverlay" hidden>
+    <div class="beauty-card">
+      <div class="beauty-head"><span class="beauty-title">UI 美化中心</span><button type="button" class="beauty-x" id="beautyClose">×</button></div>
+      <div class="beauty-scroll" id="beautyScroll">
+        <div class="beauty-sec" data-sec="wall">
+          <div class="beauty-sec-title">壁纸（整页全屏）</div>
+          <div class="beauty-sec-desc">整页全屏背景；旧的上下分块背景已合并到此处。</div>
+          <div class="beauty-wall-preview" id="beautyWallPreview"><span class="beauty-wall-empty">未设置壁纸（使用默认底纹）</span></div>
+          <div class="beauty-btn-row">
+            <button type="button" class="beauty-btn primary" id="beautyWallUpload">上传 / 更换壁纸</button>
+            <button type="button" class="beauty-btn ghost" id="beautyWallClear">移除壁纸</button>
+          </div>
+        </div>
+        <div class="beauty-sec" data-sec="polaroid">
+          <div class="beauty-sec-title">拍立得组件</div>
+          <div class="beauty-sec-desc">统一调整背景色、不透明度、边框与圆角；改动点“确定应用”后生效。</div>
+          <div class="beauty-field-row"><label>背景色</label><input type="color" id="beautyPpBg" value="#F0F2F0"></div>
+          <div class="beauty-field-row"><label>不透明度</label><input type="range" id="beautyPpOp" min="0" max="100" value="100"><span class="beauty-range-val" id="beautyPpOpVal"></span></div>
+          <div class="beauty-field-row"><label>边框颜色</label><input type="color" id="beautyPpBorder" value="#DCDCDC"></div>
+          <div class="beauty-field-row"><label>圆角</label><input type="range" id="beautyPpRadius" min="0" max="20" value="4"><span class="beauty-range-val" id="beautyPpRadiusVal"></span></div>
+          <div class="beauty-field-row"><label>图片</label><span class="beauty-av-state" id="beautyPpState">默认图片</span></div>
+          <div class="beauty-btn-row">
+            <button type="button" class="beauty-btn" id="beautyPpUpload">更换拍立得图片</button>
+            <button type="button" class="beauty-btn ghost" id="beautyPpClear">恢复默认图片</button>
+          </div>
+        </div>
+        <div class="beauty-sec" data-sec="bubble">
+          <div class="beauty-sec-title">聊天气泡配色</div>
+          <div class="beauty-sec-desc">设置各聊天气泡的底色与文字颜色。</div>
+          <div id="beautyBubbleRows" class="beauty-bubble-rows"></div>
+          <div class="beauty-empty" id="beautyBubbleEmpty">暂无可调气泡</div>
+        </div>
+        <div class="beauty-sec" data-sec="avatar">
+          <div class="beauty-sec-title">头像</div>
+          <div class="beauty-sec-desc">更换后点“确定应用”统一生效。</div>
+          <div id="beautyAvatarRows" class="beauty-avatar-rows"></div>
+        </div>
+      </div>
+      <div class="beauty-foot">
+        <button type="button" class="beauty-btn ghost" id="beautyReset">恢复默认配色</button>
+        <button type="button" class="beauty-btn primary big" id="beautyApply">确定应用</button>
+      </div>
+    </div>
+  </div>
 
 <!-- 闹钟弹层 v154：主页列表(开关) → 完整列表(管理) → 编辑向导(时间/循环/命名) -->
 <div class="alarm-pop" id="alarmPop">
@@ -1175,6 +1221,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=156"></script>
+<script src="js/script.js?v=157"></script>
   </body>
 </html>
