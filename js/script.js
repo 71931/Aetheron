@@ -603,6 +603,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var beautyBack = document.getElementById('beautyBack');
     var beautyTitle = document.getElementById('beautyTitle');
     var beautyClose = document.getElementById('beautyClose');
+    var beautyCard = document.getElementById('beautyOverlay') ? document.getElementById('beautyOverlay').querySelector('.beauty-card') : null;
+    var beautyFold = document.getElementById('beautyFold');
+    var beautyCollapsed = false;
+    function setBeautyCollapsed(v) {
+      beautyCollapsed = !!v;
+      if (beautyCard) beautyCard.classList.toggle('collapsed', beautyCollapsed);
+    }
     var beautyUploadKind = '';
     var BUBBLE_COLOR_KEY = 'aetheron_bubble_colors_v156';
     var BUBBLE_DEFAULT_TEXT = ['又是一个下雨天', '我可以拥抱你吗？'];
@@ -828,43 +835,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       for (var k = 0; k < 2; k++) bubbleResetOne(k);
     }
 
-    // ---- 预览舞台 ----
-    function updateStageBubbles() {
-      for (var k = 0; k < 2; k++) {
-        var d = document.getElementById('bsBubble' + k);
-        if (!d) continue;
-        var el = bubbleDom(k);
-        if (el && el.textContent) d.textContent = el.textContent;
-        var c = bubbleColorsNow(k);
-        d.style.backgroundColor = c.bg;
-        d.style.color = c.fg;
-        d.style.setProperty('--bbg', c.bg);
-        d.style.setProperty('--bfg', c.fg);
-      }
-    }
+    // ---- 预览：v160 起预览即真实主界面整屏透出（无需镜像），此处仅做必要刷新 ----
+    function updateStageBubbles() {}
     function updateStageAll() {
-      var sw = document.getElementById('bsWall');
-      if (sw) {
-        if (state.wall) {
-          sw.classList.remove('bs-wall-default');
-          sw.style.backgroundImage = "url('" + state.wall + "')";
-        } else {
-          sw.classList.add('bs-wall-default');
-          sw.style.backgroundImage = '';
-        }
-      }
       applySlider();
-      var p = state.polaroid || {};
-      var img = (p && p.img) || DEFAULT_POLAROID_IMG;
-      var ph = document.getElementById('bsPolaroidPhoto');
-      if (ph) ph.style.backgroundImage = "url('" + img + "')";
-      var card = document.getElementById('bsPolaroid');
-      if (card) {
-        card.style.backgroundColor = rgba((p.bg || '#F0F2F0'), (p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp);
-        card.style.borderColor = p.border || '#DCDCDC';
-        card.style.borderRadius = ((p.radius === undefined || p.radius === null) ? 4 : p.radius) + 'px';
-      }
-      updateStageBubbles();
     }
 
     // ---- 导航 ----
@@ -896,6 +870,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     function openBeautyCenter() {
       BV_STACK = [];
+      setBeautyCollapsed(false);
       updateStageAll();
       showBvPage('home');
       if (beautyOverlay) beautyOverlay.hidden = false;
@@ -1075,9 +1050,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
     if (beautyBack) beautyBack.addEventListener('click', backBv);
     if (beautyClose) beautyClose.addEventListener('click', closeBeautyCenter);
+    if (beautyFold) beautyFold.addEventListener('click', function () { setBeautyCollapsed(!beautyCollapsed); });
     if (beautyOverlay) {
       beautyOverlay.addEventListener('click', function (e) {
-        if (e.target === beautyOverlay) closeBeautyCenter();
+        if (e.target !== beautyOverlay) return;
+        if (beautyCollapsed) { setBeautyCollapsed(false); return; }
+        closeBeautyCenter();
       });
     }
     var bWallUpload = document.getElementById('bWallUpload');

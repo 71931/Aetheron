@@ -2318,49 +2318,49 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(15, 15, 18, 0.32);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: transparent;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 14px 12px;
+  padding: 0;
 }
-/* v158：编辑期间主界面透出并实时预览，点“取消 / ×”还原，点“确定应用”保存 */
-.beauty-stage-wrap { padding: 12px 16px 0; flex: none; }
-.beauty-stage-label { font-size: 11px; color: #8a8a94; margin-bottom: 6px; font-weight: 600; }
-.beauty-stage { position: relative; border-radius: 16px; overflow: hidden; background: #eef0f4; box-shadow: 0 8px 22px rgba(0,0,0,0.22); }
-.bs-shot { position: relative; height: 205px; overflow: hidden; }
-.bs-wall { position: absolute; inset: 0; background-color: #eef0f4; background-size: cover; background-position: center; opacity: .95; }
-.bs-wall-default { background-color: #eef0f4; background-image: radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px); background-size: 14px 14px; }
-.bs-body { position: relative; z-index: 2; padding: 16px 16px 14px; }
-.beauty-stage .mood-slider { margin: 0; }
-.beauty-stage .slider-track { height: 12px; }
-.beauty-stage .slider-heart { width: 18px; height: 18px; }
-.bs-row { display: flex; gap: 12px; align-items: flex-start; margin-top: 16px; }
-.bs-pp { flex: none; width: 106px; background: #F0F2F0; border: 1px solid #DCDCDC; border-radius: 4px; padding: 7px 7px 5px; box-shadow: 0 3px 10px rgba(0,0,0,0.14); }
-.bs-pp-photo { height: 96px; border-radius: 2px; background-color: #d9d9de; background-size: cover; background-position: center; }
-.bs-bubbox { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding-top: 6px; }
-.beauty-stage .ins-bubble { font-size: 12px !important; padding: 3px 9px !important; border-radius: 12px !important; line-height: 1.35 !important; margin: 2px auto 2px 0 !important; }
-.beauty-stage .message-sent.ins-bubble { margin: 2px 0 2px auto !important; }
-.beauty-stage .ins-bubble::before { display: none !important; }
+/* v160：设置抽屉底部上浮，主界面整屏透出作为实时预览 */
+.beauty-stage-wrap { display: block; flex: none; padding: 8px 16px 0; }
+.beauty-stage-label { font-size: 12px; font-weight: 600; color: #2a5cff; letter-spacing: 0.2px; padding: 7px 12px; background: rgba(42, 92, 255, 0.08); border-radius: 10px; text-align: center; }
 .beauty-overlay[hidden] { display: none; }
+.beauty-head { position: relative; }
+.beauty-head::before { display: none; }
+.beauty-head-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.beauty-fold {
+  border: none; background: rgba(0, 0, 0, 0.06); color: #3a3a40;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.beauty-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s; }
+.beauty-card.collapsed { height: 58px !important; min-height: 58px !important; max-height: 58px !important; box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.22); }
+.beauty-card.collapsed .beauty-head { border-bottom: none; }
+.beauty-card.collapsed .beauty-scroll, .beauty-card.collapsed .beauty-stage-wrap { display: none; }
+.beauty-card.collapsed .beauty-fold svg { transform: rotate(180deg); }
 .beauty-card {
-  width: min(440px, 96vw);
-  max-height: 86vh;
+  width: min(100%, 500px);
+  height: min(50vh, 520px);
+  max-height: 56vh;
   display: flex;
   flex-direction: column;
-  background: rgba(250, 250, 252, 0.97);
-  border-radius: 22px;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4);
+  background: rgba(248, 248, 252, 0.98);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.28);
   overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  transition: height .2s ease;
 }
 .beauty-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  gap: 8px;
+  padding: 12px 16px 11px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  flex: none;
 }
 .beauty-title { font-size: 16px; font-weight: 700; color: #1b1b1f; letter-spacing: 0.3px; }
 .beauty-x {
@@ -2371,8 +2371,9 @@
 .beauty-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 16px 10px;
+  padding: 8px 16px 14px;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .beauty-sec {
   padding: 14px 2px 6px;

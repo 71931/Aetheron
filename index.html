@@ -1100,30 +1100,12 @@
       <div class="beauty-head">
         <button type="button" class="beauty-back" id="beautyBack" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span class="beauty-title" id="beautyTitle">UI 美化</span>
-        <button type="button" class="beauty-x" id="beautyClose">×</button>
+        <span class="beauty-head-tools">
+          <button type="button" class="beauty-fold" id="beautyFold" title="收起/展开编辑面板"><svg viewBox="0 0 24 24"><path d="M4 14l8-8 8 8"/></svg></button>
+          <button type="button" class="beauty-x" id="beautyClose">×</button>
+        </span>
       </div>
-      <div class="beauty-stage-wrap">
-        <div class="beauty-stage-label">实时预览（改动即时生效并保存）</div><div class="beauty-stage" id="beautyStage">
-          <div class="bs-shot">
-            <div class="bs-wall bs-wall-default" id="bsWall"></div>
-            <div class="bs-body">
-              <div class="mood-slider" id="bsSlider">
-                <div class="slider-track"><div class="slider-fill" style="width:62%"></div><svg class="slider-heart" style="left:calc(62% - 11px)" viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.5 12C19 16.4 12 21 12 21z"/></svg></div>
-                <div class="slider-times"><span>0:42</span><span>5:20</span></div>
-              </div>
-              <div class="bs-row">
-                <div class="bs-pp" id="bsPolaroid">
-                  <div class="bs-pp-photo" id="bsPolaroidPhoto"></div>
-                </div>
-                <div class="bs-bubbox" id="bsBubbles">
-                  <div class="message-received ins-bubble" id="bsBubble0">又是一个下雨天</div>
-                  <div class="message-sent ins-bubble" id="bsBubble1">我可以拥抱你吗？</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div class="beauty-stage-wrap"><div class="beauty-stage-label">实时预览 · 整屏（改动即时生效；点右上角箭头收起面板看全屏）</div></div>
       <div class="beauty-scroll" id="beautyScroll">
         <!-- ============ 首页：三大板块 ============ -->
         <div class="bv-view" id="bvHome">
@@ -1355,6 +1337,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=159"></script>
+<script src="js/script.js?v=160"></script>
   </body>
 </html>
