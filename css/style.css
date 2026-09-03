@@ -2554,3 +2554,17 @@
 .beauty-bubble-row input[type="color"] { flex: none; margin-right: 4px; }
 .beauty-bubble-row .bb-reset { margin-left: auto; }
 .bv-app-row .beauty-btn.ghost.sm, .beauty-btn.ghost.sm { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+
+/* ===== v162：名片小组件最外框去除 / 分割线去黑 / 默认素材空态 ===== */
+.nc-widget {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.nc-divider { background: rgba(255,255,255,0.26) !important; }
+.nc-avatar { background-color: rgba(255,255,255,0.18); }
+.nc-avatar.has-img { background-color: transparent; }
