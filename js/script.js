@@ -476,6 +476,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var settingsOverlay = document.getElementById('settingsOverlay');
     var toastEl = document.getElementById('toast');
     var appIcons = document.querySelectorAll('.app-icon');
+    var DEFAULT_APP_ICONS = Array.prototype.map.call(appIcons, function (el) { return el.innerHTML; });
     var mediaEcg = document.getElementById('mediaEcg');
     var polaroidWidget = document.querySelector('.media-ecg .heart-photo-widget');
     var polaroidStyleEl = document.getElementById('polaroidStyle');
@@ -594,42 +595,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.addEventListener('click', function () { openPicker(el, 'bg'); });
     });
 
-    // v157：长按主界面空白 / 组件，统一进入 UI 美化中心（草稿编辑 -> 确定应用）
-    function bindLongPressOpenBeauty(el) {
-      var t = null;
-      function cancel() { if (t) { clearTimeout(t); t = null; } }
-      el.addEventListener('touchstart', function () {
-        t = setTimeout(function () { t = null; openBeautyCenter(); }, 500);
-      }, { passive: true });
-      el.addEventListener('touchend', cancel);
-      el.addEventListener('touchmove', cancel, { passive: true });
-      el.addEventListener('touchcancel', cancel);
-      el.addEventListener('contextmenu', function (e) { e.preventDefault(); openBeautyCenter(); });
-    }
-    bindLongPressOpenBeauty(statusModule);
-    bindLongPressOpenBeauty(homeBottom);
-
-    // ===================== v157：UI 美化中心 =====================
+    // ===================== v159：UI 美化（入口：设置 → UI 美化；改动即时生效并自动保存） =====================
+    // v159 起：主界面组件不再绑定长按/单击/快捷栏编辑；全部收敛到 设置 → UI 美化 面板
     var beautyOverlay = document.getElementById('beautyOverlay');
     var beautyWallInput = document.getElementById('beautyWallInput');
     var beautyScroll = document.getElementById('beautyScroll');
-    var beautyDraft = null;
+    var beautyBack = document.getElementById('beautyBack');
+    var beautyTitle = document.getElementById('beautyTitle');
+    var beautyClose = document.getElementById('beautyClose');
     var beautyUploadKind = '';
-    var beautyApplied = false;      // v158：点过“确定应用”后关闭不再还原
-    var beautyAvatarSnap = {};      // v158：中心打开时头像 DOM 快照
-    var beautyOpenGuard = 0;        // v158：长按/双击入口防抖
     var BUBBLE_COLOR_KEY = 'aetheron_bubble_colors_v156';
-    var AVATAR_TARGETS = [
-      { key: 'avatar', label: '主页大头像' },
-      { key: 'twAvatar', label: '推文头像' },
-      { key: 'avatarL', label: '左侧小头像' },
-      { key: 'avatarR', label: '右侧小头像' },
-      { key: 'ncAvatar', label: '通知头像' }
-    ];
+    var BUBBLE_DEFAULT_TEXT = ['又是一个下雨天', '我可以拥抱你吗？'];
+    var BUBBLE_DEFAULT_BG = ['#ffffff', '#6e6e6e'];
+    var BUBBLE_DEFAULT_FG = ['#210202', '#ffffff'];
+    var SLIDER_DEFAULT_C1 = '#1c1c21';
+    var SLIDER_DEFAULT_C2 = '#8f8f98';
+    var SLIDER_DEFAULT_TIME = '#5a5a62';
+    var NC_DEFAULT_MSG = '미녀 고교가 입학하다';
+    var NC_DEFAULT_USER = 'Xiaoubabe';
+    var BV_PAGES = { home: 'UI 美化', wall: '背景图', widgets: '小组件', slider: '爱心进度条', profile: '名片小组件', polaroid: '拍立得组件', bubble: '对话小组件', app: 'APP' };
+    var BV_STACK = [];
+    var curBv = 'home';
+    var appLabels = ['APP', '设置', '聊天', 'MCP'];
+    var DEFAULT_POLAROID_IMG = 'https://i.postimg.cc/XvFDdTKY/Smart-Select-20251013-023208.jpg';
 
     function beautyToast(msg) { if (typeof toast === 'function') toast(msg); }
 
-    // 全屏壁纸应用（旧 topBg/bottomBg 残留在模块上的样式一并清理）
+    // ---- 全屏壁纸 ----
     function applyWallUI() {
       if (state.wall) {
         homeCanvas.classList.add('has-img');
@@ -647,6 +639,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (statusModule) { statusModule.style.backgroundImage = ''; statusModule.classList.remove('has-img'); }
       if (hubModule) { hubModule.style.backgroundImage = ''; hubModule.classList.remove('has-img'); }
     }
+    function wallClear() { delete state.wall; applyWallUI(); saveState(); }
 
     function rgbToHex(v) {
       var m = /rgba?\(([^)]+)\)/.exec(v || '');
@@ -655,49 +648,272 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       function h2(x) { x = parseInt(x, 10); if (isNaN(x)) return '00'; x = x > 255 ? 255 : x < 0 ? 0 : x; return (x < 16 ? '0' : '') + x.toString(16); }
       return '#' + h2(p[0]) + h2(p[1]) + h2(p[2]);
     }
+    function bubbleDefaultBg(el) { return el && el.classList.contains('message-sent') ? '#6e6e6e' : '#ffffff'; }
 
-    function bubbleDefaultBg(el) {
-      return el && el.classList.contains('message-sent') ? '#6e6e6e' : '#ffffff';
+    // ---- 爱心进度条：渐变改色 ----
+    function sliderState() {
+      var s = state.slider || {};
+      var c1, c2, time = s.time || '';
+      var has = false;
+      if (s.g1 && s.g2) { c1 = s.g1; c2 = s.g2; has = true; }
+      else if (s.fill) {
+        has = true;
+        var inner = /\(([^)]*)\)/.exec(s.fill);
+        var toks = inner ? inner[1].split(',') : s.fill.split(',');
+        var cols = [];
+        for (var i = 0; i < toks.length; i++) { if (/#|rgb/i.test(toks[i])) cols.push(toks[i]); }
+        c1 = rgbToHex(cols[0]) || SLIDER_DEFAULT_C1;
+        c2 = rgbToHex(cols[1]) || c1;
+      }
+      if (!c1) c1 = SLIDER_DEFAULT_C1;
+      if (!c2) c2 = SLIDER_DEFAULT_C2;
+      return { c1: c1, c2: c2, time: time, custom: has };
+    }
+    function paintSlider(root, st) {
+      if (!root) return;
+      if (st.custom) {
+        root.style.setProperty('--slFill', 'linear-gradient(90deg,' + st.c1 + ' 0%,' + st.c2 + ' 100%)');
+        root.style.setProperty('--slHeart', st.c1);
+        if (st.time) root.style.setProperty('--slTime', st.time); else root.style.removeProperty('--slTime');
+      } else {
+        root.style.removeProperty('--slFill');
+        root.style.removeProperty('--slHeart');
+        root.style.removeProperty('--slTime');
+      }
+    }
+    function applySlider() {
+      var st = sliderState();
+      paintSlider(document.querySelector('.mood-slider'), st);
+      paintSlider(document.getElementById('bsSlider'), st);
+    }
+    function applySavedSliderColors() { applySlider(); }
+    function sliderSet(c1, c2, time) {
+      state.slider = { g1: c1, g2: c2, time: time || '' };
+      saveState();
+      applySlider();
+      syncBvSlider();
+    }
+    function sliderResetColors() {
+      delete state.slider;
+      saveState();
+      applySlider();
+      syncBvSlider();
     }
 
-    function freshBeautyDraft() {
-      var pp = state.polaroid || {};
-      var d = {
-        wall: state.wall || '',
-        polaroid: {
-          img: pp.img || '',
-          bg: pp.bg || '#F0F2F0',
-          bgOp: pp.bgOp != null ? pp.bgOp : 1,
-          border: pp.border || '#DCDCDC',
-          radius: pp.radius != null ? pp.radius : 4
-        },
-        slider: {
-          fill: (state.slider && state.slider.fill) || '',
-          time: (state.slider && state.slider.time) || ''
-        },
-        avatars: {},
-        bubbles: []
+    // ---- 名片小组件：头像 / 文案 / 用户名 ----
+    function ncAvatarSet(url) {
+      if (!ncAvatarEl) return;
+      ncAvatarEl.style.backgroundImage = "url('" + url + "')";
+      ncAvatarEl.classList.add('has-img');
+      state.ncAvatar = url;
+      saveState();
+    }
+    function ncAvatarClear() {
+      if (!ncAvatarEl) return;
+      ncAvatarEl.style.removeProperty('background-image');
+      ncAvatarEl.classList.remove('has-img');
+      delete state.ncAvatar;
+      saveState();
+    }
+    function ncTextSet(which, txt) {
+      var t = txt || '';
+      if (which === 'msg') { if (ncMsgEl) ncMsgEl.textContent = t; state.ncMsg = t; }
+      else { if (ncUserEl) ncUserEl.textContent = t; state.ncUser = t; }
+      saveState();
+    }
+    function ncTextReset() {
+      if (ncMsgEl) ncMsgEl.textContent = NC_DEFAULT_MSG;
+      if (ncUserEl) ncUserEl.textContent = NC_DEFAULT_USER;
+      state.ncMsg = NC_DEFAULT_MSG;
+      state.ncUser = NC_DEFAULT_USER;
+      saveState();
+    }
+
+    // ---- 拍立得组件 / 背景 / 左右图片 ----
+    function polaroidPatch(obj) {
+      state.polaroid = Object.assign({}, state.polaroid || {}, obj);
+      applyPolaroidStyle();
+      saveState();
+    }
+    function sideAvatarSet(i, url) {
+      if (avatarEls[i]) avatarEls[i].style.backgroundImage = "url('" + url + "')";
+      state[i === 0 ? 'avatarL' : 'avatarR'] = url;
+      saveState();
+    }
+    function sideAvatarClear(i) {
+      if (avatarEls[i]) avatarEls[i].style.removeProperty('background-image');
+      delete state[i === 0 ? 'avatarL' : 'avatarR'];
+      saveState();
+    }
+    function ecgBgSet(url) {
+      if (mediaEcg) { mediaEcg.style.backgroundImage = "url('" + url + "')"; mediaEcg.classList.add('has-img'); }
+      state.ecgBg = url;
+      saveState();
+    }
+    function ecgBgClear() {
+      if (mediaEcg) { mediaEcg.style.removeProperty('background-image'); mediaEcg.classList.remove('has-img'); }
+      delete state.ecgBg;
+      saveState();
+    }
+    function appIconSet(i, url) {
+      if (appIcons[i]) appIcons[i].innerHTML = '<img src="' + url + '" alt="">';
+      state.apps['app-' + i] = url;
+      saveState();
+    }
+    function appIconReset(i) {
+      if (appIcons[i] && DEFAULT_APP_ICONS[i]) appIcons[i].innerHTML = DEFAULT_APP_ICONS[i];
+      delete state.apps['app-' + i];
+      saveState();
+    }
+
+    // ---- 对话小组件：气泡 ----
+    function bubbleDom(k) { return document.getElementById('bubble-' + k); }
+    function bubbleColorsNow(k) {
+      var el = bubbleDom(k);
+      if (!el) return { bg: BUBBLE_DEFAULT_BG[k], fg: BUBBLE_DEFAULT_FG[k] };
+      var cs = getComputedStyle(el);
+      return {
+        bg: rgbToHex(cs.backgroundColor) || BUBBLE_DEFAULT_BG[k],
+        fg: rgbToHex(cs.color) || BUBBLE_DEFAULT_FG[k]
       };
-      AVATAR_TARGETS.forEach(function (t) { d.avatars[t.key] = state[t.key] || ''; });
-      document.querySelectorAll('.ins-bubble[data-key]').forEach(function (el) {
-        d.bubbles.push({
-          el: el,
-          key: el.getAttribute('data-key'),
-          bg: rgbToHex(getComputedStyle(el).getPropertyValue('--bbg')) || bubbleDefaultBg(el),
-          fg: rgbToHex(getComputedStyle(el).getPropertyValue('--bfg')) || '#ffffff'
-        });
-      });
-      return d;
+    }
+    function bubbleTextSet(k, txt) {
+      var el = bubbleDom(k);
+      if (!el) return;
+      el.textContent = txt || '';
+      if (!state.bubbleText) state.bubbleText = {};
+      state.bubbleText[k] = txt || '';
+      saveState();
+      updateStageBubbles();
+    }
+    function bubbleColorSet(k, prop, hex) {
+      var el = bubbleDom(k);
+      if (!el) return;
+      if (prop === 'bg') el.style.setProperty('--bbg', hex);
+      else el.style.setProperty('--bfg', hex);
+      persistBubbleColors();
+      updateStageBubbles();
+    }
+    function persistBubbleColors() {
+      var map = {};
+      for (var k = 0; k < 2; k++) {
+        if (!bubbleDom(k)) continue;
+        map[k] = bubbleColorsNow(k);
+      }
+      try { localStorage.setItem(BUBBLE_COLOR_KEY, JSON.stringify(map)); } catch (e) {}
+    }
+    function loadBubbleColors() {
+      var map = null;
+      try { map = JSON.parse(localStorage.getItem(BUBBLE_COLOR_KEY) || 'null'); } catch (e) {}
+      if (!map) return;
+      for (var k = 0; k < 2; k++) {
+        var el = bubbleDom(k);
+        if (!el || !map[k]) continue;
+        if (map[k].bg) el.style.setProperty('--bbg', map[k].bg);
+        if (map[k].fg) el.style.setProperty('--bfg', map[k].fg);
+      }
+    }
+    function bubbleResetOne(k) {
+      var el = bubbleDom(k);
+      if (!el) return;
+      el.style.removeProperty('--bbg');
+      el.style.removeProperty('--bfg');
+      el.textContent = BUBBLE_DEFAULT_TEXT[k];
+      if (state.bubbleText) delete state.bubbleText[k];
+      persistBubbleColors();
+      saveState();
+      updateStageBubbles();
+    }
+    function bubblesResetAll() {
+      for (var k = 0; k < 2; k++) bubbleResetOne(k);
     }
 
-    function renderBeautyWall() {
-      var pv = document.getElementById('beautyWallPreview');
-      if (!pv || !beautyDraft) return;
+    // ---- 预览舞台 ----
+    function updateStageBubbles() {
+      for (var k = 0; k < 2; k++) {
+        var d = document.getElementById('bsBubble' + k);
+        if (!d) continue;
+        var el = bubbleDom(k);
+        if (el && el.textContent) d.textContent = el.textContent;
+        var c = bubbleColorsNow(k);
+        d.style.backgroundColor = c.bg;
+        d.style.color = c.fg;
+        d.style.setProperty('--bbg', c.bg);
+        d.style.setProperty('--bfg', c.fg);
+      }
+    }
+    function updateStageAll() {
+      var sw = document.getElementById('bsWall');
+      if (sw) {
+        if (state.wall) {
+          sw.classList.remove('bs-wall-default');
+          sw.style.backgroundImage = "url('" + state.wall + "')";
+        } else {
+          sw.classList.add('bs-wall-default');
+          sw.style.backgroundImage = '';
+        }
+      }
+      applySlider();
+      var p = state.polaroid || {};
+      var img = (p && p.img) || DEFAULT_POLAROID_IMG;
+      var ph = document.getElementById('bsPolaroidPhoto');
+      if (ph) ph.style.backgroundImage = "url('" + img + "')";
+      var card = document.getElementById('bsPolaroid');
+      if (card) {
+        card.style.backgroundColor = rgba((p.bg || '#F0F2F0'), (p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp);
+        card.style.borderColor = p.border || '#DCDCDC';
+        card.style.borderRadius = ((p.radius === undefined || p.radius === null) ? 4 : p.radius) + 'px';
+      }
+      updateStageBubbles();
+    }
+
+    // ---- 导航 ----
+    function bvEl(id) { return document.getElementById('bv' + id.charAt(0).toUpperCase() + id.slice(1)); }
+    function showBvPage(id) {
+      if (!BV_PAGES[id]) id = 'home';
+      curBv = id;
+      document.querySelectorAll('.bv-view').forEach(function (v) { v.hidden = true; });
+      var el = bvEl(id);
+      if (el) el.hidden = false;
+      if (beautyTitle) beautyTitle.textContent = BV_PAGES[id];
+      if (beautyBack) beautyBack.hidden = !BV_STACK.length;
+      if (id === 'wall') syncBvWall();
+      else if (id === 'slider') syncBvSlider();
+      else if (id === 'profile') syncBvProfile();
+      else if (id === 'polaroid') syncBvPolaroid();
+      else if (id === 'bubble') buildBubbleRows();
+      else if (id === 'app') buildAppRows();
+      if (beautyScroll) beautyScroll.scrollTop = 0;
+    }
+    function gotoBv(id) {
+      if (!BV_PAGES[id]) return;
+      BV_STACK.push(curBv);
+      showBvPage(id);
+    }
+    function backBv() {
+      if (!BV_STACK.length) { closeBeautyCenter(); return; }
+      showBvPage(BV_STACK.pop());
+    }
+    function openBeautyCenter() {
+      BV_STACK = [];
+      updateStageAll();
+      showBvPage('home');
+      if (beautyOverlay) beautyOverlay.hidden = false;
+    }
+    function closeBeautyCenter() {
+      BV_STACK = [];
+      if (beautyOverlay) beautyOverlay.hidden = true;
+    }
+
+    // ---- 分页数据同步 ----
+    function syncBvWall() {
+      var pv = document.getElementById('bWallPrev');
+      if (!pv) return;
       pv.innerHTML = '';
-      if (beautyDraft.wall) {
+      if (state.wall) {
         var im = document.createElement('img');
-        im.src = beautyDraft.wall;
-        im.alt = '壁纸预览';
+        im.src = state.wall;
+        im.alt = '背景预览';
         pv.appendChild(im);
       } else {
         var sp = document.createElement('span');
@@ -706,416 +922,269 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         pv.appendChild(sp);
       }
     }
+    function syncBvSlider() {
+      var st = sliderState();
+      var c1 = document.getElementById('bvSlC1'); if (c1) c1.value = st.c1;
+      var c2 = document.getElementById('bvSlC2'); if (c2) c2.value = st.c2;
+      var tm = document.getElementById('bvSlTime'); if (tm) tm.value = st.time || SLIDER_DEFAULT_TIME;
+    }
+    function syncBvProfile() {
+      var av = document.getElementById('bvNcAvState');
+      if (av) av.textContent = state.ncAvatar ? '已自定义' : '默认';
+      var m = document.getElementById('bvNcMsg');
+      if (m) m.value = ncMsgEl ? ncMsgEl.textContent : '';
+      var u = document.getElementById('bvNcUser');
+      if (u) u.value = ncUserEl ? ncUserEl.textContent : '';
+    }
+    function syncBvPolaroid() {
+      var p = state.polaroid || {};
+      var bg = document.getElementById('bvPpBg'); if (bg) bg.value = p.bg || '#F0F2F0';
+      var op = document.getElementById('bvPpOp');
+      if (op) {
+        op.value = Math.round(((p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp) * 100);
+        var ov = document.getElementById('bvPpOpVal'); if (ov) ov.textContent = op.value + '%';
+      }
+      var bd = document.getElementById('bvPpBorder'); if (bd) bd.value = p.border || '#DCDCDC';
+      var rd = document.getElementById('bvPpRadius');
+      if (rd) {
+        rd.value = (p.radius === undefined || p.radius === null) ? 4 : p.radius;
+        var rv = document.getElementById('bvPpRadiusVal'); if (rv) rv.textContent = rd.value + 'px';
+      }
+    }
 
-    function renderBeautyBubbles() {
-      var rows = document.getElementById('beautyBubbleRows');
-      var empty = document.getElementById('beautyBubbleEmpty');
-      if (!rows) return;
-      rows.innerHTML = '';
-      if (!beautyDraft || !beautyDraft.bubbles.length) { if (empty) empty.hidden = false; return; }
-      if (empty) empty.hidden = true;
-      beautyDraft.bubbles.forEach(function (b) {
+    // ---- 对话页行渲染 ----
+    function buildBubbleRows() {
+      var wrap = document.getElementById('bvBubbleRows');
+      if (!wrap || wrap.dataset.built) return;
+      wrap.dataset.built = '1';
+      var names = ['收 气泡', '发 气泡'];
+      for (var k = 0; k < 2; k++) {
+        var el = bubbleDom(k);
+        if (!el) continue;
         var row = document.createElement('div');
         row.className = 'beauty-bubble-row';
-        var lab = document.createElement('span');
-        lab.className = 'beauty-bubble-name';
-        lab.textContent = '气泡 ' + b.key;
-        var l1 = document.createElement('label'); l1.textContent = '底色';
-        var i1 = document.createElement('input'); i1.type = 'color'; i1.value = b.bg;
-        i1.addEventListener('input', function () { b.bg = i1.value; liveApplyBeautyDraft(); });
-        var l2 = document.createElement('label'); l2.textContent = '文字';
-        var i2 = document.createElement('input'); i2.type = 'color'; i2.value = b.fg;
-        i2.addEventListener('input', function () { b.fg = i2.value; liveApplyBeautyDraft(); });
-        row.appendChild(lab); row.appendChild(l1); row.appendChild(i1); row.appendChild(l2); row.appendChild(i2);
-        rows.appendChild(row);
-      });
-    }
-
-    function renderBeautyAvatars() {
-      var box = document.getElementById('beautyAvatarRows');
-      if (!box || !beautyDraft) return;
-      box.innerHTML = '';
-      AVATAR_TARGETS.forEach(function (t) {
-        var has = !!beautyDraft.avatars[t.key];
-        var row = document.createElement('div');
-        row.className = 'beauty-field-row';
-        var lab = document.createElement('label'); lab.className = 'beauty-av-label'; lab.textContent = t.label;
-        var btn = document.createElement('button');
-        btn.type = 'button'; btn.className = 'beauty-btn sm'; btn.textContent = has ? '更换图片' : '设置图片';
-        btn.setAttribute('data-avatar', t.key);
-        var st = document.createElement('span'); st.className = 'beauty-av-state'; st.id = 'beautyAv' + t.key;
-        st.textContent = has ? '已设置（待应用）' : '默认';
-        row.appendChild(lab); row.appendChild(btn); row.appendChild(st);
-        box.appendChild(row);
-      });
-    }
-
-    function renderBeautyControls() {
-      renderBeautyWall();
-      renderBeautyBubbles();
-      renderBeautyAvatars();
-      if (!beautyDraft) return;
-      var pb = document.getElementById('beautyPpBg'); if (pb) pb.value = beautyDraft.polaroid.bg;
-      var po = document.getElementById('beautyPpOp'); if (po) po.value = Math.round(beautyDraft.polaroid.bgOp * 100);
-      var pe = document.getElementById('beautyPpBorder'); if (pe) pe.value = beautyDraft.polaroid.border;
-      var pr = document.getElementById('beautyPpRadius'); if (pr) pr.value = beautyDraft.polaroid.radius;
-      var ps = document.getElementById('beautyPpState');
-      if (ps) ps.textContent = beautyDraft.polaroid.img ? '已设置图片' : '默认图片';
-      var pov = document.getElementById('beautyPpOpVal'); if (pov) pov.textContent = Math.round(beautyDraft.polaroid.bgOp * 100) + '%';
-      var prv = document.getElementById('beautyPpRadiusVal'); if (prv) prv.textContent = beautyDraft.polaroid.radius + 'px';
-      var sf = document.getElementById('beautySlFill'); if (sf) sf.value = beautyDraft.slider.fill || '#2c2c31';
-      var st = document.getElementById('beautySlTime'); if (st) st.value = beautyDraft.slider.time || '#5a5a62';
-      renderBeautyStage();
-    }
-
-    // ===== v158：UI 美化中心实时预览 =====
-    // 进入中心时：草稿驱动主界面 + 顶部舞台实时变化；取消/×/点遮罩关闭会还原到打开前；确定应用才保存
-    function openBeautyCenter(focus) {
-      if (!beautyOverlay) return;
-      var now = Date.now();
-      if (now - beautyOpenGuard < 650) { beautyOpenGuard = now; return; }
-      beautyOpenGuard = now;
-      beautyApplied = false;
-      beautyDraft = freshBeautyDraft();
-      snapAvatarDom();
-      renderBeautyControls();
-      liveApplyBeautyDraft();
-      beautyOverlay.hidden = false;
-      if (focus && beautyScroll) {
-        var sec = beautyScroll.querySelector('[data-sec="' + focus + '"]');
-        if (sec) setTimeout(function () { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+        var name = document.createElement('span');
+        name.className = 'beauty-bubble-name';
+        name.textContent = names[k];
+        row.appendChild(name);
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'bv-input';
+        inp.value = el.textContent || BUBBLE_DEFAULT_TEXT[k];
+        inp.maxLength = 40;
+        row.appendChild(inp);
+        var labBg = document.createElement('span'); labBg.className = 'beauty-mini-lab'; labBg.textContent = '底';
+        var cBg = document.createElement('input'); cBg.type = 'color'; cBg.className = 'bb-bg';
+        var labFg = document.createElement('span'); labFg.className = 'beauty-mini-lab'; labFg.textContent = '字';
+        var cFg = document.createElement('input'); cFg.type = 'color'; cFg.className = 'bb-fg';
+        var cur = bubbleColorsNow(k);
+        cBg.value = cur.bg; cFg.value = cur.fg;
+        row.appendChild(labBg); row.appendChild(cBg); row.appendChild(labFg); row.appendChild(cFg);
+        var rst = document.createElement('button');
+        rst.type = 'button';
+        rst.className = 'beauty-btn ghost sm bb-reset';
+        rst.textContent = '默认';
+        row.appendChild(rst);
+        wrap.appendChild(row);
+        (function (k2, inp2, cBg2, cFg2) {
+          inp2.addEventListener('input', function () { bubbleTextSet(k2, inp2.value); });
+          cBg2.addEventListener('input', function () { bubbleColorSet(k2, 'bg', cBg2.value); });
+          cFg2.addEventListener('input', function () { bubbleColorSet(k2, 'fg', cFg2.value); });
+          rst.addEventListener('click', function () {
+            bubbleResetOne(k2);
+            inp2.value = bubbleDom(k2) ? bubbleDom(k2).textContent : BUBBLE_DEFAULT_TEXT[k2];
+            var c2 = bubbleColorsNow(k2);
+            cBg2.value = c2.bg; cFg2.value = c2.fg;
+          });
+        })(k, inp, cBg, cFg);
       }
     }
 
-    function closeBeautyCenter() {
-      if (!beautyOverlay) return;
-      beautyOverlay.hidden = true;
-      if (!beautyApplied) restoreBeautyLive();
+    // ---- APP 图标页行渲染 ----
+    function syncBvAppRow(row) {
+      if (!row) return;
+      var i = parseInt(row.getAttribute('data-i'), 10);
+      if (isNaN(i)) return;
+      var ic = row.querySelector('.bv-app-ic');
+      if (ic && appIcons[i]) ic.innerHTML = appIcons[i].innerHTML;
     }
-
-    // 进度条 CSS 变量写主界面（root 传 .mood-slider）
-    function setSliderVars(root, fill, time) {
-      if (!root) return;
-      if (fill) {
-        root.style.setProperty('--slFill', fill);
-        root.style.setProperty('--slHeart', fill);
-      } else {
-        root.style.removeProperty('--slFill');
-        root.style.removeProperty('--slHeart');
-      }
-      if (time) root.style.setProperty('--slTime', time);
-      else root.style.removeProperty('--slTime');
-    }
-
-    // 页面加载后把已保存的进度条配色写到主界面（未设置则回退默认黑白渐变）
-    function applySavedSliderColors() {
-      var m = document.querySelector('.mood-slider');
-      var sd = state.slider || {};
-      setSliderVars(m, sd.fill || '', sd.time || '');
-    }
-
-    // 壁纸草稿预览（不改 state）
-    function applyWallFromUrl(url) {
-      if (!homeCanvas) return;
-      if (url) {
-        homeCanvas.classList.add('has-img');
-        homeCanvas.style.backgroundImage = "linear-gradient(rgba(246,246,248,0.14), rgba(246,246,248,0.14)), url('" + url + "')";
-        homeCanvas.style.backgroundSize = 'cover';
-        homeCanvas.style.backgroundPosition = 'center';
-        homeCanvas.style.backgroundRepeat = 'no-repeat';
-      } else {
-        homeCanvas.classList.remove('has-img');
-        homeCanvas.style.backgroundImage = '';
-        homeCanvas.style.backgroundSize = '';
-        homeCanvas.style.backgroundPosition = '';
-        homeCanvas.style.backgroundRepeat = '';
+    function buildAppRows() {
+      var wrap = document.getElementById('bvAppRows');
+      if (!wrap || wrap.dataset.built) return;
+      wrap.dataset.built = '1';
+      for (var i = 0; i < appIcons.length; i++) {
+        (function (i2) {
+          var row = document.createElement('div');
+          row.className = 'bv-app-row';
+          row.setAttribute('data-i', i2);
+          var ic = document.createElement('span');
+          ic.className = 'bv-app-ic';
+          if (appIcons[i2]) ic.innerHTML = appIcons[i2].innerHTML;
+          row.appendChild(ic);
+          var nm = document.createElement('span');
+          nm.className = 'bv-app-name';
+          nm.textContent = appLabels[i2] || ('APP ' + (i2 + 1));
+          row.appendChild(nm);
+          var up = document.createElement('button');
+          up.type = 'button';
+          up.className = 'beauty-btn sm bv-app-btn';
+          up.textContent = '更换';
+          row.appendChild(up);
+          var cl = document.createElement('button');
+          cl.type = 'button';
+          cl.className = 'beauty-btn ghost sm bv-clear-btn';
+          cl.textContent = '恢复默认';
+          row.appendChild(cl);
+          wrap.appendChild(row);
+          up.addEventListener('click', function () { openBeautyUpload('app-' + i2); });
+          cl.addEventListener('click', function () { appIconReset(i2); syncBvAppRow(row); });
+        })(i);
       }
     }
 
-    // 把草稿整批实时应用到主界面（壁纸/拍立得/气泡/进度条；头像仅在更换时单独应用）
-    function liveApplyBeautyDraft() {
-      if (!beautyDraft) return;
-      applyWallFromUrl(beautyDraft.wall || '');
-      applyPolaroidStyleFrom(beautyDraft.polaroid);
-      (beautyDraft.bubbles || []).forEach(function (b) {
-        if (b.el) { b.el.style.setProperty('--bbg', b.bg); b.el.style.setProperty('--bfg', b.fg); }
-      });
-      var m = document.querySelector('.mood-slider');
-      setSliderVars(m, beautyDraft.slider.fill || '', beautyDraft.slider.time || '');
-      renderBeautyStage();
+    // ---- 上传分发（beautyWallInput 复用） ----
+    function openBeautyUpload(kind) {
+      beautyUploadKind = kind;
+      beautyWallInput.click();
     }
 
-    // 关闭未应用时还原主界面到打开前状态
-    function restoreBeautyLive() {
-      applyWallUI();
+    // ---- 全量恢复默认 ----
+    function beautyFullReset() {
+      wallClear();
+      state.polaroid = { img: '', bg: '#F0F2F0', bgOp: 1, border: '#DCDCDC', radius: 4 };
       applyPolaroidStyle();
-      restoreAvatarDom();
-      var o = {};
-      try { o = JSON.parse(localStorage.getItem(BUBBLE_COLOR_KEY) || '{}'); } catch (e) {}
-      document.querySelectorAll('.ins-bubble[data-key]').forEach(function (el) {
-        var k = el.getAttribute('data-key');
-        var c = o[k];
-        if (c) { el.style.setProperty('--bbg', c.bg); el.style.setProperty('--bfg', c.fg); }
-        else { el.style.removeProperty('--bbg'); el.style.removeProperty('--bfg'); }
-      });
-      var sd = state.slider || {};
-      setSliderVars(document.querySelector('.mood-slider'), sd.fill || '', sd.time || '');
-    }
-
-    // 头像 DOM 快照/还原（头像被 live 改过才需要）
-    function avatarKeyEl(key) {
-      var map = { avatar: avatar, twAvatar: twAvatar, avatarL: avatarEls && avatarEls[0], avatarR: avatarEls && avatarEls[1], ncAvatar: ncAvatarEl };
-      return map[key] || null;
-    }
-    function snapAvatarDom() {
-      beautyAvatarSnap = {};
-      AVATAR_TARGETS.forEach(function (t) {
-        var el = avatarKeyEl(t.key);
-        beautyAvatarSnap[t.key] = { bi: el ? (el.style.backgroundImage || '') : '', has: el ? el.classList.contains('has-img') : false };
-      });
-    }
-    function restoreAvatarDom() {
-      AVATAR_TARGETS.forEach(function (t) {
-        var el = avatarKeyEl(t.key);
-        var s = beautyAvatarSnap[t.key];
-        if (!el || !s) return;
-        if (s.bi) { el.style.backgroundImage = s.bi; }
-        else { el.style.removeProperty('background-image'); }
-        if (s.has) el.classList.add('has-img'); else el.classList.remove('has-img');
-      });
-    }
-
-    // 卡片顶部舞台：壁纸/拍立得/气泡/进度条的迷你实时预览
-    function renderBeautyStage() {
-      if (!beautyDraft) return;
-      var wall = document.getElementById('bsWall');
-      if (wall) {
-        if (beautyDraft.wall) { wall.classList.remove('bs-wall-default'); wall.style.backgroundImage = "url('" + beautyDraft.wall + "')"; }
-        else { wall.classList.add('bs-wall-default'); wall.style.backgroundImage = ''; }
-      }
-      var sm = document.getElementById('bsSlider');
-      if (sm) setSliderVars(sm, beautyDraft.slider.fill || '', beautyDraft.slider.time || '');
-      var pw = document.getElementById('bsPolaroid');
-      if (pw) {
-        var p = beautyDraft.polaroid || {};
-        pw.style.backgroundColor = rgba(p.bg || '#F0F2F0', (p.bgOp === undefined || p.bgOp === null) ? 1 : p.bgOp);
-        pw.style.border = '1px solid ' + (p.border || '#DCDCDC');
-        pw.style.borderRadius = ((p.radius === undefined || p.radius === null) ? 4 : p.radius) + 'px';
-      }
-      var pph = document.getElementById('bsPolaroidPhoto');
-      if (pph) pph.style.backgroundImage = "url('" + ((beautyDraft.polaroid && beautyDraft.polaroid.img) || 'https://i.postimg.cc/XvFDdTKY/Smart-Select-20251013-023208.jpg') + "')";
-      var b0 = document.getElementById('bsBubble0');
-      var b1 = document.getElementById('bsBubble1');
-      var bub = beautyDraft.bubbles || [];
-      if (b0) {
-        if (bub.length > 0) { b0.style.setProperty('--bbg', bub[0].bg); b0.style.setProperty('--bfg', bub[0].fg); b0.style.display = ''; }
-        else b0.style.display = 'none';
-      }
-      if (b1) {
-        if (bub.length > 1) { b1.style.setProperty('--bbg', bub[1].bg); b1.style.setProperty('--bfg', bub[1].fg); b1.style.display = ''; }
-        else b1.style.display = 'none';
-      }
-    }
-
-    function beautySetAvatar(key, url) {
-      if (!beautyDraft) return;
-      beautyDraft.avatars[key] = url || '';
-      beautyApplyAvatarDom(key, url || '');
-      var st = document.getElementById('beautyAv' + key);
-      if (st) st.textContent = url ? '已更换（实时预览，确定应用后保存）' : '默认（实时预览，确定应用后生效）';
-      beautyToast('头像已应用到预览，点“确定应用”保存');
-    }
-
-    function beautyApplyAvatarDom(key, url) {
-      var el = null;
-      if (key === 'avatar') el = avatar;
-      else if (key === 'twAvatar') el = twAvatar;
-      else if (key === 'avatarL') el = avatarEls && avatarEls[0];
-      else if (key === 'avatarR') el = avatarEls && avatarEls[1];
-      else if (key === 'ncAvatar') el = ncAvatarEl;
-      if (!el) return;
-      if (url) { el.style.backgroundImage = "url('" + url + "')"; el.classList.add('has-img'); }
-      else { el.style.backgroundImage = ''; el.classList.remove('has-img'); }
-    }
-
-    function applyBeautyDraft() {
-      if (!beautyDraft) return;
-      beautyApplied = true;
-      state.wall = beautyDraft.wall || '';
-      applyWallUI();
-      state.polaroid = {
-        img: beautyDraft.polaroid.img,
-        bg: beautyDraft.polaroid.bg,
-        bgOp: beautyDraft.polaroid.bgOp,
-        border: beautyDraft.polaroid.border,
-        radius: beautyDraft.polaroid.radius
-      };
-      if (typeof applyPolaroidStyle === 'function') applyPolaroidStyle();
-      AVATAR_TARGETS.forEach(function (t) {
-        state[t.key] = beautyDraft.avatars[t.key] || '';
-        beautyApplyAvatarDom(t.key, state[t.key]);
-      });
-      state.slider = {
-        fill: (beautyDraft.slider && beautyDraft.slider.fill) || '',
-        time: (beautyDraft.slider && beautyDraft.slider.time) || ''
-      };
-      setSliderVars(document.querySelector('.mood-slider'), state.slider.fill, state.slider.time);
-      var o = {};
-      beautyDraft.bubbles.forEach(function (b) {
-        if (!b.el || !b.key) return;
-        b.el.style.setProperty('--bbg', b.bg);
-        b.el.style.setProperty('--bfg', b.fg);
-        o[b.key] = { bg: b.bg, fg: b.fg };
-      });
-      try { localStorage.setItem(BUBBLE_COLOR_KEY, JSON.stringify(o)); } catch (e) {}
+      delete state.ecgBg;
+      if (mediaEcg) { mediaEcg.style.removeProperty('background-image'); mediaEcg.classList.remove('has-img'); }
+      for (var i = 0; i < 2; i++) sideAvatarClear(i);
+      ncAvatarClear();
+      ncTextReset();
+      bubblesResetAll();
+      sliderResetColors();
+      for (var a = 0; a < appIcons.length; a++) appIconReset(a);
       saveState();
-      beautyToast('UI 美化已应用');
-      closeBeautyCenter();
+      updateStageAll();
+      beautyToast('已恢复默认美化');
     }
 
-    function resetBeautyDraft() {
-      if (!beautyDraft) return;
-      beautyDraft.wall = '';
-      beautyDraft.polaroid.bg = '#F0F2F0';
-      beautyDraft.polaroid.bgOp = 1;
-      beautyDraft.polaroid.border = '#DCDCDC';
-      beautyDraft.polaroid.radius = 4;
-      renderBeautyControls();
-      liveApplyBeautyDraft();
-      beautyToast('已恢复默认配色（壁纸/拍立得），点“确定应用”生效');
+    // ===== 事件绑定 =====
+    document.querySelectorAll('.bv-tile').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var g = btn.getAttribute('data-goto');
+        if (g) gotoBv(g);
+      });
+    });
+    if (beautyBack) beautyBack.addEventListener('click', backBv);
+    if (beautyClose) beautyClose.addEventListener('click', closeBeautyCenter);
+    if (beautyOverlay) {
+      beautyOverlay.addEventListener('click', function (e) {
+        if (e.target === beautyOverlay) closeBeautyCenter();
+      });
     }
+    var bWallUpload = document.getElementById('bWallUpload');
+    if (bWallUpload) bWallUpload.addEventListener('click', function () { openBeautyUpload('wall'); });
+    var bWallClear = document.getElementById('bWallClear');
+    if (bWallClear) bWallClear.addEventListener('click', function () { wallClear(); syncBvWall(); updateStageAll(); });
 
-    function bindBeautyInput(id, fn) {
+    function bindColor(id, fn) {
       var el = document.getElementById(id);
-      if (el) { el.addEventListener('input', fn); el.addEventListener('change', fn); }
+      if (el) el.addEventListener('input', fn);
     }
+    bindColor('bvSlC1', function () { sliderSet(document.getElementById('bvSlC1').value, document.getElementById('bvSlC2').value, document.getElementById('bvSlTime').value); });
+    bindColor('bvSlC2', function () { sliderSet(document.getElementById('bvSlC1').value, document.getElementById('bvSlC2').value, document.getElementById('bvSlTime').value); });
+    bindColor('bvSlTime', function () { sliderSet(document.getElementById('bvSlC1').value, document.getElementById('bvSlC2').value, document.getElementById('bvSlTime').value); });
+    var bvSlReset = document.getElementById('bvSlReset');
+    if (bvSlReset) bvSlReset.addEventListener('click', sliderResetColors);
 
-    function initBeautyCenter() {
-      if (!beautyOverlay) return;
-      var c = document.getElementById('beautyClose');
-      if (c) c.addEventListener('click', closeBeautyCenter);
-      var a = document.getElementById('beautyApply');
-      if (a) a.addEventListener('click', applyBeautyDraft);
-      var r = document.getElementById('beautyReset');
-      if (r) r.addEventListener('click', resetBeautyDraft);
-      var cc = document.getElementById('beautyCancel');
-      if (cc) cc.addEventListener('click', closeBeautyCenter);
-      var sd = document.getElementById('beautySlDefault');
-      if (sd) sd.addEventListener('click', function () {
-        if (!beautyDraft) return;
-        beautyDraft.slider.fill = '';
-        beautyDraft.slider.time = '';
-        var sf2 = document.getElementById('beautySlFill'); if (sf2) sf2.value = '#2c2c31';
-        var st2 = document.getElementById('beautySlTime'); if (st2) st2.value = '#5a5a62';
-        liveApplyBeautyDraft();
-        beautyToast('进度条恢复默认黑白渐变，点“确定应用”生效');
+    var bvNcAvatarUpload = document.getElementById('bvNcAvatarUpload');
+    if (bvNcAvatarUpload) bvNcAvatarUpload.addEventListener('click', function () { openBeautyUpload('ncAvatar'); });
+    var bvNcAvatarClear = document.getElementById('bvNcAvatarClear');
+    if (bvNcAvatarClear) bvNcAvatarClear.addEventListener('click', function () { ncAvatarClear(); syncBvProfile(); });
+    var bvNcMsg = document.getElementById('bvNcMsg');
+    if (bvNcMsg) bvNcMsg.addEventListener('input', function () { ncTextSet('msg', bvNcMsg.value); });
+    var bvNcUser = document.getElementById('bvNcUser');
+    if (bvNcUser) bvNcUser.addEventListener('input', function () { ncTextSet('user', bvNcUser.value); });
+
+    var bvPpUpload = document.getElementById('bvPpUpload');
+    if (bvPpUpload) bvPpUpload.addEventListener('click', function () { openBeautyUpload('polaroid'); });
+    var bvPpImgReset = document.getElementById('bvPpImgReset');
+    if (bvPpImgReset) bvPpImgReset.addEventListener('click', function () { polaroidPatch({ img: '' }); });
+    bindColor('bvPpBg', function () { polaroidPatch({ bg: document.getElementById('bvPpBg').value }); });
+    bindColor('bvPpBorder', function () { polaroidPatch({ border: document.getElementById('bvPpBorder').value }); });
+    var bvPpOp = document.getElementById('bvPpOp');
+    if (bvPpOp) bvPpOp.addEventListener('input', function () {
+      var ov = document.getElementById('bvPpOpVal');
+      if (ov) ov.textContent = bvPpOp.value + '%';
+      polaroidPatch({ bgOp: parseInt(bvPpOp.value, 10) / 100 });
+    });
+    var bvPpRadius = document.getElementById('bvPpRadius');
+    if (bvPpRadius) bvPpRadius.addEventListener('input', function () {
+      var rv = document.getElementById('bvPpRadiusVal');
+      if (rv) rv.textContent = bvPpRadius.value + 'px';
+      polaroidPatch({ radius: parseInt(bvPpRadius.value, 10) });
+    });
+    var bvEcgBgUpload = document.getElementById('bvEcgBgUpload');
+    if (bvEcgBgUpload) bvEcgBgUpload.addEventListener('click', function () { openBeautyUpload('ecgBg'); });
+    var bvEcgBgClear = document.getElementById('bvEcgBgClear');
+    if (bvEcgBgClear) bvEcgBgClear.addEventListener('click', function () { ecgBgClear(); });
+    var bvAvLUpload = document.getElementById('bvAvLUpload');
+    if (bvAvLUpload) bvAvLUpload.addEventListener('click', function () { openBeautyUpload('avatarL'); });
+    var bvAvLClear = document.getElementById('bvAvLClear');
+    if (bvAvLClear) bvAvLClear.addEventListener('click', function () { sideAvatarClear(0); });
+    var bvAvRUpload = document.getElementById('bvAvRUpload');
+    if (bvAvRUpload) bvAvRUpload.addEventListener('click', function () { openBeautyUpload('avatarR'); });
+    var bvAvRClear = document.getElementById('bvAvRClear');
+    if (bvAvRClear) bvAvRClear.addEventListener('click', function () { sideAvatarClear(1); });
+
+    var beautyFullResetBtn = document.getElementById('beautyFullReset');
+    if (beautyFullResetBtn) beautyFullResetBtn.addEventListener('click', beautyFullReset);
+
+    beautyWallInput.addEventListener('change', function () {
+      var f = beautyWallInput.files && beautyWallInput.files[0];
+      var kind = beautyUploadKind;
+      beautyUploadKind = '';
+      if (!f || !kind) return;
+      var png = (kind.indexOf('app-') === 0 || kind === 'ncAvatar' || kind === 'avatarL' || kind === 'avatarR');
+      var maxDim = (kind.indexOf('app-') === 0) ? 512 : 1080;
+      compressImage(f, maxDim, png ? 'image/png' : 'image/jpeg', 0.85, function (url) {
+        if (kind === 'wall') {
+          state.wall = url; applyWallUI(); saveState();
+          syncBvWall(); updateStageAll(); beautyToast('背景图已应用');
+        } else if (kind === 'polaroid') {
+          state.polaroid = Object.assign({}, state.polaroid || {}, { img: url });
+          applyPolaroidStyle(); saveState();
+          updateStageAll(); beautyToast('拍立得照片已更换');
+        } else if (kind === 'ecgBg') {
+          ecgBgSet(url); updateStageAll(); beautyToast('拍立得背景已应用');
+        } else if (kind === 'ncAvatar') {
+          ncAvatarSet(url); syncBvProfile(); updateStageAll(); beautyToast('头像已更换');
+        } else if (kind === 'avatarL') {
+          sideAvatarSet(0, url); updateStageAll(); beautyToast('左侧图片已更换');
+        } else if (kind === 'avatarR') {
+          sideAvatarSet(1, url); updateStageAll(); beautyToast('右侧图片已更换');
+        } else if (kind.indexOf('app-') === 0) {
+          var idx = parseInt(kind.slice(4), 10);
+          appIconSet(idx, url);
+          var row = document.querySelector('.bv-app-row[data-i="' + idx + '"]');
+          if (row) syncBvAppRow(row);
+          beautyToast('图标已更换');
+        }
       });
-      beautyOverlay.addEventListener('click', function (e) { if (e.target === beautyOverlay) closeBeautyCenter(); });
-      var wu = document.getElementById('beautyWallUpload');
-      if (wu) wu.addEventListener('click', function () { beautyUploadKind = 'wall'; if (beautyWallInput) beautyWallInput.click(); });
-      var wc = document.getElementById('beautyWallClear');
-      if (wc) wc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.wall = ''; renderBeautyWall(); liveApplyBeautyDraft(); } });
-      var pu = document.getElementById('beautyPpUpload');
-      if (pu) pu.addEventListener('click', function () { beautyUploadKind = 'polaroid'; if (beautyWallInput) beautyWallInput.click(); });
-      var pc = document.getElementById('beautyPpClear');
-      if (pc) pc.addEventListener('click', function () { if (beautyDraft) { beautyDraft.polaroid.img = ''; renderBeautyControls(); liveApplyBeautyDraft(); } });
-      bindBeautyInput('beautyPpBg', function () { if (beautyDraft) { beautyDraft.polaroid.bg = this.value; liveApplyBeautyDraft(); } });
-      bindBeautyInput('beautyPpOp', function () { if (beautyDraft) { beautyDraft.polaroid.bgOp = parseInt(this.value, 10) / 100; var ov = document.getElementById('beautyPpOpVal'); if (ov) ov.textContent = this.value + '%'; liveApplyBeautyDraft(); } });
-      bindBeautyInput('beautyPpBorder', function () { if (beautyDraft) { beautyDraft.polaroid.border = this.value; liveApplyBeautyDraft(); } });
-      bindBeautyInput('beautyPpRadius', function () { if (beautyDraft) { beautyDraft.polaroid.radius = parseInt(this.value, 10); var rv = document.getElementById('beautyPpRadiusVal'); if (rv) rv.textContent = this.value + 'px'; liveApplyBeautyDraft(); } });
-      bindBeautyInput('beautySlFill', function () { if (beautyDraft) { beautyDraft.slider.fill = this.value; liveApplyBeautyDraft(); } });
-      bindBeautyInput('beautySlTime', function () { if (beautyDraft) { beautyDraft.slider.time = this.value; liveApplyBeautyDraft(); } });
-      var avBox = document.getElementById('beautyAvatarRows');
-      if (avBox) avBox.addEventListener('click', function (e) {
-        var btn = e.target.closest ? e.target.closest('[data-avatar]') : null;
-        if (!btn || !beautyDraft) return;
-        beautyUploadKind = 'avatar-' + btn.getAttribute('data-avatar');
-        if (beautyWallInput) beautyWallInput.click();
-      });
-      if (beautyWallInput) beautyWallInput.addEventListener('change', function () {
-        var f = beautyWallInput.files && beautyWallInput.files[0];
-        var kind = beautyUploadKind;
-        beautyWallInput.value = '';
-        if (!f || !beautyDraft || !kind) return;
-        var outType = (kind.indexOf('avatar-') === 0) ? 'image/png' : 'image/jpeg';
-        var size = (kind === 'wall') ? 1600 : 1080;
-        compressImage(f, size, outType, 0.85, function (url) {
-          if (kind === 'wall') { beautyDraft.wall = url; renderBeautyWall(); liveApplyBeautyDraft(); beautyToast('壁纸已应用到预览，点“确定应用”保存'); }
-          else if (kind === 'polaroid') { beautyDraft.polaroid.img = url; renderBeautyControls(); liveApplyBeautyDraft(); beautyToast('拍立得图片已应用到预览，点“确定应用”保存'); }
-          else if (kind.indexOf('avatar-') === 0) { beautySetAvatar(kind.slice(7), url); }
-          beautyUploadKind = '';
-        });
-      });
+      beautyWallInput.value = '';
+    });
+
+    // ===== 加载时恢复 =====
+    loadBubbleColors();
+    if ('ncMsg' in state && ncMsgEl) ncMsgEl.textContent = state.ncMsg === undefined ? NC_DEFAULT_MSG : state.ncMsg;
+    if ('ncUser' in state && ncUserEl) ncUserEl.textContent = state.ncUser === undefined ? NC_DEFAULT_USER : state.ncUser;
+    if (state.bubbleText) {
+      for (var bt in state.bubbleText) {
+        if (Object.prototype.hasOwnProperty.call(state.bubbleText, bt)) {
+          var bel = bubbleDom(parseInt(bt, 10));
+          if (bel) bel.textContent = state.bubbleText[bt];
+        }
+      }
     }
-    initBeautyCenter();
-
-
-    // v158：恢复组件“单点快捷动作”——拍立得 / 左右小头像 / 通知头像单击直接换图
-    // UI 美化中心统一改为长按主界面空白区域进入，不再抢占组件单点
-    polaroidWidget.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openPicker(polaroidWidget, 'polaroid');
-    });
-    avatarEls.forEach(function (el) {
-      el.addEventListener('click', function (e) {
-        e.stopPropagation();
-        openPicker(el, 'avatar');
-      });
-    });
-
-    // v152：通知卡片头像点击换图；文案点击直接编辑
-    if (ncAvatarEl) {
-      ncAvatarEl.addEventListener('click', function (e) {
-        e.stopPropagation();
-        openPicker(ncAvatarEl, 'avatar');
-      });
-    }
-    [ncMsgEl, ncUserEl].forEach(function (el) {
-      if (!el) return;
-      el.addEventListener('click', function (e) {
-        e.stopPropagation();
-      });
-      el.addEventListener('blur', function () {
-        var txt = el.textContent.trim();
-        if (el === ncMsgEl) state.ncMsg = txt;
-        else if (el === ncUserEl) state.ncUser = txt;
-        saveState();
-      });
-    });
-
-    // v158：媒体组件长按仍进美化中心（定位拍立得）；单击空白弹 v135 快捷编辑栏
-    var ecgLongTimer = null, ecgLongPressed = false;
-    function showEcgEditBar() { if (ecgEditBar) ecgEditBar.hidden = false; }
-    function hideEcgEditBar() { if (ecgEditBar) ecgEditBar.hidden = true; }
-    mediaEcg.addEventListener('touchstart', function () {
-      ecgLongPressed = false;
-      clearTimeout(ecgLongTimer);
-      ecgLongTimer = setTimeout(function () { ecgLongPressed = true; openBeautyCenter('polaroid'); }, 500);
-    });
-    mediaEcg.addEventListener('touchend', function () { clearTimeout(ecgLongTimer); });
-    mediaEcg.addEventListener('touchmove', function () { clearTimeout(ecgLongTimer); });
-    mediaEcg.addEventListener('contextmenu', function (e) {
-      e.preventDefault();
-      showEcgEditBar();
-    });
-    mediaEcg.addEventListener('click', function (e) {
-      if (ecgLongPressed) { ecgLongPressed = false; return; }
-      if (!ecgEditBar.hidden) { hideEcgEditBar(); return; }
-      if (e.target.closest && (e.target.closest('.heart-photo-widget') || e.target.closest('.link-avatar') || e.target.closest('.ecg-editbar') || e.target.closest('.polaroid-panel'))) return;
-      showEcgEditBar();
-    });
-    ecgEditBar.addEventListener('click', function (e) {
-      var btn = e.target.closest('.eb-btn');
-      if (!btn) return;
-      e.stopPropagation();
-      var act = btn.getAttribute('data-act');
-      if (act === 'polaroid') { openPicker(polaroidWidget, 'polaroid'); hideEcgEditBar(); }
-      else if (act === 'avatarL') { openPicker(avatarEls[0], 'avatar'); hideEcgEditBar(); }
-      else if (act === 'avatarR') { openPicker(avatarEls[1], 'avatar'); hideEcgEditBar(); }
-      else if (act === 'ecgBg') { openPicker(mediaEcg, 'ecgBg'); hideEcgEditBar(); }
-      else if (act === 'color') { polaroidPanel.hidden = false; syncPanelFromState(); hideEcgEditBar(); }
-      else if (act === 'close') { hideEcgEditBar(); }
-    });
+    updateStageBubbles();
 
     // 调色面板：控件实时预览 -> 应用保存
     function syncPanelFromState() {
@@ -1147,24 +1216,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       applyPolaroidStyle(); syncPanelFromState(); saveState(); toast('已恢复默认');
     });
 
-    // app 图标：长按 / 右键换图
+    // v159：APP 图标长按换图移除，改为 设置 → UI 美化 → APP 内更换
     var iconSuppressClick = false;
-    appIcons.forEach(function (el) {
-      var timer = null;
-      el.addEventListener('touchstart', function () {
-        iconSuppressClick = false;
-        timer = setTimeout(function () {
-          iconSuppressClick = true;
-          openPicker(el, 'icon');
-        }, 500);
-      });
-      el.addEventListener('touchend', function () { clearTimeout(timer); });
-      el.addEventListener('touchmove', function () { clearTimeout(timer); });
-      el.addEventListener('contextmenu', function (e) {
-        e.preventDefault();
-        openPicker(el, 'icon');
-      });
-    });
 
     // 图片压缩（bg 用 jpeg 保体积，icon 用 png 保透明）
     function compressImage(file, maxDim, outType, quality, cb) {
@@ -1406,6 +1459,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         } else if (name === '后台活动') {
           settingsOverlay.classList.remove('open');
           openBgActivity();
+        } else if (name === 'UI 美化') {
+          settingsOverlay.classList.remove('open');
+          openBeautyCenter();
         } else if (name === '数据管理') {
           settingsOverlay.classList.remove('open');
           openDataManage();
