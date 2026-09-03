@@ -342,6 +342,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var elTomorrowDress = document.getElementById('weatherTomorrowDress');
             if (elCity) {
         var _c = weatherData.city || '当前位置';
+        var _elLoc = document.getElementById('weatherLocTxt');
+        var _elDot = document.getElementById('weatherLocDot');
+        if (_elLoc && _elDot) {
+          if (weatherData.mode === 'gps') { _elLoc.textContent = '已按手机 GPS 定位（点击城市或“重新定位”可再校准）'; _elDot.className = 'loc-dot gps'; }
+          else if (weatherData.mode === 'ip') { _elLoc.textContent = '未获 GPS 授权，按 IP 近似定位，点“重新定位”用手机定位'; _elDot.className = 'loc-dot ip'; }
+          else { _elLoc.textContent = '正在定位…'; _elDot.className = 'loc-dot'; }
+        }
         if (weatherData.mode === 'ip') _c += ' · IP近似';
         elCity.textContent = _c;
       }
@@ -477,7 +484,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var weatherOverlay = document.getElementById('weatherOverlay');
     /* v162：点击天气时若此前是 IP 近似（不准），借用户手势重新 GPS 精确定位 */
     function reLocateWeather() {
-      if (!navigator.geolocation) { weatherData.mode = 'ip'; weatherByIP(); return; }
+      if (!navigator.geolocation) { weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('当前浏览器不支持定位，只能 IP 近似'); return; }
       var _done = false;
       var _fb = setTimeout(function () { if (!_done) { _done = true; weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('未能获取精确定位，天气按 IP 近似'); } }, 8000);
       navigator.geolocation.getCurrentPosition(function (pos) {
@@ -493,12 +500,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }, { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 });
     }
     window.__aeRelocateWeather = reLocateWeather;
+    var locBtn = document.getElementById('weatherLocBtn');
+    if (locBtn) locBtn.addEventListener('click', reLocateWeather);
+    var locCity = document.getElementById('weatherCity');
+    if (locCity) locCity.addEventListener('click', reLocateWeather);
     if (weatherTempEl) {
       weatherTempEl.style.cursor = 'pointer';
       weatherTempEl.addEventListener('click', function () {
         renderWeatherPanel();
         if (weatherOverlay) weatherOverlay.classList.add('open');
-        if (weatherData.mode === 'ip') reLocateWeather();
+        reLocateWeather();
       });
     }
     var weatherCloseBtn = document.getElementById('weatherClose');
@@ -3614,6 +3625,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       document.querySelectorAll('.chat-tab-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === tab); });
       chatAppHeaderRight.style.display = tab === 'chat' ? 'flex' : 'none';
       if (tab === 'contacts') renderContacts();
+      if (tab === 'more') renderMoreAccountBar();
     }
     document.querySelectorAll('.chat-tab-btn').forEach(function (b) {
       b.addEventListener('click', function () { showChatTab(b.getAttribute('data-tab')); });
@@ -8079,17 +8091,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (item) openChatDetailByContact(item.getAttribute('data-contact-id'));
     });
 
-    // 更多入口
-    document.querySelectorAll('#morePage .settings-item').forEach(function (item) {
+    // 更多入口（v163：四格 UI + 账号切换）
+    var moreDispatch = {
+      moments: openMoments, mailbox: openMailbox, lover: openLover,
+      couple: openCouple, anon: openAnon, identity: openIdentity,
+      wallet: openWallet, account: openAccountSwitch
+    };
+    document.querySelectorAll('#morePage .settings-item, #morePage .more-account-bar, #morePage .more-tile').forEach(function (item) {
       item.addEventListener('click', function () {
         var sub = item.getAttribute('data-sub');
-        if (sub === 'moments') openMoments();
-        else if (sub === 'lover') openLover();
-        else if (sub === 'couple') openCouple();
-        else if (sub === 'mailbox') openMailbox();
-        else if (sub === 'anon') openAnon();
-        else if (sub === 'identity') openIdentity();
-        else if (sub === 'wallet') openWallet();
+        var fn = moreDispatch[sub];
+        if (fn) fn();
       });
     });
 
@@ -8632,6 +8644,81 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         chatMine.wallet = (chatMine.wallet || 0) + 100;
         saveMine(); openWallet(); toast('充值成功 +100');
       });
+    }
+
+    // ===== 账号切换（v163） =====
+    var ACCTS_KEY = 'ins-chat-accounts';
+    var ACCT_CUR_KEY = 'ins-chat-cur-account';
+    function acctEsc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function loadAccts() {
+      try { var a = JSON.parse(dbGet(ACCTS_KEY)); if (Array.isArray(a) && a.length) return a; } catch (e) {}
+      return [{ id: 'a1', name: (chatMine && chatMine.nick) || '我', color: '#1c1c21' }];
+    }
+    function saveAccts(a) { dbSet(ACCTS_KEY, JSON.stringify(a)); }
+    function curAcct() {
+      var c = dbGet(ACCT_CUR_KEY);
+      var list = loadAccts();
+      for (var i = 0; i < list.length; i++) if (list[i].id === c) return list[i];
+      return list[0];
+    }
+    function curAcctId() { var a = curAcct(); return a ? a.id : 'a1'; }
+    function renderMoreAccountBar() {
+      var a = curAcct();
+      if (!a) return;
+      var av = document.getElementById('maAvatar');
+      var nm = document.getElementById('maName');
+      if (av) { av.style.background = a.color || '#1c1c21'; av.textContent = (a.name || '?').charAt(0); }
+      if (nm) nm.textContent = a.name || '我';
+    }
+    function switchAcct(id) {
+      var list = loadAccts(), a = null;
+      for (var i = 0; i < list.length; i++) if (list[i].id === id) a = list[i];
+      if (!a) return;
+      dbSet(ACCT_CUR_KEY, a.id);
+      if (chatMine) { chatMine.nick = a.name || '我'; saveMine(); }
+      try { if (typeof momentsMine !== 'undefined' && momentsMine) { momentsMine.name = a.name || '我'; dbSet(MOMENTS_MINE_KEY, JSON.stringify(momentsMine)); } } catch (e) {}
+      renderMoreAccountBar();
+      toast('已切换为「' + (a.name || '我') + '」');
+    }
+    function openAccountSwitch() {
+      var list = loadAccts();
+      var cid = curAcctId();
+      var rows = '';
+      for (var i = 0; i < list.length; i++) {
+        var a = list[i];
+        var on = a.id === cid;
+        rows += '<div class="acct-row' + (on ? ' on' : '') + '" data-aid="' + acctEsc(a.id) + '">' +
+          '<span class="acct-ava" style="background:' + acctEsc(a.color || '#1c1c21') + '">' + acctEsc((a.name || '?').charAt(0)) + '</span>' +
+          '<span class="acct-name"><b>' + acctEsc(a.name || '我') + '</b><em>' + (on ? '当前账号' : '点击切换到此账号') + '</em></span>' +
+          (on ? '<span class="acct-check">✓</span>' : '') +
+          '</div>';
+      }
+      var subHtml = '<div class="sub-card"><div class="sub-card-title">我的账号</div>' + rows +
+        '<button class="acct-new-btn" id="acctNewBtn">＋ 新建账号</button></div>';
+      openChatSub('账号切换', subHtml, '', function () {});
+      setTimeout(function () {
+        var rowsEl = document.querySelectorAll('#chatSubOverlay .acct-row');
+        for (var i = 0; i < rowsEl.length; i++) (function (row) {
+          row.addEventListener('click', function () {
+            var id = row.getAttribute('data-aid');
+            if (id === curAcctId()) { toast('已经是当前账号'); return; }
+            switchAcct(id);
+            openAccountSwitch();
+          });
+        })(rowsEl[i]);
+        var nb = document.getElementById('acctNewBtn');
+        if (nb) nb.addEventListener('click', function () {
+          openModal('新建账号', '输入昵称', function (v) {
+            if (!v) return;
+            var l2 = loadAccts();
+            var colors = ['#1c1c21', '#5ac8fa', '#ff5f8f', '#8e6cff'];
+            var na = { id: 'a' + Date.now(), name: v, color: colors[l2.length % colors.length] };
+            l2.push(na); saveAccts(l2);
+            switchAcct(na.id);
+            openAccountSwitch();
+          });
+        });
+      }, 80);
     }
 
     // ===== 数据管理 =====

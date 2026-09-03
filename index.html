@@ -10,9 +10,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<link rel="manifest" href="manifest.json?v=162">
-<title>Aetheron 黑白桌面 · v162</title>
-<link rel="stylesheet" href="css/style.css?v=162">
+<link rel="manifest" href="manifest.json?v=163">
+<title>Aetheron 黑白桌面 · v163</title>
+<link rel="stylesheet" href="css/style.css?v=163">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -302,6 +302,11 @@
       </div>
       <div class="weather-scroll">
         <div class="weather-city" id="weatherCity">当前位置</div>
+        <div class="weather-loc-bar" id="weatherLocBar">
+          <span class="loc-dot" id="weatherLocDot"></span>
+          <span class="loc-txt" id="weatherLocTxt">正在定位…</span>
+          <button class="loc-rebtn" id="weatherLocBtn">重新定位</button>
+        </div>
         <div class="weather-block">
           <div class="weather-daytag">今天</div>
           <div class="weather-temp-big" id="weatherTodayTemp">--/--℃</div>
@@ -746,21 +751,29 @@
           <div class="chat-app-scroll">
             <div class="settings-group">
               <div class="group-title">更多</div>
-              <div class="group-card">
-                <div class="settings-item" data-sub="moments">
-                  <div class="item-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
-                  <div class="item-body"><div class="item-title">朋友圈</div><div class="item-sub">分享生活动态</div></div>
-                  <div class="item-arrow"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+              <div class="group-card more-card">
+                <div class="more-account-bar" data-sub="account" id="moreAccountBar">
+                  <span class="ma-ava" id="maAvatar">我</span>
+                  <span class="ma-txt"><b id="maName">我</b><em>点击切换账号</em></span>
+                  <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
                 </div>
-                <div class="settings-item" data-sub="mailbox">
-                  <div class="item-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
-                  <div class="item-body"><div class="item-title">信箱</div><div class="item-sub">查收你的信件</div></div>
-                  <div class="item-arrow"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
-                </div>
-                <div class="settings-item" data-sub="lover">
-                  <div class="item-icon"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg></div>
-                  <div class="item-body"><div class="item-title">亲密关系</div><div class="item-sub">管理你的关系</div></div>
-                  <div class="item-arrow"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+                <div class="more-tile-grid">
+                  <div class="more-tile" data-sub="moments">
+                    <span class="more-tile-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>
+                    <span class="more-tile-name">朋友圈</span>
+                  </div>
+                  <div class="more-tile" data-sub="mailbox">
+                    <span class="more-tile-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
+                    <span class="more-tile-name">信箱</span>
+                  </div>
+                  <div class="more-tile" data-sub="lover">
+                    <span class="more-tile-ico"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg></span>
+                    <span class="more-tile-name">亲密关系</span>
+                  </div>
+                  <div class="more-tile" data-sub="account">
+                    <span class="more-tile-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-3.5 3.6-6 8-6s8 2.5 8 6"/></svg></span>
+                    <span class="more-tile-name">账号切换</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1334,6 +1347,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=162"></script>
+<script src="js/script.js?v=163"></script>
   </body>
 </html>
