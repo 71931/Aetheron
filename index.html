@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Aetheron 黑白桌面 · v159</title>
-<link rel="stylesheet" href="css/style.css?v=159">
+<title>Aetheron 黑白桌面 · v161</title>
+<link rel="stylesheet" href="css/style.css?v=161">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -148,9 +148,24 @@
     </div>
   </div><!-- /home-top -->
   </div><!-- /status-module -->
-  <!-- 分隔线 v154：一条连贯折线，左端起三角尖，下方无线 -->
-  <svg class="home-divider" viewBox="0 0 320 10" preserveAspectRatio="none" aria-hidden="true">
-    <path d="M0 7 L38 7 L44 0 L50 7 L320 7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 分隔线 v161：一条连贯折线（透明磨砂高光质感，左端起三角尖，下方无线） -->
+  <svg class="home-divider" viewBox="0 0 320 12" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="hdGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+        <stop offset="0.2" stop-color="#ffffff" stop-opacity="0.08"/>
+        <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/>
+        <stop offset="0.8" stop-color="#ffffff" stop-opacity="0.08"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="hdGradShade" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#1a1a20" stop-opacity="0"/>
+        <stop offset="0.5" stop-color="#1a1a20" stop-opacity="0.035"/>
+        <stop offset="1" stop-color="#1a1a20" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="M0 9.5 L38 9.5 L44 1.5 L50 9.5 L320 9.5" fill="none" stroke="url(#hdGradShade)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 1.6)"/>
+    <path d="M0 9 L38 9 L44 1 L50 9 L320 9" fill="none" stroke="url(#hdGrad)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
   <!-- ===== Aetheron v121 下部中枢模组 HubModule ===== -->
   <div class="hub-module" id="hubModule">
@@ -1096,16 +1111,16 @@
   <!-- v157：主界面 UI 美化中心（长按主界面唤起，编辑完点“确定应用”） -->
   <input type="file" id="beautyWallInput" accept="image/*" hidden>
   <div class="beauty-overlay" id="beautyOverlay" hidden>
+    <div class="beauty-preview" id="beautyPreview"></div>
     <div class="beauty-card">
       <div class="beauty-head">
         <button type="button" class="beauty-back" id="beautyBack" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span class="beauty-title" id="beautyTitle">UI 美化</span>
         <span class="beauty-head-tools">
-          <button type="button" class="beauty-fold" id="beautyFold" title="收起/展开编辑面板"><svg viewBox="0 0 24 24"><path d="M4 14l8-8 8 8"/></svg></button>
-          <button type="button" class="beauty-x" id="beautyClose">×</button>
+          <button type="button" class="beauty-x" id="beautyClose" title="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </span>
       </div>
-      <div class="beauty-stage-wrap"><div class="beauty-stage-label">实时预览 · 整屏（改动即时生效；点右上角箭头收起面板看全屏）</div></div>
+      <div class="beauty-stage-wrap"><div class="beauty-stage-label">上方为主界面实时预览 · 改动即时生效；可上下滑动预览区查看 UI 任意部分</div></div>
       <div class="beauty-scroll" id="beautyScroll">
         <!-- ============ 首页：三大板块 ============ -->
         <div class="bv-view" id="bvHome">
@@ -1337,6 +1352,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=160"></script>
+<script src="js/script.js?v=161"></script>
   </body>
 </html>

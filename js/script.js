@@ -345,16 +345,37 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             el.textContent = cur + '℃';
           }
           renderWeatherPanel();
-        }).catch(function () {});
+        }).catch(function () {
+          var elx = document.getElementById('weatherTemp');
+          if (elx && (elx.textContent === '今日状态' || !elx.textContent)) elx.textContent = '天气暂不可用';
+        });
     }
     function weatherByIP() {
-      fetch('https://ipapi.co/json/')
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
-            fetchWeather(d.latitude, d.longitude, d.city || '');
-          }
-        }).catch(function () {});
+      // 多级 IP 定位兜底：ipapi.co 被部分浏览器/隐私模式拦截时切 ipwho.is
+      var settled = false;
+      function runIp(url) {
+        fetch(url)
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (settled) return;
+            if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
+              settled = true;
+              fetchWeather(d.latitude, d.longitude, d.city || d.city_zh || '');
+            } else if (url.indexOf('ipapi') !== -1) {
+              runIp('https://ipwho.is/');
+            }
+          })
+          .catch(function () {
+            if (settled) return;
+            if (url.indexOf('ipapi') !== -1) runIp('https://ipwho.is/');
+            else {
+              settled = true;
+              var el2 = document.getElementById('weatherTemp');
+              if (el2) el2.textContent = '天气不可用';
+            }
+          });
+      }
+      runIp('https://ipapi.co/json/');
     }
     function updateWeather() {
       // APK(WebView) 内 geolocation 常因授权缺失静默失败：Capacitor 环境优先走 IP 定位兜底
@@ -604,11 +625,37 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var beautyTitle = document.getElementById('beautyTitle');
     var beautyClose = document.getElementById('beautyClose');
     var beautyCard = document.getElementById('beautyOverlay') ? document.getElementById('beautyOverlay').querySelector('.beauty-card') : null;
-    var beautyFold = document.getElementById('beautyFold');
-    var beautyCollapsed = false;
-    function setBeautyCollapsed(v) {
-      beautyCollapsed = !!v;
-      if (beautyCard) beautyCard.classList.toggle('collapsed', beautyCollapsed);
+    // v161：预览容器（上半部可上下滑）与 desktop 主机移动
+    var beautyPreview = document.getElementById('beautyPreview');
+    var desktopHost = document.querySelector('.desktop');
+    var BV_FOCUS = { slider: '.mood-slider', profile: '#notifyCard', polaroid: '#mediaEcg', bubble: '#bubble-0', app: '.app-grid.hg-grid' };
+    function openBeautyPreview() {
+      if (!beautyPreview) return;
+      // v161：beautyOverlay 原嵌套在 desktop 内，先提到 body，避免 desktop 移入 preview 时成环
+      if (beautyOverlay && beautyOverlay.parentNode !== document.body) document.body.appendChild(beautyOverlay);
+      if (desktopHost && desktopHost.parentNode !== beautyPreview) beautyPreview.appendChild(desktopHost);
+      if (beautyPreview.scrollTo) beautyPreview.scrollTop = 0;
+      beautyPreview.classList.remove('scroll-lock');
+    }
+    function closeBeautyPreview() {
+      if (!beautyPreview || !desktopHost) return;
+      if (desktopHost.parentNode === beautyPreview) document.body.appendChild(desktopHost);
+      if (beautyPreview.scrollTo) beautyPreview.scrollTop = 0;
+    }
+    function focusBvTarget(id) {
+      if (!beautyPreview) return;
+      if (id === 'home' || id === 'wall' || id === 'widgets') {
+        beautyPreview.scrollTop = 0;
+        return;
+      }
+      var sel = BV_FOCUS[id];
+      var el = sel ? document.querySelector(sel) : null;
+      if (!el) return;
+      var pr = beautyPreview.getBoundingClientRect();
+      var er = el.getBoundingClientRect();
+      var target = beautyPreview.scrollTop + (er.top - pr.top) - 14;
+      if (target < 0) target = 0;
+      beautyPreview.scrollTop = target;
     }
     var beautyUploadKind = '';
     var BUBBLE_COLOR_KEY = 'aetheron_bubble_colors_v156';
@@ -858,6 +905,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       else if (id === 'bubble') buildBubbleRows();
       else if (id === 'app') buildAppRows();
       if (beautyScroll) beautyScroll.scrollTop = 0;
+      focusBvTarget(id);
     }
     function gotoBv(id) {
       if (!BV_PAGES[id]) return;
@@ -870,13 +918,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     function openBeautyCenter() {
       BV_STACK = [];
-      setBeautyCollapsed(false);
+      openBeautyPreview();
       updateStageAll();
       showBvPage('home');
       if (beautyOverlay) beautyOverlay.hidden = false;
     }
     function closeBeautyCenter() {
       BV_STACK = [];
+      closeBeautyPreview();
       if (beautyOverlay) beautyOverlay.hidden = true;
     }
 
@@ -1050,14 +1099,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
     if (beautyBack) beautyBack.addEventListener('click', backBv);
     if (beautyClose) beautyClose.addEventListener('click', closeBeautyCenter);
-    if (beautyFold) beautyFold.addEventListener('click', function () { setBeautyCollapsed(!beautyCollapsed); });
-    if (beautyOverlay) {
-      beautyOverlay.addEventListener('click', function (e) {
-        if (e.target !== beautyOverlay) return;
-        if (beautyCollapsed) { setBeautyCollapsed(false); return; }
-        closeBeautyCenter();
-      });
-    }
+    // v161：点击预览空白不再关闭（避免误吞；关闭只用右上角 ×）
     var bWallUpload = document.getElementById('bWallUpload');
     if (bWallUpload) bWallUpload.addEventListener('click', function () { openBeautyUpload('wall'); });
     var bWallClear = document.getElementById('bWallClear');
@@ -9520,8 +9562,32 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', function () {
+      try { init(); } catch (e) { window.__aetheronBootErr = e && e.message ? e.message : 'unknown'; }
+    });
   } else {
-    init();
+    try { init(); } catch (e) { window.__aetheronBootErr = e && e.message ? e.message : 'unknown'; }
+  }
+
+  /* v161 兼容兜底：启动/运行期异常时显示可见红条，避免“按键点了没反应”无从排查 */
+  function showBootErr(msg) {
+    try {
+      var tag = document.getElementById('bootErrTag');
+      if (!tag) {
+        tag = document.createElement('div');
+        tag.id = 'bootErrTag';
+        tag.style.cssText = 'position:fixed;left:10px;right:10px;bottom:12px;z-index:999999;background:rgba(140,32,32,0.94);color:#fff;font-size:12px;line-height:1.5;padding:8px 12px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.3);';
+        document.body.appendChild(tag);
+      }
+      tag.textContent = 'Aetheron 出错：' + msg + '。请强制刷新（长按刷新按钮）后再试。';
+    } catch (e2) {}
+  }
+  window.addEventListener('error', function (ev) {
+    if (window.__aetheronShownErr) return;
+    window.__aetheronShownErr = true;
+    showBootErr((ev && ev.message) ? ev.message : '未知错误');
+  });
+  if (window.__aetheronBootErr) {
+    setTimeout(function () { if (!window.__aetheronShownErr) { window.__aetheronShownErr = true; showBootErr(window.__aetheronBootErr); } }, 300);
   }
 })();

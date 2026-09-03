@@ -1527,30 +1527,30 @@
   /* ===== v148 上半区 2×4 组件（P1：时间控制栏 + 通知卡片，毛玻璃质感） ===== */
   .notify-card, .nc-widget {
     position:relative; overflow:hidden;
-    background: rgba(255,255,255,0.42);
-    -webkit-backdrop-filter: blur(22px) saturate(1.5);
-    backdrop-filter: blur(22px) saturate(1.5);
-    border: 1px solid rgba(255,255,255,0.65);
+    background: rgba(255,255,255,0.20);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    backdrop-filter: blur(12px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.60);
     border-radius: 22px;
-    box-shadow: 0 12px 32px rgba(50,50,60,0.16), inset 0 1px 0 rgba(255,255,255,0.9);
+    box-shadow: 0 10px 26px rgba(50,50,60,0.13), inset 0 1px 0 rgba(255,255,255,0.85);
     width:100%;
     display:flex; flex-direction:column; gap:10px;
     padding: 14px 14px 12px;
-    /* 毛玻璃上的浅灰波点 */
+    /* 毛玻璃上的浅灰波点（v161：透明度减半） */
     background-image:
-      radial-gradient(circle at 18px 14px, rgba(0,0,0,0.06) 3.5px, transparent 4px),
-      radial-gradient(circle at 46px 30px, rgba(0,0,0,0.05) 2.8px, transparent 3.2px),
-      radial-gradient(circle at 70px 12px, rgba(0,0,0,0.045) 2.4px, transparent 2.8px),
-      radial-gradient(circle at 92px 34px, rgba(0,0,0,0.05) 3px, transparent 3.4px),
-      radial-gradient(circle at 112px 16px, rgba(0,0,0,0.04) 2.2px, transparent 2.6px),
-      radial-gradient(circle at 130px 32px, rgba(0,0,0,0.05) 3.2px, transparent 3.6px);
+      radial-gradient(circle at 18px 14px, rgba(0,0,0,0.03) 3.5px, transparent 4px),
+      radial-gradient(circle at 46px 30px, rgba(0,0,0,0.025) 2.8px, transparent 3.2px),
+      radial-gradient(circle at 70px 12px, rgba(0,0,0,0.022) 2.4px, transparent 2.8px),
+      radial-gradient(circle at 92px 34px, rgba(0,0,0,0.025) 3px, transparent 3.4px),
+      radial-gradient(circle at 112px 16px, rgba(0,0,0,0.02) 2.2px, transparent 2.6px),
+      radial-gradient(circle at 130px 32px, rgba(0,0,0,0.025) 3.2px, transparent 3.6px);
     background-repeat: repeat;
   }
   /* ① 时间控制栏 */
   .nc-timebar {
     position:relative; z-index:1;
     display:flex; align-items:center; gap:10px;
-    background: rgba(255,255,255,0.38);
+    background: rgba(255,255,255,0.16);
     -webkit-backdrop-filter: blur(14px) saturate(1.3);
     backdrop-filter: blur(14px) saturate(1.3);
     border: 1px solid rgba(255,255,255,0.6);
@@ -1610,8 +1610,9 @@
   /* v112 分割线：弱化，去掉白色小三角，仅留细线+深色小角 */
   /* v125：横线恢复为一条整体，不再断开；空心三角悬于线上方 */
   /* v154：连贯折线分割线：左端朝上尖角，线与三角一体，下方无横线 */
-  .home-divider { display:block; width:100%; height:10px; opacity:.55; margin:14px 0 12px; overflow:visible; }
-  .home-divider path { stroke: var(--wire-line); stroke-width:1.6; }
+  /* v161：分割线改为磨砂高光质感（白渐变线+极淡阴影，不再用黑 wire-line） */
+  .home-divider { display:block; width:100%; height:12px; opacity:1; margin:10px 0 10px; overflow:visible; pointer-events:none; }
+  .home-divider path { stroke-width:1.8; }
 
   /* ===== v112 上下半区背景分离 ===== */
   .home-bottom { position:relative; background-size:cover; background-position:center; background-repeat:no-repeat; cursor:pointer; }
@@ -1694,19 +1695,19 @@
   .home-canvas .statusbar .right .battery { border-color: #5a5a62; }
   .home-canvas .statusbar .right .battery::after { background: #5a5a62; }
   .home-canvas .statusbar .sb-pulse { display: none; }
-  /* 玻璃卡片通用：半透明白 + blur18 + 细边 + 柔和阴影 + 圆角20 */
+  /* 玻璃卡片通用：低透明白 + 轻 blur + 细边 + 柔和阴影 + 圆角20（v161 降不透明度避免大磨砂块吞壁纸） */
   .home-canvas .glass-card {
-    background: rgba(255,255,255,0.24);
-    backdrop-filter: blur(18px) saturate(1.25);
-    -webkit-backdrop-filter: blur(18px) saturate(1.25);
-    border: 1px solid rgba(255,255,255,0.45);
+    background: rgba(255,255,255,0.13);
+    backdrop-filter: blur(12px) saturate(1.15);
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    border: 1px solid rgba(255,255,255,0.50);
     border-radius: 20px;
-    box-shadow: 0 6px 18px rgba(30,30,38,0.08);
+    box-shadow: 0 4px 14px rgba(30,30,38,0.07);
     position: relative;
   }
   .home-canvas .home-top.has-img,
   .home-canvas .home-bottom.has-img,
-  .home-canvas .status-module.has-img { background-color: rgba(255,255,255,0.40); }
+  .home-canvas .status-module.has-img { background-color: rgba(255,255,255,0.14); }
   .home-canvas .bg-hint { color: #aab2cc; background: rgba(255,255,255,0.55); padding: 2px 9px; border-radius: 10px; font-size: 9px; letter-spacing: 1px; opacity: .9; }
 
   /* 上玻璃卡片 */
@@ -2320,34 +2321,58 @@
   z-index: 9999;
   background: transparent;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: stretch;
   padding: 0;
 }
-/* v160：设置抽屉底部上浮，主界面整屏透出作为实时预览 */
-.beauty-stage-wrap { display: block; flex: none; padding: 8px 16px 0; }
+/* v161：预览区占据上半部，可上下滚动查看完整主界面；底部是编辑抽屉 */
+.beauty-preview {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.beauty-preview.scroll-lock { overflow: hidden; }
+/* v161：desktop 移入预览区后按内容自然高度排布，可上下滑动看完整主界面 */
+.beauty-preview > .desktop {
+  max-width: 100%;
+  height: auto;
+  min-height: 100%;
+  gap: 0;
+}
+.beauty-preview > .desktop .home-canvas {
+  height: auto;
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+}
+.beauty-preview > .desktop .hub-module,
+.beauty-preview > .desktop .hub-module .home-bottom {
+  height: auto;
+  flex: none;
+  min-height: 0;
+}
+.beauty-preview > .desktop .home-canvas .bottom-split { min-height: 0; }
+/* 滚动时的轻提示：当前编辑对象自动定位到预览可见区 */
+.beauty-stage-wrap { display: none; }
 .beauty-stage-label { font-size: 12px; font-weight: 600; color: #2a5cff; letter-spacing: 0.2px; padding: 7px 12px; background: rgba(42, 92, 255, 0.08); border-radius: 10px; text-align: center; }
 .beauty-overlay[hidden] { display: none; }
-.beauty-head { position: relative; }
+.beauty-head { position: relative; flex: none; }
 .beauty-head::before { display: none; }
 .beauty-head-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.beauty-fold {
-  border: none; background: rgba(0, 0, 0, 0.06); color: #3a3a40;
-  width: 28px; height: 28px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-}
-.beauty-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s; }
-.beauty-card.collapsed { height: 58px !important; min-height: 58px !important; max-height: 58px !important; box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.22); }
-.beauty-card.collapsed .beauty-head { border-bottom: none; }
-.beauty-card.collapsed .beauty-scroll, .beauty-card.collapsed .beauty-stage-wrap { display: none; }
-.beauty-card.collapsed .beauty-fold svg { transform: rotate(180deg); }
 .beauty-card {
   width: min(100%, 500px);
-  height: min(50vh, 520px);
-  max-height: 56vh;
+  height: clamp(230px, 42vh, 430px);
+  flex: none;
   display: flex;
   flex-direction: column;
-  background: rgba(248, 248, 252, 0.98);
+  background: rgba(248, 248, 252, 0.92);
   border-radius: 22px 22px 0 0;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.28);
   overflow: hidden;
@@ -2366,8 +2391,9 @@
 .beauty-x {
   border: none; background: rgba(0, 0, 0, 0.06); color: #3a3a40;
   width: 28px; height: 28px; border-radius: 50%;
-  font-size: 16px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
+.beauty-x svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 .beauty-scroll {
   flex: 1;
   overflow-y: auto;
