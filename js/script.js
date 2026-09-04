@@ -3996,8 +3996,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (m.recalled) return '你撤回了一条消息';
       if (m.type === 'image') return '[图片]';
       if (m.type === 'voice') return '[语音] ' + (m.duration || '');
-      if (m.type === 'redpacket') return '[红包] ' + (m.text || '');
-      if (m.type === 'transfer') return '[转账] ¥' + (m.text || '');
+      if (m.type === 'redpacket') return chatPayBrief(m);
+      if (m.type === 'transfer') return chatPayBrief(m);
       if (m.type === 'file') return '[文件] ' + (m.fileName || '');
       if (m.type === 'gift') return '[礼物] ' + (m.text || '');
       if (m.type === 'location') return '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
@@ -4411,7 +4411,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     function buildMsgBody(m) {
       if (m.type === 'image') {
-        if (m.img) return '<img class="chat-msg-img" src="' + m.img + '" onclick="window.open(this.src)">';
+        if (m.textImg) return '<div class="chat-textimg-card"><div class="chat-textimg-cap">文字图片</div>' + escHtml(m.text || '') + '</div>';
+        var _imgs2 = (m.imgs && m.imgs.length) ? m.imgs : (m.img ? [m.img] : []);
+        if (_imgs2.length) {
+          if (_imgs2.length === 1) return '<div class="chat-msg-imgs n1"><img class="chat-msg-img" src="' + _imgs2[0] + '" onclick="chatViewImg(\'' + _imgs2[0] + '\')"></div>';
+          var _gCls = _imgs2.length >= 4 ? ' grid3' : '';
+          return '<div class="chat-msg-imgs' + _gCls + '">' + _imgs2.map(function (_s2) { return '<img src="' + _s2 + '" onclick="chatViewImg(\'' + _s2 + '\')">'; }).join('') + '</div>';
+        }
         return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-4.5-4.5L7 20"/></svg>生图</span><span class="chat-msg-card-sub">' + escHtml(m.prompt || '生成中...') + '</span></div>';
       }
       if (m.type === 'voice') {
@@ -4426,8 +4432,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           '<span class="chat-voice-dur">' + (m.duration || '3"') + '</span></div>' +
           '</div>';
       }
-      if (m.type === 'redpacket') return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><path d="M4 9.5h16"/><path d="M5.5 9.5V19a2 2 0 002 2h9a2 2 0 002-2V9.5"/><path d="M12 9.5l-2.6-4.3M12 9.5l2.6-4.3"/><path d="M4 6.5h16V9.5H4z"/></svg>红包</span><span class="chat-msg-card-sub">' + escHtml(m.text || '恭喜发财') + '</span></div>';
-      if (m.type === 'transfer') return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><path d="M7 4l-4 4 4 4"/><path d="M3 8h13"/><path d="M17 20l4-4-4-4"/><path d="M21 16H8"/></svg>转账 ¥' + escHtml(m.amount || (m.text ? String(m.text).split('\n')[0] : '0')) + '</span><span class="chat-msg-card-sub">' + escHtml(m.msg || (m.text && String(m.text).split('\n')[1]) || '转账留言') + '</span></div>';
+      if (m.type === 'redpacket') {
+        var _rp = m.pay || {};
+        var _rpSt = _rp.state || 'sent';
+        var _rpAmt = _rp.amount != null ? _rp.amount : (m.amount != null ? m.amount : '');
+        var _rpFoot = _rpSt === 'taken' ? '已领取 · ¥' + _rpAmt : (_rpSt === 'returned' ? '已退还 · ¥' + _rpAmt : '查看红包');
+        return '<div class="chat-redpacket-card" data-pay-open="1"><div class="rp-top"><svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:#fff;stroke-width:2"><path d="M4 9.5h16"/><path d="M5.5 9.5V19a2 2 0 002 2h9a2 2 0 002-2V9.5"/><path d="M12 9.5l-2.6-4.3M12 9.5l2.6-4.3"/><path d="M4 6.5h16V9.5H4z"/></svg>恭喜发财</div><div class="rp-word">' + escHtml(String(m.text || _rp.note || '恭喜发财')) + '</div><div class="rp-foot"><span>' + (m.role === 'other' ? 'TA的红包' : '我的红包') + '</span><span>' + _rpFoot + '</span></div></div>';
+      }
+      if (m.type === 'transfer') {
+        var _tr = m.pay || {};
+        var _trSt = _tr.state || 'sent';
+        var _trAmt = _tr.amount != null ? _tr.amount : (m.amount != null ? m.amount : (m.text ? String(m.text).split('\n')[0] : '0'));
+        var _trMsg = _tr.note || m.msg || (m.text && String(m.text).split('\n')[1]) || '转账留言';
+        var _trFoot = _trSt === 'taken' ? '已收款' : (_trSt === 'returned' ? '已退还' : '等待确认');
+        return '<div class="chat-transfer-card" data-pay-open="1"><div class="tf-top">转账</div><div class="tf-amt">¥' + escHtml(String(_trAmt)) + '</div><div class="tf-msg">' + escHtml(String(_trMsg)) + '</div><div class="tf-foot"><span>' + _trFoot + '</span></div></div>';
+      }
       if (m.type === 'html') return '<div class="chat-html-body">' + (m.text || '') + '</div>';
       if (m.type === 'file') return '<div class="chat-msg-file"><svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>' + escHtml(m.fileName || '文件') + '</div>';
       if (m.type === 'gift') return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><rect x="4" y="9" width="16" height="12" rx="1"/><path d="M12 9v12"/><path d="M4 13h16"/><path d="M12 9c-1.6-2.8-5-1.7-5 0 2 .5 5 0 5 0z"/><path d="M12 9c1.6-2.8 5-1.7 5 0-2 .5-5 0-5 0z"/></svg>礼物：' + escHtml(m.text || '') + '</span><span class="chat-msg-card-sub">送你一份礼物</span></div>';
@@ -4490,6 +4509,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (locOpen) {
             var li = parseInt(row.getAttribute('data-msg-idx'), 10);
             chatLocOpenIdx(li);
+            return;
+          }
+          // v171：点击红包/转账卡片进入操作
+          var payOpen = e.target.closest('[data-pay-open]');
+          if (payOpen) {
+            var pi2 = parseInt(row.getAttribute('data-msg-idx'), 10);
+            openChatPay(pi2);
             return;
           }
           // 点击报错气泡本体：同样切换报错详情
@@ -5075,16 +5101,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function locStoryByCat(cat, name) {
       var c = String(cat || '');
       var acts = {
-        '咖啡': '推开玻璃门，找了个靠窗的位置坐下。',
-        '书店': '在书架前停了好久，最后带走一本旧书。',
-        '餐厅': '慢慢吃完一顿饭，把没说完的话咽回肚子里。',
-        '酒吧': '点了一杯酒，听着音乐发呆。',
-        '公园': '绕着湖边走了两圈，风把心事吹散了一点。',
-        '运动': '出了一身汗，感觉自己稍微活了过来。'
+        '咖啡': 'TA走进门里选了个靠窗的位置坐下，点了一杯热咖啡。捧着杯子发了会儿呆，在手机上打了又删、删了又打，最终什么也没发出去，抬眼看了看窗外来往的人。',
+        '书店': 'TA在书架前停了好久，抽出一本旧书翻了几页又小心放回去。结账时和店员聊了两句天气，嘴角带着一点没散去的笑意。',
+        '餐厅': 'TA一个人坐在角落慢慢吃，吃到一半放下筷子望着窗外发呆。邻桌一家人的笑声传过来，TA低头笑了一下，继续把饭吃完。',
+        '酒吧': 'TA在吧台边要了一杯酒，摇晃杯子看冰块慢慢融化。有人过来搭话，TA礼貌地笑着摇头拒绝，转头继续望着玻璃上的霓虹倒影。',
+        '公园': 'TA沿着湖边慢走，风吹得头发有些乱。在长椅上休息时和路过遛狗的大爷聊了几句，问了一句“这狗叫什么名字”，然后安静地看湖面。',
+        '运动': 'TA跑得满头是汗才停下来，撑着膝盖喘气。拉伸时和旁边同样在休息的人点头示意，耳机里还放着那首单曲循环的歌。'
       };
-      var mets = '好像遇见了一个很久没见的人，隔着人群多看了两眼，最后还是没有上前打招呼。';
+      var mets = 'TA好像遇见了一个很久没见的人，隔着人群多看了两眼。对方先打了招呼，TA笑着回应了几句，站在原地看对方走远，很久没有挪步。';
       for (var k in acts) { if (c.indexOf(k) >= 0) return { act: acts[k], met: mets }; }
-      return { act: '在「' + (name || '这个地方') + '」待了很久，这里藏着她最近的心事。', met: mets };
+      return { act: 'TA在「' + (name || '这个地方') + '」待了很久，东看看西看看，偶尔低头回消息，抬起头时眼神放空，这里藏着TA说不太出口的心事。', met: mets };
     }
     /* ---- TA在这里：上帝视角小剧场（点开位置自动播放，地图上的头像会自己动） ---- */
     var locLiveTimer = null;
@@ -5094,20 +5120,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (locLiveTimer) { clearTimeout(locLiveTimer); locLiveTimer = null; }
       locLiveStep = -1;
     }
+    /* v171：位置消息落地后立刻在后台生成小剧场，进入地图时故事已就绪 */
+    function chatLocStoryEnsure(m) {
+      if (!m || m.role !== 'other' || m.type !== 'location') return;
+      if (m.locStory || m._storyBusy) return;
+      m._storyBusy = true;
+      chatLocGenStory(m, function (err, story) {
+        m._storyBusy = false;
+        if (!err && story) { m.locStory = story; saveConvs(); }
+      });
+    }
     function chatLocOpenStory(m) {
       var ov = locViewEl();
       ov.querySelector('#chatLocStoryPop').classList.add('open');
-      if (m.locStory) { chatLocRenderStory(); return; }
-      if (m._storyBusy) { chatLocRenderStory(); return; }
-      m._storyBusy = true;
+      /* v171：进入即完成 —— 没有等待，没有“正在读取”。
+         故事已在消息落地时后台生成；万一还没生成完，先以“此刻记忆”即时成稿展示，
+         AI 版本在后台完成后再无缝替换。 */
+      if (!m.locStory && !m._storyBusy) {
+        m._storyBusy = true;
+        chatLocGenStory(m, function (err, story) {
+          m._storyBusy = false;
+          if (!err && story) { m.locStory = story; saveConvs(); }
+          try {
+            if (locViewMsg === m && locViewEl().classList.contains('open')) chatLocRenderStory();
+          } catch (e) {}
+        });
+      }
       chatLocRenderStory();
-      chatLocGenStory(m, function (err, story) {
-        m._storyBusy = false;
-        if (!err && story) m.locStory = story;
-        else m.locStory = m.locStory || locStoryByCat(m.locCat, m.text);
-        saveConvs();
-        chatLocRenderStory();
-      });
     }
     function chatLocScenesFor(m, st) {
       var name = String(m.text || '这里');
@@ -5203,14 +5242,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var body = ov.querySelector('#chatLocStoryBody');
       var m = locViewMsg;
       if (!m) return;
-      if (m._storyBusy) {
-        chatLocLiveStop();
-        var godL = ov.querySelector('#chatLocGodBar');
-        godL.style.display = 'flex';
-        ov.querySelector('#chatLocGodTxt').textContent = '正在读取TA的记忆…';
-        body.innerHTML = '<div class="chat-loc-story-loading">上帝视角连接中，TA正在回想在这里做了什么…<span class="chat-typing-dots"><i></i><i></i><i></i></span></div>';
-        return;
-      }
+      /* v171：永不出加载态 —— locStory 未生成完时，先用此刻记忆模板即时出稿 */
       var st = m.locStory || locStoryByCat(m.locCat, m.text);
       var d = chatHeartData();
       locLiveScenes = chatLocScenesFor(m, st);
@@ -5230,7 +5262,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       cb = cb || function () {};
       var cfg = chatFindApi();
       var d = chatHeartData();
-      var systemTxt = '你现在是「' + d.name + '」这个角色。请用第一人称写一段角色此刻身在「' + String(m.text || '某地') + '（' + String(m.locDetail || '') + '）」的小剧场：TA在这里做了什么、心情怎样、遇见了谁、有没有没说出口的话。语气像真实的人，细腻自然，不做总结。两段正文都必须自然写到这个地方的具体地名「' + String(m.text || '') + '」，不要只把它放在标题里。';
+      var systemTxt = '你现在是「' + d.name + '」这个角色，此刻身在「' + String(m.text || '某地') + '（' + String(m.locDetail || '') + '）」的现场。请用第三人称贴身镜头（TA）写一段上帝视角小剧场：TA此刻在做什么、身边正发生着什么、遇见了谁、和对方交流了什么说了什么、TA自身的状态（表情/心情/小动作）。语气像实时镜头解说又带着TA本人的温度，细腻自然，有生活细节，不做总结。两段正文都必须自然写到这个地方的具体地名「' + String(m.text || '') + '」，不要只把它放在标题里。';
       var fallback = function () {
         var st = locStoryByCat(m.locCat, m.text);
         cb(null, st);
@@ -5243,7 +5275,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
         body: JSON.stringify({
           model: cfg.model,
-          messages: [{ role: 'system', content: systemTxt }, { role: 'user', content: '请只输出两段话，不要标题与符号：第一段写「在这里做了什么」（至少50字），第二段写「遇见了谁」（至少30字）。' }],
+          messages: [{ role: 'system', content: systemTxt }, { role: 'user', content: '请只输出两段话，不要标题与符号：第一段写「TA正在做什么/发生了什么/TA的自身状态」（至少60字），第二段写「TA遇见了谁/交流了什么」（至少40字）。' }],
           temperature: 0.95,
           stream: false
         })
@@ -5512,8 +5544,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (m.type === 'text') return m.text || '';
       if (m.type === 'image') return '[图片]';
       if (m.type === 'voice') return m.text || '[语音]';
-      if (m.type === 'redpacket') return '[红包] ' + (m.text || '');
-      if (m.type === 'transfer') return '[转账] ' + (m.text || '');
+      if (m.type === 'redpacket') return chatPayBrief(m);
+      if (m.type === 'transfer') return chatPayBrief(m);
       if (m.type === 'file') return '[文件] ' + (m.fileName || '');
       if (m.type === 'gift') return '[礼物] ' + (m.text || '');
       if (m.type === 'location') return '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
@@ -5666,8 +5698,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (hm.type === 'text') text = hm.text || '';
         else if (hm.type === 'image') text = '[图片]';
         else if (hm.type === 'voice') text = (hm.text && String(hm.text).trim()) ? hm.text : '[语音消息]';
-        else if (hm.type === 'transfer') text = '[转账 ' + (hm.text || '') + ']';
-        else if (hm.type === 'redpacket') text = '[红包]';
+        else if (hm.type === 'transfer') text = chatPayBrief(hm);
+        else if (hm.type === 'redpacket') text = chatPayBrief(hm);
         else if (hm.type === 'gift') text = '[礼物]';
         else if (hm.type === 'location') text = '[位置] ' + (hm.text || '') + (hm.locDetail ? '（' + hm.locDetail + '）' : '');
         else if (hm.type === 'file') text = '[文件] ' + (hm.fileName || '');
@@ -5915,13 +5947,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (!chatCurrentConv.messages) chatCurrentConv.messages = [];
       var m = { role: role, type: obj.type || 'text', text: obj.text || '', ts: Date.now() };
       if (obj.img) m.img = obj.img;
+      if (obj.imgs) m.imgs = obj.imgs;
+      if (obj.textImg) m.textImg = 1;
+      if (obj.amount) m.amount = obj.amount;
+      if (obj.msg) m.msg = obj.msg;
+      if (obj.pay) m.pay = obj.pay;
       if (obj.duration) m.duration = obj.duration;
       if (obj.fileName) m.fileName = obj.fileName;
       if (obj.giftIco) m.giftIco = obj.giftIco;
       if (obj.audio) m.audio = obj.audio;
       if (obj.quote) m.quote = obj.quote;
+      if (obj.locDetail) m.locDetail = obj.locDetail;
+      if (obj.locCat) m.locCat = obj.locCat;
+      if (obj.locX != null) m.locX = obj.locX;
+      if (obj.locY != null) m.locY = obj.locY;
+      if (obj.locCur) m.locCur = obj.locCur;
       chatCurrentConv.messages.push(m);
       saveConvs();
+      /* v171：TA发的位置，在消息落地时故事就已生成完，打开地图不再有加载态 */
+      if (role === 'other' && m.type === 'location') chatLocStoryEnsure(m);
       renderChatMessages();
       chatDetailBody.scrollTop = chatDetailBody.scrollHeight;
       renderChatConvs();
@@ -6138,6 +6182,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     // ===== 聊天 AI 回复（v48：基于系统提示词+世界书+角色/我的身份+上下文记忆） =====
     var chatAiBusy = false;
     var chatAiLastTip = 0;
+    /* v171：识图失败自动降级为纯文本重试 */
+    var chatVisionReq = false;
+    var chatVisionRetry = false;
     function chatFindApi() {
       if (!chatCurrentConv) return null;
       var s = chatCurrentConv.settings;
@@ -6188,6 +6235,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       var myTxt = s.myIdentity || chatMine.identity || '';
       if (myTxt) parts.push('【我的人设】聊天对象（用户）的身份设定：' + myTxt);
+      var relLine = chatRelPromptLine(s);
+      if (relLine) parts.push(relLine);
+      var timeLine = chatTimePromptLine(s);
+      if (timeLine) parts.push(timeLine);
       parts.push('请始终以「' + chatCurrentConv.name + '」的口吻回复，像真实聊天一样自然、简短，不要输出任何解释。其中【系统提示词】【专属提示词】【世界书】【角色人设】【我的人设】是必须严格遵守的规则，请完全遵循其中规定的聊天格式与回复方法。');
       return parts.join('\n\n');
     }
@@ -6203,10 +6254,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var role = (m.role === 'me') ? 'user' : 'assistant';
         var text = '';
         if (m.type === 'text') text = m.text || '';
-        else if (m.type === 'image') text = '[图片]';
+        else if (m.type === 'image') {
+          var imgsArr = (m.imgs && m.imgs.length) ? m.imgs : (m.img ? [m.img] : []);
+          if (m.textImg) {
+            text = '[文字图片] ' + String(m.text || '').trim();
+          } else if (imgsArr.length && chatCurrentConv.settings.visionEnabled !== false && !chatVisionRetry && i >= msgs.length - 4) {
+            var visParts = [{ type: 'text', text: '[图片]' }];
+            var visMax = Math.min(imgsArr.length, 3);
+            for (var _vi2 = 0; _vi2 < visMax; _vi2++) visParts.push({ type: 'image_url', image_url: { url: imgsArr[_vi2] } });
+            arr.push({ role: role, content: visParts });
+            chatVisionReq = true;
+            continue;
+          } else {
+            text = '[图片]';
+          }
+        }
         else if (m.type === 'voice') text = (m.text && String(m.text).trim()) ? m.text : '[语音消息]';
-        else if (m.type === 'transfer') text = '[转账 ' + (m.text || '') + ']';
-        else if (m.type === 'redpacket') text = '[红包]';
+        else if (m.type === 'transfer') text = chatPayBrief(m);
+        else if (m.type === 'redpacket') text = chatPayBrief(m);
         else if (m.type === 'gift') text = '[礼物]';
         else if (m.type === 'location') text = '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
         else if (m.type === 'file') text = '[文件] ' + (m.fileName || '');
@@ -6246,6 +6311,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       return Math.random() < rate;
     }
     function aiReply(active) {
+      if (chatVisionRetry) { chatVisionRetry = false; chatVisionReq = false; }
       if (!chatCurrentConv || chatAiBusy) return;
       var s = chatCurrentConv.settings;
       var cfg = chatFindApi();
@@ -6261,7 +6327,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var baseStatus = s.blocked ? '已拉黑' : (chatCurrentConv.status || '在线');
       if (statusEl) statusEl.innerHTML = '对方正在输入<span class="chat-typing-dots"><i></i><i></i><i></i></span>';
       chatLocSyncCurrentPos();
-      chatBgMaybeAuto();
       var messages = [{ role: 'system', content: chatBuildSystemPrompt() }];
       var hist = chatBuildHistory();
       for (var i = 0; i < hist.length; i++) messages.push(hist[i]);
@@ -6270,7 +6335,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var sysInjected = false;
       for (var mi = 1; mi < messages.length; mi++) {
         if (!sysInjected && messages[mi].role === 'user') {
-          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。另外，若本条回复的场景需要向对方发送一个位置——比如约见面、报坐标、告诉对方自己此刻正待在哪儿——必须在可见正文的第一行最开头原样输出 [[AETHER_LOCATION]]地点名称，再从第二行开始写正文；不需要发位置就不要输出这个标记。[[AETHER_LOCATION]]是后台指令，绝不能显示在用户可见正文里。需要发送位置时，请从这些可用地点中选一个最贴切的并把完整地点名原样放进 [[AETHER_LOCATION]]：' + CHAT_LOCS.map(function (lp) { return lp.n; }).join('、') + '。发出位置后，可见正文里必须自然说出你所在的具体地名（例如「我在半山咖啡·云栖，南山创意园这边」），不要让对方只收到一张看不出地点的卡片；正文内容要与该地点发生的事相关。）';
+          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。另外，若本条回复的场景需要向对方发送一个位置——比如约见面、报坐标、告诉对方自己此刻正待在哪儿——必须在可见正文的第一行最开头原样输出 [[AETHER_LOCATION]]地点名称，再从第二行开始写正文；不需要发位置就不要输出这个标记。[[AETHER_LOCATION]]是后台指令，绝不能显示在用户可见正文里。需要发送位置时，请从这些可用地点中选一个最贴切的并把完整地点名原样放进 [[AETHER_LOCATION]]：' + CHAT_LOCS.map(function (lp) { return lp.n; }).join('、') + '。发出位置后，可见正文里必须自然说出你所在的具体地名（例如「我在半山咖啡·云栖，南山创意园这边」），不要让对方只收到一张看不出地点的卡片；正文内容要与该地点发生的事相关。\n\n此外，若你真心想在本次对话里给对方发红包或转账（节日/生日心意、帮忙垫付、还钱、AA、请喝奶茶等），就在正文第一行原样输出后台指令标记，独占一行且绝不能出现在用户可见正文里：红包=[[AETHER_REDPACKET]]金额|祝福语，例如 [[AETHER_REDPACKET]]52|生日快乐；转账=[[AETHER_TRANSFER]]金额|留言，例如 [[AETHER_TRANSFER]]88.88|请你喝奶茶。发出标记后，正文自然衔接一句相关的话（比如“给你转了笔钱，去买杯热的”）。不是真心要发就别发，不要频繁发钱。）';
           sysInjected = true;
         }
       }
@@ -6307,15 +6372,31 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
         if (!text && data && data.error) throw new Error(data.error.message || '接口错误');
         if (!text) throw new Error('AI返回内容为空');
-        /* v170：解析 [[AETHER_LOCATION]] 位置指令 */
+        /* v170/v171：解析 [[AETHER_LOCATION]] / [[AETHER_REDPACKET]] / [[AETHER_TRANSFER]] */
         var locName = '';
-        var _lm = '[[AETHER_LOCATION]]';
-        var _lp = text.indexOf(_lm);
-        if (_lp >= 0) {
-          var _le = text.indexOf('\n', _lp + _lm.length);
-          if (_le < 0) _le = text.length;
-          locName = text.slice(_lp + _lm.length, _le).replace(/^[:：\s]+|[:：\s]+$/g, '').trim();
-          text = (text.slice(0, _lp) + text.slice(_le)).replace(/^\n+/, '').trim();
+        var payObj = null;
+        var _mkDefs = [
+          { tag: '[[AETHER_REDPACKET]]', set: function (v) {
+            var ps = v.split('|');
+            var amtN = parseFloat(String(ps[0] || '').replace(/[^\d.]/g, ''));
+            payObj = { kind: 'redpacket', amount: String(isNaN(amtN) ? 0 : amtN), note: ps.slice(1).join('|') || '恭喜发财，大吉大利' };
+          } },
+          { tag: '[[AETHER_TRANSFER]]', set: function (v) {
+            var ps = v.split('|');
+            var amtN2 = parseFloat(String(ps[0] || '').replace(/[^\d.]/g, ''));
+            payObj = { kind: 'transfer', amount: String(isNaN(amtN2) ? 0 : amtN2), note: ps.slice(1).join('|') || '给你' };
+          } },
+          { tag: '[[AETHER_LOCATION]]', set: function (v) { locName = v.replace(/^[:：\s]+|[:：\s]+$/g, '').trim(); } }
+        ];
+        for (var _mkI = 0; _mkI < _mkDefs.length; _mkI++) {
+          var _mt = _mkDefs[_mkI].tag;
+          var _pp = text.indexOf(_mt);
+          if (_pp >= 0) {
+            var _pe = text.indexOf('\n', _pp + _mt.length);
+            if (_pe < 0) _pe = text.length;
+            _mkDefs[_mkI].set(text.slice(_pp + _mt.length, _pe).trim());
+            text = (text.slice(0, _pp) + text.slice(_pe)).replace(/^\n+/, '').trim();
+          }
         }
         var bubbles = splitBubbles(text);
         if (!bubbles.length) bubbles = [text];
@@ -6326,6 +6407,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (recvBtn) recvBtn.classList.remove('busy');
           if (statusEl) statusEl.textContent = baseStatus;
           if (active) { s.auto = s.auto || {}; s.auto.last = Date.now(); saveConvs(); }
+          /* v171：后台主动消息留档（TA主动找你的记录） */
+          if (active && s.bgAct && s.bgAct.enabled) chatBgLogAuto((bubbles && bubbles.length) ? String(bubbles[0] || '').trim() : '');
           /* 模型没带心声时，后台自动补写一条（不阻塞聊天） */
           if (lastTurnMsg && !lastTurnMsg.inner && !lastTurnMsg._heartBusy) {
             lastTurnMsg._heartBusy = true;
@@ -6340,6 +6423,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var locObj = locName ? (chatLocFindByName(locName) || chatLocMsgFromText(locName, '', '')) : null;
         var steps = [];
         if (locObj) steps.push({ loc: locObj });
+        if (payObj) steps.push({ pay: payObj });
         for (var _bi = 0; _bi < bubbles.length; _bi++) {
           var _bt = String(bubbles[_bi] || '').trim();
           if (!_bt) continue;
@@ -6351,6 +6435,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             var it = steps[step];
             if (it.loc) {
               addChatMsg('other', { type: 'location', text: it.loc.n, locDetail: it.loc.d, locCat: it.loc.c, locX: it.loc.x, locY: it.loc.y, locCur: 0 });
+            } else if (it.pay) {
+              var _pv = it.pay;
+              var _pText = _pv.kind === 'transfer' ? (_pv.amount + '\n' + (_pv.note || '')) : (_pv.note || '恭喜发财');
+              addChatMsg('other', { type: _pv.kind === 'transfer' ? 'transfer' : 'redpacket', text: _pText, amount: String(_pv.amount), msg: _pv.note || '', pay: { kind: _pv.kind, amount: String(_pv.amount), note: _pv.note || '', state: 'sent' } });
             } else if (it.voice && it.txt) {
               addChatMsg('other', { type: 'voice', text: it.txt, duration: Math.max(1, Math.round(String(it.txt).length / 3)) + '"' });
               var lastIdx = chatCurrentConv.messages.length - 1;
@@ -6391,6 +6479,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
         pushOne();
       }).catch(function (err) {
+        if (chatVisionReq && !chatVisionRetry) {
+          chatVisionRetry = true;
+          chatVisionReq = false;
+          chatAiBusy = false;
+          if (recvBtn) recvBtn.classList.remove('busy');
+          if (statusEl) statusEl.textContent = baseStatus;
+          setTimeout(function () { aiReply(active); }, 60);
+          return;
+        }
         toast('AI回复失败：' + (err && err.message ? err.message : err));
         chatAiBusy = false;
         if (recvBtn) recvBtn.classList.remove('busy');
@@ -6402,8 +6499,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (chatAiBusy) return;
       if (!chatDetailOverlay.classList.contains('open') || !chatCurrentConv) return;
       var s = chatCurrentConv.settings;
-      if (!s.auto || !s.auto.enabled) return;
       if (!chatFindApi()) return;
+      /* v171：后台活动 = TA主动来消息（低频3-6h / 中频2h / 高频20min），与自主活动并存 */
+      var bg = (s.bgAct && s.bgAct.enabled) ? chatBgInit() : null;
+      if (bg && bg.nextAt && Date.now() >= bg.nextAt) {
+        chatBgRoll(bg);
+        aiReply(true);
+        return;
+      }
+      if (!s.auto || !s.auto.enabled) return;
       var sec = { '低': 300, '中': 180, '高': 60 }[s.auto.freq || '中'] || 180;
       var last = s.auto.last || 0;
       if (Date.now() - last >= sec * 1000) aiReply(true);
@@ -6430,14 +6534,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (key === 'location') {
         locPickOpen();
       } else if (key === 'transfer') {
-        chatMini('转账', '<input class="chat-mini-input" id="cmAmt" type="number" placeholder="输入金额" value="0">', '转账', function () {
-          var amt = (document.getElementById('cmAmt').value || '0').trim();
-          addChatMsg('me', { type: 'transfer', text: amt });
+        chatMini('转账给TA', '<div class="chat-cfg-tip" style="margin:0 0 8px">转账会出现在对话里，TA可以收款，也可以原路退回。</div><div class="chat-cfg-label" style="margin-bottom:6px">金额（元）</div><input class="chat-mini-input" id="cmAmt" type="number" placeholder="0.00" value=""><div class="chat-cfg-label" style="margin:10px 0 6px">留言</div><input class="chat-mini-input" id="cmMsg" placeholder="转账留言（可留空）" value="">', '转账', function () {
+          var amt = (document.getElementById('cmAmt').value || '').trim();
+          var msg = (document.getElementById('cmMsg').value || '').trim();
+          if (!amt || parseFloat(amt) <= 0) { toast('先填个金额再转账'); return; }
+          var n = String(parseFloat(amt));
+          addChatMsg('me', { type: 'transfer', pay: { state: 'sent', amount: n, note: msg } });
+          toast('已转账 ¥' + n);
         });
       } else if (key === 'redpacket') {
-        chatMini('发红包', '<input class="chat-mini-input" id="cmRpt" placeholder="祝福语（可选）" value="恭喜发财">', '发红包', function () {
+        chatMini('给TA发红包', '<div class="chat-cfg-tip" style="margin:0 0 8px">TA可以拆开红包，也可以退还给你。金额可不填，领取时随机分配一份电子心意。</div><div class="chat-cfg-label" style="margin-bottom:6px">金额（元）</div><input class="chat-mini-input" id="cmRptAmt" type="number" placeholder="如 8.88（可不填）" value=""><div class="chat-cfg-label" style="margin:10px 0 6px">祝福语</div><input class="chat-mini-input" id="cmRpt" placeholder="恭喜发财" value="恭喜发财">', '塞钱进红包', function () {
           var msg = document.getElementById('cmRpt').value.trim() || '恭喜发财';
-          addChatMsg('me', { type: 'redpacket', text: msg });
+          var amt = (document.getElementById('cmRptAmt').value || '').trim();
+          if (amt && parseFloat(amt) <= 0) amt = '';
+          addChatMsg('me', { type: 'redpacket', text: msg, pay: { state: 'sent', amount: amt || '', note: msg } });
+          if (!amt) toast('红包已发出（未填金额，对方拆开时随机分配）');
         });
       } else if (key === 'emoji') {
         chatMini('表情包', '<div class="chat-emoji-grid">' + CHAT_EMOJIS.map(function (e) { return '<button class="chat-emoji-item" data-name="' + e + '"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round">' + (CHAT_EMOJI_SVG[e] || '') + '</svg></button>'; }).join('') + '</div>', '关闭', function () {});
@@ -6445,21 +6556,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           b.addEventListener('click', function () { addChatMsg('me', { type: 'text', text: '[' + b.getAttribute('data-name') + ']' }); chatMiniMask.classList.remove('show'); });
         });
       } else if (key === 'image') {
-        var inp = document.createElement('input');
-        inp.type = 'file';
-        inp.accept = 'image/*';
-        inp.style.display = 'none';
-        document.body.appendChild(inp);
-        inp.addEventListener('change', function () {
-          var f = inp.files && inp.files[0];
-          if (f) {
-            var reader = new FileReader();
-            reader.onload = function (e) { addChatMsg('me', { type: 'image', img: e.target.result }); };
-            reader.readAsDataURL(f);
-          }
-          inp.remove();
-        });
-        inp.click();
+        chatSendImageMenu();
       } else if (key === 'phone') {
         addChatMsg('me', { type: 'system', text: '[通话] 发起通话（演示），对方接听后开始通话' });
         toast('已发起通话');
@@ -6483,6 +6580,143 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           });
         });
       }
+    }
+
+    // ===== v171 新增：图片发送菜单 / 大图预览 / 红包·转账操作 =====
+    function chatSendImageMenu() {
+      if (!chatCurrentConv) return;
+      chatMini('发送图片', '<div class="chat-cfg-tip" style="margin:0 0 8px">想给TA发什么？</div><div class="chat-mini-list">' +
+        '<button class="chat-mini-opt" id="imgOptText">文字图片（纯文字描述，不占相册）</button>' +
+        '<button class="chat-mini-opt" id="imgOptOne">从系统相册选择 · 单张</button>' +
+        '<button class="chat-mini-opt" id="imgOptMany">从系统相册选择 · 多张合并</button></div>', '取消', function () {});
+      var bindImg = function (id, multi) {
+        var b = document.getElementById(id);
+        if (!b) return;
+        b.addEventListener('click', function () {
+          if (!multi) {
+            chatMini('发送文字图片', '<div class="chat-cfg-tip" style="margin:0 0 8px">不会真的生成图片，TA以“收到一张图”的方式看到这段文字并理解内容（支持识图的模型会直接看图意）。</div><textarea class="chat-mini-input" id="tiDesc" rows="4" placeholder="描述这张“图”的内容，例如：一只橘猫趴在窗台上晒太阳"></textarea>', '发送', function () {
+              var d = (document.getElementById('tiDesc').value || '').trim();
+              if (!d) { toast('先写点内容再发'); return; }
+              addChatMsg('me', { type: 'image', textImg: 1, text: d });
+            });
+            return;
+          }
+          var inp = document.createElement('input');
+          inp.type = 'file';
+          inp.accept = 'image/*';
+          if (multi) inp.multiple = true;
+          inp.style.display = 'none';
+          document.body.appendChild(inp);
+          inp.addEventListener('change', function () {
+            var fs = Array.prototype.slice.call(inp.files || []).slice(0, 9);
+            if (!fs.length) { inp.remove(); return; }
+            var outs = [];
+            var pend = fs.length;
+            if (pend > 1) toast('正在压缩图片…');
+            fs.forEach(function (f) {
+              chatFileToSmallImg(f, function (dataUrl) {
+                if (dataUrl) outs.push(dataUrl);
+                if (--pend === 0) {
+                  inp.remove();
+                  if (!outs.length) { toast('图片读取失败'); return; }
+                  var _imgs = outs.slice(0, 9);
+                  addChatMsg('me', { type: 'image', imgs: _imgs, img: _imgs[0] });
+                }
+              });
+            });
+          });
+          inp.click();
+        });
+      };
+      bindImg('imgOptText', false);
+      bindImg('imgOptOne', true);
+      bindImg('imgOptMany', true);
+    }
+    function chatFileToSmallImg(file, cb) {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var src = e.target.result;
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var MAX = 1280;
+            var scale = Math.min(1, MAX / Math.max(img.width, img.height));
+            var w = Math.max(1, Math.round(img.width * scale));
+            var h = Math.max(1, Math.round(img.height * scale));
+            var cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            var ctx = cv.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            cb(cv.toDataURL('image/jpeg', 0.82));
+          } catch (err) { cb(src); }
+        };
+        img.onerror = function () { cb(src); };
+        img.src = src;
+      };
+      reader.onerror = function () { cb(''); };
+      reader.readAsDataURL(file);
+    }
+    function chatViewImg(src) {
+      if (!src) return;
+      var ov = document.createElement('div');
+      ov.className = 'chat-img-viewer';
+      ov.innerHTML = '<img src="' + src + '">';
+      ov.addEventListener('click', function () { ov.remove(); });
+      document.body.appendChild(ov);
+    }
+    function chatPayBrief(m) {
+      try {
+        if (!m || (m.type !== 'redpacket' && m.type !== 'transfer')) return '';
+        var p = m.pay || {};
+        var amount = p.amount != null ? p.amount : (m.amount != null ? m.amount : (m.text && String(m.text).split('\n')[0]) || '');
+        var note = p.note != null ? p.note : (m.msg || (m.text && String(m.text).split('\n')[1]) || '');
+        var state = p.state || 'sent';
+        var st = state === 'taken' ? '（已被领取）' : (state === 'returned' ? '（已退回）' : '');
+        if (m.type === 'redpacket') return '[红包] ¥' + (amount || '?') + ' ' + (note || '') + st;
+        return '[转账] ¥' + (amount || '?') + ' ' + (note || '') + st;
+      } catch (e) { return m && m.type === 'redpacket' ? '[红包]' : '[转账]'; }
+    }
+    function openChatPay(idx) {
+      if (!chatCurrentConv) return;
+      var m = chatCurrentConv.messages[idx];
+      if (!m || (m.type !== 'redpacket' && m.type !== 'transfer')) return;
+      var p = m.pay || {};
+      var state = p.state || 'sent';
+      var amount = p.amount != null ? p.amount : (m.amount != null ? m.amount : (m.type === 'transfer' && m.text ? String(m.text).split('\n')[0] : ''));
+      var note = p.note || (m.type === 'redpacket' ? (m.text || '恭喜发财') : (m.msg || (m.text && String(m.text).split('\n')[1]) || ''));
+      var title = m.type === 'redpacket' ? '红包详情' : '转账详情';
+      var body = '', okText = '关闭', okCb = function () {};
+      var isMe = m.role === 'me';
+      if (m.type === 'redpacket') {
+        if (state === 'sent') {
+          if (!isMe) {
+            body = '<div class="pay-pop-title">来自 ' + escHtml(chatCurrentConv.name) + ' 的红包</div><div class="pay-pop-amt">¥' + escHtml(String(amount || '?')) + '</div><div class="pay-pop-note">' + escHtml(note) + '</div>';
+            okText = '拆红包';
+            okCb = function () { m.pay = m.pay || {}; m.pay.state = 'taken'; m.pay.amount = String(amount); m.pay.note = note; if (!m.amount) m.amount = String(amount); saveConvs(); renderChatMessages(); toast('已领取红包 ¥' + amount); };
+          } else {
+            body = '<div class="pay-pop-title">你发出的红包</div><div class="pay-pop-note">' + escHtml(note) + '</div><div class="pay-pop-tip">对方还没拆开，未领取的红包可以撤回。</div>';
+            okText = '撤回红包';
+            okCb = function () { m.pay = m.pay || {}; m.pay.state = 'returned'; m.pay.amount = String(amount); m.pay.note = note; saveConvs(); renderChatMessages(); toast('已撤回红包 ¥' + amount); };
+          }
+        } else {
+          body = '<div class="pay-pop-title">' + (isMe ? '你发出的红包' : '来自 ' + escHtml(chatCurrentConv.name) + ' 的红包') + '</div><div class="pay-pop-amt">¥' + escHtml(String(amount || '?')) + '</div><div class="pay-pop-note">' + escHtml(note) + '</div><div class="pay-pop-tip">' + (state === 'taken' ? '已被领取' : '已退还') + '</div>';
+        }
+      } else {
+        if (state === 'sent') {
+          if (!isMe) {
+            body = '<div class="pay-pop-title">' + escHtml(chatCurrentConv.name) + ' 向你转账</div><div class="pay-pop-amt">¥' + escHtml(String(amount || '?')) + '</div><div class="pay-pop-note">' + escHtml(note) + '</div>';
+            okText = '收款';
+            okCb = function () { m.pay = m.pay || {}; m.pay.state = 'taken'; m.pay.amount = String(amount); m.pay.note = note; if (!m.amount) m.amount = String(amount); saveConvs(); renderChatMessages(); toast('已收款 ¥' + amount); };
+          } else {
+            body = '<div class="pay-pop-title">你发出的转账</div><div class="pay-pop-amt">¥' + escHtml(String(amount || '?')) + '</div><div class="pay-pop-note">' + escHtml(note) + '</div><div class="pay-pop-tip">对方还没收款，可撤销这笔转账。</div>';
+            okText = '撤销转账';
+            okCb = function () { m.pay = m.pay || {}; m.pay.state = 'returned'; m.pay.amount = String(amount); m.pay.note = note; if (!m.amount) m.amount = String(amount); saveConvs(); renderChatMessages(); toast('已撤销转账 ¥' + amount); };
+          }
+        } else {
+          body = '<div class="pay-pop-title">' + (isMe ? '你发出的转账' : '来自 ' + escHtml(chatCurrentConv.name) + ' 的转账') + '</div><div class="pay-pop-amt">¥' + escHtml(String(amount || '?')) + '</div><div class="pay-pop-note">' + escHtml(note) + '</div><div class="pay-pop-tip">' + (state === 'taken' ? '已被收款' : '已退还') + '</div>';
+        }
+      }
+      chatMini(title, body, okText, okCb);
     }
 
     // 设置面板
@@ -6510,6 +6744,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (chatSettingView === 'sec-bg') return renderChatSectionView('bg');
       if (chatSettingView === 'relation') return renderChatRelationView();
       if (chatSettingView === 'bgact') return renderChatBgActView();
+      if (chatSettingView === 'time') return renderChatTimeView();
       if (chatSettingView === 'sec-data') return renderChatSectionView('data');
       var titleEl = document.getElementById('chatSettingsTitle');
       if (titleEl) titleEl.textContent = '聊天设置';
@@ -6523,7 +6758,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         { key: 'sec-role', label: '角色人格', desc: '我的身份 · 角色身份' },
         { key: 'chatmode', label: '聊天模式', desc: '旁白模式 · 线下模式 · 普通线上' },
         { key: 'sec-sense', label: '交互感知', desc: '语音配置 · 生图配置 · 自主活动' },
-        { key: 'sec-bg', label: '后台生活', desc: '角色关系（网恋/异地/同居）· 网恋定位 · 后台动态' },
+        { key: 'sec-bg', label: '后台生活', desc: '角色关系 · 网恋定位 · 后台动态 · 时间感知' },
         { key: 'sec-app', label: '外观设置', desc: '聊天背景 · 气泡 · 字体 · 自定义CSS' },
         { key: 'sec-data', label: '数据关系', desc: '调试日志 · 清空记录 · 拉黑联系人 · 导入导出' }
       ];
@@ -6576,7 +6811,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         ] },
         bg: { title: '后台生活', items: [
           { key: 'relation', label: '角色关系', desc: '普通朋友 · 网恋 · 异地 · 同居', value: chatRelLabel(s) },
-          { key: 'bgact', label: '后台活动', desc: 'TA离线时在做什么：动态生成并带进回复', value: (s.bgAct && s.bgAct.enabled) ? '已开启' : '已关闭' }
+          { key: 'bgact', label: '后台活动', desc: 'TA主动来消息：低3-6h / 中2h / 高20min', value: (s.bgAct && s.bgAct.enabled) ? ('已开启 · ' + (s.bgAct.freq || '低') + '频') : '已关闭' },
+          { key: 'time', label: '时间感知', desc: '时间同步 · 时间异步 · 感知关闭', value: chatTimeLabel(s) }
         ] }
       };
       var meta = SEC_META[sec];
@@ -6702,11 +6938,111 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       } catch (e) {}
       return '';
     }
-    // 后台活动：TA离线时在做什么
+    // ===== v171 新增：时间感知板块（时间同步 / 时间异步 / 感知关闭） =====
+    function chatTimeInit(s) {
+      if (!s) return null;
+      if (!s.time || typeof s.time !== 'object') s.time = { mode: 'sync', diff: 0 };
+      if (!s.time.mode) s.time.mode = 'sync';
+      return s.time;
+    }
+    function chatTimeDiffText(mins) {
+      mins = Math.round(mins || 0);
+      if (mins === 0) return '完全同步';
+      var abs = Math.abs(mins);
+      var hh = Math.floor(abs / 60), mm = abs % 60;
+      var parts = [];
+      if (hh) parts.push(hh + '小时');
+      if (mm || !hh) parts.push(mm + '分钟');
+      return mins > 0 ? 'TA比你慢 ' + parts.join('') : 'TA比你快 ' + parts.join('');
+    }
+    function chatTimeLabel(s) {
+      try {
+        var t = (s && s.time) ? s.time : null;
+        if (!t || !t.mode || t.mode === 'sync') return '时间同步';
+        if (t.mode === 'async') return '时间异步 · ' + chatTimeDiffText(t.diff || 0);
+        return '感知关闭';
+      } catch (e) { return '时间同步'; }
+    }
+    function chatTimeText(t) {
+      try {
+        if (!t) return '';
+        if (t.mode === 'off') return '【时间观】你感知不到具体时间：不知道现在是几点、几号，也不主动提今天/明天/几点，避免用具体时间戳表述。';
+        if (t.mode === 'async') {
+          var m = t.diff || 0;
+          var unit = m >= 0 ? '慢' : '快';
+          var v = Math.abs(m);
+          var hh = Math.floor(v / 60), mm = v % 60;
+          var parts = [];
+          if (hh) parts.push(hh + '小时');
+          if (mm || !hh) parts.push(mm + '分钟');
+          return '【时间观】你的时间和对方是异步的：你比TA' + unit + ' ' + parts.join('') + '。你们不在同一个时间点上，聊到时间、作息、晚安早安、约时间时必须按这个时差自然带出，绝不能说成与对方同步。';
+        }
+        return '【时间观】你和对方的时间完全同步：现在是几点就是几点，作息一致，聊天里的时间概念与对方一致。';
+      } catch (e) { return ''; }
+    }
+    function chatTimePromptLine(s) {
+      try {
+        var t = (s && s.time) ? s.time : null;
+        return t ? chatTimeText(t) : '';
+      } catch (e) { return ''; }
+    }
+    function renderChatTimeView() {
+      if (!chatCurrentConv) return;
+      document.getElementById('chatSettingsTitle').textContent = '时间感知';
+      var s = chatCurrentConv.settings;
+      var t = chatTimeInit(s);
+      var modes = [
+        { k: 'sync', label: '时间同步', desc: '你和TA的时间完全同步：现在几点就是几点，作息一致，聊天里的时间不会对不上' },
+        { k: 'async', label: '时间异步', desc: '你和TA的时间流逝不同（如TA比你慢3小时）：可手动调时差，聊天里会自然体现' },
+        { k: 'off', label: '时间感知关闭', desc: 'TA完全无法感知时间：不主动提几点、今天、明天这类时间概念' }
+      ];
+      var html = '<div class="chat-cfg-tip">控制「' + escHtml(chatCurrentConv.name) + '」对时间的感知。TA聊到时间时会按这里的设定表现。</div>';
+      html += '<div class="group-card" style="padding:4px 0">';
+      modes.forEach(function (o) {
+        var on = t.mode === o.k;
+        html += '<div class="chat-setting-switch" data-timek="' + o.k + '" style="cursor:pointer">' +
+          '<div style="min-width:0"><div class="sw-label">' + o.label + (on ? ' <span style="color:#5ac8fa">✓</span>' : '') + '</div><div class="sw-desc">' + o.desc + '</div></div>' +
+          '<span class="chat-setting-value"><span style="color:#5ac8fa">' + (on ? '当前' : '›') + '</span></span></div>';
+      });
+      html += '</div>';
+      if (t.mode === 'async') {
+        html += '<div class="group-title">手动调整时差</div><div class="group-card"><div class="settings-item"><label>当前时差</label><div class="settings-right"><span style="color:#5ac8fa">' + escHtml(chatTimeDiffText(t.diff || 0)) + '</span></div></div>' +
+          '<div class="chat-time-adj"><button class="chat-time-btn" data-tadj="-180">TA快3小时</button><button class="chat-time-btn" data-tadj="-60">TA快1小时</button><button class="chat-time-btn" data-tadj="-15">TA快15分钟</button><button class="chat-time-btn" data-tadj="15">TA慢15分钟</button><button class="chat-time-btn" data-tadj="60">TA慢1小时</button><button class="chat-time-btn" data-tadj="180">TA慢3小时</button></div>' +
+          '<div class="settings-item" style="justify-content:flex-end"><button class="chat-time-btn" data-tadj="zero">归零（恢复同步）</button></div></div>';
+        html += '<div class="chat-cfg-tip">把TA调“慢”，就是TA那边还停留在你几小时前；把TA调“快”，就是TA已经走到你前面去了。</div>';
+      }
+      html += '<button class="prompt-cancel" id="timeBack" style="width:100%;margin-top:12px">返回聊天设置</button>';
+      chatSettingsBody.innerHTML = html;
+      chatSettingsBody.querySelectorAll('[data-timek]').forEach(function (row) {
+        row.addEventListener('click', function () {
+          var k = row.getAttribute('data-timek');
+          if (k === t.mode) return;
+          t.mode = k;
+          if (k === 'async' && !t.diff) t.diff = 180;
+          saveConvs(); renderChatTimeView();
+          toast(k === 'sync' ? '已开启时间同步' : (k === 'async' ? '已开启时间异步（默认TA比你慢3小时，可手动调）' : '已关闭时间感知'));
+        });
+      });
+      chatSettingsBody.querySelectorAll('[data-tadj]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var v = b.getAttribute('data-tadj');
+          if (v === 'zero') t.diff = 0;
+          else t.diff = (t.diff || 0) + parseInt(v, 10);
+          if (Math.abs(t.diff) > 12 * 60) { toast('时差最大12小时'); t.diff = t.diff > 0 ? 12 * 60 : -12 * 60; }
+          saveConvs(); renderChatTimeView();
+          toast('已调整：' + chatTimeDiffText(t.diff));
+        });
+      });
+      document.getElementById('timeBack').addEventListener('click', function () { chatSettingsGoBack(); });
+    }
+
+    // 后台活动：TA主动来消息（低3-6h / 中2h / 高20min）
     function chatBgInit() {
       var s = chatCurrentConv.settings;
-      if (!s.bgAct || typeof s.bgAct !== 'object') s.bgAct = { enabled: false, items: [] };
+      if (!s.bgAct || typeof s.bgAct !== 'object') s.bgAct = { enabled: false, items: [], freq: '低' };
       if (!Array.isArray(s.bgAct.items)) s.bgAct.items = [];
+      if (!s.bgAct.freq) s.bgAct.freq = '低';
+      if (s.bgAct.enabled && !s.bgAct.nextAt) s.bgAct.nextAt = Date.now() + chatBgFreqMs(s.bgAct.freq);
       return s.bgAct;
     }
     function chatBgCity() {
@@ -6770,49 +7106,108 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       ]);
       return pool[Math.floor(Math.random() * pool.length)];
     }
+    function chatBgFreqMs(freq) {
+      if (freq === '高') return 20 * 60 * 1000;
+      if (freq === '中') return 2 * 60 * 60 * 1000;
+      return Math.round((3 + Math.random() * 3) * 60 * 60 * 1000);
+    }
+    function chatBgActive() {
+      try { return !!(chatCurrentConv && chatCurrentConv.settings && chatCurrentConv.settings.bgAct && chatCurrentConv.settings.bgAct.enabled); } catch (e) { return false; }
+    }
     function chatBgMaybeAuto(force) {
       if (!chatCurrentConv || !chatCurrentConv.settings) return null;
       var bg = chatBgInit();
       if (!force && !bg.enabled) return null;
       var last = bg.items.length ? bg.items[0] : null;
-      if (!force && last && (Date.now() - last.ts) < 4 * 60 * 1000) return null;
+      if (!force && last && (Date.now() - last.ts) < 60 * 1000) return null;
       var it = { ts: Date.now(), text: chatBgPick() };
       bg.items.unshift(it);
       if (bg.items.length > 15) bg.items.length = 15;
       saveConvs();
       return it;
     }
+    function chatBgRoll(bg) {
+      if (!bg) return null;
+      var delay = chatBgFreqMs(bg.freq || '低');
+      bg.nextAt = Date.now() + delay;
+      bg.lastAt = Date.now();
+      saveConvs();
+      return bg.nextAt;
+    }
+    function chatBgLogAuto() {
+      if (!chatCurrentConv || !chatCurrentConv.settings) return;
+      var bg = chatBgInit();
+      if (!bg || !bg.enabled) return;
+      var last = bg.items.length ? bg.items[0] : null;
+      if (last && (Date.now() - last.ts) < 60 * 1000) return;
+      var it = { ts: Date.now(), text: chatBgPick() };
+      bg.items.unshift(it);
+      if (bg.items.length > 15) bg.items.length = 15;
+      saveConvs();
+    }
+    function chatBgNextAtText(nextAt) {
+      if (!nextAt) return '';
+      try {
+        var diff = nextAt - Date.now();
+        if (diff <= 0) return '马上';
+        if (diff < 60 * 1000) return Math.ceil(diff / 1000) + '秒后';
+        if (diff < 60 * 60 * 1000) return Math.ceil(diff / 60000) + '分钟后';
+        return Math.round(diff / 3600000 * 10) / 10 + '小时后';
+      } catch (e) { return ''; }
+    }
     function renderChatBgActView() {
       if (!chatCurrentConv) return;
       document.getElementById('chatSettingsTitle').textContent = '后台活动';
       var s = chatCurrentConv.settings;
       var bg = chatBgInit();
-      var html = '<div class="chat-cfg-tip">开启后，TA没回你消息的间隙也在过自己的生活：每次你发消息、距上一条后台动态超过4分钟，会自动生成一条「刚才在做什么」，并带进TA这次的回复里。</div>';
-      html += '<div class="group-card"><div class="settings-item"><label>后台动态自动生成</label><label class="toggle-switch"><input type="checkbox" id="bgSw"' + (bg.enabled ? ' checked' : '') + '><span class="slider"></span></label></div></div>';
-      html += '<div class="group-title">活动记录</div><div class="group-card" style="padding:4px 0">';
+      var html = '<div class="chat-cfg-tip">开启后，就算你没发消息，TA也会按频率<b>主动来找你说话</b>：低频3-6小时一次、中频约2小时一次、高频约20分钟一次。你来消息时，TA还会顺带带一句刚才正在做什么。</div>';
+      html += '<div class="group-card"><div class="settings-item"><label>TA主动来消息</label><label class="toggle-switch"><input type="checkbox" id="bgSw"' + (bg.enabled ? ' checked' : '') + '><span class="slider"></span></label></div></div>';
+      if (bg.enabled) {
+        html += '<div class="group-title">TA主动的频率</div><div class="group-card" style="padding:4px 0">';
+        ['低', '中', '高'].forEach(function (f) {
+          var on = bg.freq === f;
+          var lab = f === '低' ? '低频' : (f === '中' ? '中频' : '高频');
+          var desc = f === '低' ? '3-6小时来找你一次' : (f === '中' ? '约2小时来找你一次' : '约20分钟来找你一次');
+          html += '<div class="chat-setting-switch" data-bgfreq="' + f + '" style="cursor:pointer"><div style="min-width:0"><div class="sw-label">' + lab + (on ? ' <span style="color:#5ac8fa">✓</span>' : '') + '</div><div class="sw-desc">' + desc + '</div></div><span class="chat-setting-value"><span style="color:#5ac8fa">' + (on ? '当前' : '›') + '</span></span></div>';
+        });
+        html += '</div>';
+        html += '<div class="chat-cfg-tip">下一条主动消息：<b>' + (bg.nextAt ? escHtml(chatBgNextAtText(bg.nextAt)) : '马上') + '</b>。TA主动找你时，会自然地以“TA此刻正在做的事”开场。</div>';
+      }
+      html += '<div class="group-title">动态留档</div><div class="group-card" style="padding:4px 0">';
       if (bg.items.length) {
         bg.items.forEach(function (it, idx) {
-          html += '<div class="settings-item" style="align-items:flex-start"><div style="min-width:0;flex:1"><div style="font-size:12px;color:#8e8e93;margin-bottom:2px">' + chatBgTime(it.ts) + (bg.enabled && idx === 0 ? ' · 最近' : '') + '</div><div style="color:#f2f2f7">' + escHtml(it.text) + '</div></div>' +
+          html += '<div class="settings-item" style="align-items:flex-start"><div style="min-width:0;flex:1"><div style="font-size:12px;color:#8e8e93;margin-bottom:2px">' + chatBgTime(it.ts) + (idx === 0 ? ' · 最近' : '') + '</div><div style="color:#f2f2f7">' + escHtml(it.text) + '</div></div>' +
             '<button style="border:none;background:transparent;color:#ff6b6b;font-size:12px;padding:6px;cursor:pointer" data-bgdel="' + idx + '">删除</button></div>';
         });
       } else {
-        html += '<div class="settings-item"><div style="color:#8e8e93">还没有后台动态，点下方按钮生成第一条，或开启自动生成。</div></div>';
+        html += '<div class="settings-item"><div style="color:#8e8e93">还没有留档。开启后，TA每次主动来消息、或你来消息时，会记下TA刚才正在做什么。</div></div>';
       }
       html += '</div>';
-      html += '<button class="prompt-cancel" id="bgGen" style="width:100%;margin-top:12px">生成一条后台动态</button>';
+      html += '<button class="prompt-cancel" id="bgGen" style="width:100%;margin-top:12px">生成一条TA刚才的动态</button>';
       html += '<button class="prompt-cancel" id="bgBack" style="width:100%;margin-top:8px">返回聊天设置</button>';
       chatSettingsBody.innerHTML = html;
       var sw = document.getElementById('bgSw');
       if (sw) sw.addEventListener('change', function () {
         bg.enabled = sw.checked;
-        if (bg.enabled && !bg.items.length) chatBgMaybeAuto(true);
+        if (bg.enabled) {
+          if (!bg.freq) bg.freq = '低';
+          if (!bg.nextAt) bg.nextAt = Date.now() + chatBgFreqMs(bg.freq);
+        }
         saveConvs(); renderChatBgActView();
-        toast(bg.enabled ? '后台活动已开启，TA开始有自己的生活了' : '后台活动已关闭');
+        toast(bg.enabled ? '已开启：TA会开始主动找你了' : '已关闭后台活动');
+      });
+      chatSettingsBody.querySelectorAll('[data-bgfreq]').forEach(function (row) {
+        row.addEventListener('click', function () {
+          bg.freq = row.getAttribute('data-bgfreq');
+          bg.nextAt = Date.now() + chatBgFreqMs(bg.freq);
+          saveConvs(); renderChatBgActView();
+          toast('已设为' + (bg.freq === '高' ? '高频（约20分钟）' : (bg.freq === '中' ? '中频（约2小时）' : '低频（3-6小时）')) + '，重新计时');
+        });
       });
       chatSettingsBody.querySelectorAll('[data-bgdel]').forEach(function (b) {
         b.addEventListener('click', function () {
           var i = parseInt(b.getAttribute('data-bgdel'), 10);
-          if (!isNaN(i) && bg.items[i]) { bg.items.splice(i, 1); saveConvs(); renderChatBgActView(); toast('已删除该条后台动态'); }
+          if (!isNaN(i) && bg.items[i]) { bg.items.splice(i, 1); saveConvs(); renderChatBgActView(); toast('已删除该条动态'); }
         });
       });
       document.getElementById('bgGen').addEventListener('click', function () {
