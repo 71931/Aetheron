@@ -3772,6 +3772,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var ICON_RST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.7-6.4L3 8"/><path d="M3 3v5h5"/></svg>';
     var ICON_CLR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>';
     var ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.2"/><path d="M8 12h8"/></svg>';
+    /* v169：移除左滑操作栏，会话卡片单击直接进入聊天 */
     function renderChatConvs() {
       if (!chatConvs.length) { chatConvList.innerHTML = '<div class="chat-empty">暂无会话</div>'; return; }
       var list = chatConvs.filter(function (x) { return !x.hidden; }).sort(function (a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0); });
@@ -3779,17 +3780,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var last = c.messages && c.messages.length ? c.messages[c.messages.length - 1] : null;
         var preview = last ? msgPreview(last) : (c.msg || '暂无消息');
         var t = last ? fmtTime(last.ts) : (c.time || '');
-        return '<div class="chat-conv-swipe' + (c.pinned ? ' pinned' : '') + '" data-swipe-conv="' + c.id + '">' +
-          '<div class="chat-conv-actions">' +
-          '<button type="button" class="chat-conv-action' + (c.pinned ? ' pin on' : ' pin') + '" data-act="pin">' + (c.pinned ? ICON_PIN_ON : ICON_PIN) + '<span>' + (c.pinned ? '取消置顶' : '置顶') + '</span></button>' +
-          '<button type="button" class="chat-conv-action rst" data-act="rst">' + ICON_RST + '<span>重置</span></button>' +
-          '<button type="button" class="chat-conv-action clr" data-act="clr">' + ICON_CLR + '<span>清空</span></button>' +
-          '<button type="button" class="chat-conv-action del" data-act="del">' + ICON_DEL + '<span>移除</span></button>' +
-          '</div>' +
-          '<div class="chat-conv-item" data-conv-id="' + c.id + '">' + convAvatarHtml(c, '#7c5cff') + '<div class="chat-conv-info"><div class="chat-conv-top"><span class="chat-conv-name-wrap"><span class="chat-conv-name">' + escHtml(convDisplayName(c)) + '</span>' + (c.pinned ? '<span class="chat-conv-pin-tag">置顶</span>' : '') + '</span>' + (t ? '<span class="chat-conv-time">' + escHtml(t) + '</span>' : '') + '</div><div class="chat-conv-msg">' + escHtml(preview) + '</div></div></div>' +
-          '</div>';
+        return '<div class="chat-conv-item' + (c.pinned ? ' pinned-item' : '') + '" data-conv-id="' + c.id + '">' + convAvatarHtml(c, '#7c5cff') + '<div class="chat-conv-info"><div class="chat-conv-top"><span class="chat-conv-name-wrap"><span class="chat-conv-name">' + escHtml(convDisplayName(c)) + '</span>' + (c.pinned ? '<span class="chat-conv-pin-tag">置顶</span>' : '') + '</span>' + (t ? '<span class="chat-conv-time">' + escHtml(t) + '</span>' : '') + '</div><div class="chat-conv-msg">' + escHtml(preview) + '</div></div></div>';
       }).join('');
-      bindConvSwipe();
+      chatConvList.querySelectorAll('.chat-conv-item').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          e.stopPropagation();
+          openChatDetailById(el.getAttribute('data-conv-id'));
+        });
+      });
     }
     /* v168：会话卡片左滑操作栏（置顶/重置/清空/移除），仅一行可滑开；置顶后保持在顶部并带标签 */
     function bindConvSwipe() {
@@ -4381,6 +4379,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
       applyChatAppearance();
       bindChatBubbles();
+      /* v169：点头像展开“心声”（仅对方头像，展示该句背后的内心独白） */
+      chatDetailBody.querySelectorAll('.chat-msg-row.other .chat-msg-avatar').forEach(function (av) {
+        av.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var rw = av.closest('.chat-msg-row');
+          if (!rw) return;
+          var hIdx = parseInt(rw.getAttribute('data-msg-idx'), 10);
+          if (!isNaN(hIdx)) showChatHeart(hIdx);
+        });
+      });
       /* v108：合并转发展开（撤回重编辑入口已随 v108 移除） */
       chatDetailBody.querySelectorAll('[data-fwdmerge]').forEach(function (el) {
         el.addEventListener('click', function () {
@@ -4488,6 +4496,122 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         });
       });
       chatDetailBody.addEventListener('contextmenu', function (e) { var r = e.target.closest('.chat-msg-row'); if (r) e.preventDefault(); });
+    }
+    /* v169：心声卡片——点头像展开对方这句话背后的内心独白（仿用户参考图 1:1 复刻） */
+    var chatHeartMsg = null;
+    function chatHeartData() {
+      var c = chatCurrentConv || {};
+      var ri = (c.settings && typeof c.settings.roleIdentity === 'object' && c.settings.roleIdentity) ? c.settings.roleIdentity : null;
+      var name = (ri && ri.name) ? ri.name : (c.name || '联系人');
+      var avatar = (ri && ri.avatar) ? ri.avatar : '';
+      var color = c.color || '#7c5cff';
+      return { c: c, ri: ri, name: name, avatar: avatar, color: color };
+    }
+    function chatHeartDate(ts) {
+      var d = new Date(ts || Date.now());
+      var wd = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][d.getDay()] || '';
+      return (d.getMonth() + 1) + '月' + d.getDate() + '日 · ' + wd;
+    }
+    function chatHeartClockSvg() {
+      return '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#999;stroke-width:2;stroke-linecap:round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+    }
+    function chatHeartAvatarHtml(d) {
+      if (d.avatar) return '<div class="chat-heart-avatar" style="background-image:url(' + d.avatar + ')"></div>';
+      return '<div class="chat-heart-avatar" style="background:' + d.color + '">' + escHtml((d.name || '?').slice(0, 1)) + '</div>';
+    }
+    function chatHeartOverlayEl() {
+      var el = chatDetailOverlay.querySelector('.chat-heart-pop');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'chat-heart-pop';
+        el.addEventListener('click', function (e) { if (e.target === el) chatHeartClose(); });
+        chatDetailOverlay.appendChild(el);
+      }
+      return el;
+    }
+    function showChatHeart(idx) {
+      if (!chatCurrentConv) return;
+      var m = chatCurrentConv.messages && chatCurrentConv.messages[idx];
+      if (!m) return;
+      chatHeartMsg = m;
+      chatHeartRender();
+    }
+    function chatHeartRender() {
+      var ov = chatHeartOverlayEl();
+      var m = chatHeartMsg;
+      if (!m || !chatCurrentConv) return;
+      var d = chatHeartData();
+      var has = !!(m.inner && String(m.inner).trim());
+      var bodyTxt = has ? m.inner : (m._heartBusy ? '心里话正在酝酿…' : '这句话还没有留下心声，要不要让 TA 悄悄补上？');
+      var genBtn = (!has && !m._heartBusy) ? '<button type="button" class="chat-heart-regen" data-act="gen">让 TA 补上</button>' : '';
+      var ts = m.ts || Date.now();
+      ov.innerHTML = '<div class="chat-heart-card">' +
+        '<button type="button" class="chat-heart-x" data-act="x">×</button>' +
+        '<div class="chat-heart-head">' +
+        '<div class="chat-heart-l">' + chatHeartAvatarHtml(d) +
+        '<div class="chat-heart-name">' + escHtml(d.name) + '</div>' +
+        '<div class="chat-heart-at">@' + escHtml(d.name) + '</div>' +
+        '</div>' +
+        '<div class="chat-heart-date"><div>' + escHtml(chatHeartDate(ts)) + '</div><div class="t">' + escHtml(fmtTime(ts)) + '</div></div>' +
+        '</div>' +
+        '<div class="chat-heart-divider"></div>' +
+        '<div class="chat-heart-body' + (has ? '' : ' empty') + '">' + escHtml(bodyTxt) + '</div>' +
+        (genBtn || '<div class="chat-heart-foot">' + chatHeartClockSvg() + '<span>' + escHtml(fmtTime(ts)) + '</span></div>') +
+        '</div>';
+      ov.classList.add('open');
+      ov.querySelector('[data-act="x"]').addEventListener('click', chatHeartClose);
+      var genEl = ov.querySelector('[data-act="gen"]');
+      if (genEl) genEl.addEventListener('click', function () {
+        m._heartBusy = true;
+        chatHeartRender();
+        chatHeartGenFor(m, function (err) {
+          m._heartBusy = false;
+          if (err) { toast('补写心声失败：' + err); chatHeartRender(); return; }
+          chatHeartRender();
+        });
+      });
+    }
+    function chatHeartClose() {
+      var ov = chatDetailOverlay.querySelector('.chat-heart-pop');
+      if (ov) ov.classList.remove('open');
+      chatHeartMsg = null;
+    }
+    /* v169：后台/手动补写一条“心声”，返回错误信息或成功文本 */
+    function chatHeartGenFor(m, cb) {
+      cb = cb || function () {};
+      if (!m) return cb('no-msg');
+      if (m.inner && String(m.inner).trim()) return cb(null, m.inner);
+      var cfg = chatFindApi();
+      if (!cfg) return cb('no-api');
+      var msgs = chatCurrentConv ? (chatCurrentConv.messages || []) : [];
+      var findIdx = msgs.indexOf(m);
+      var userText = '';
+      for (var i = findIdx - 1; i >= 0; i--) {
+        if (msgs[i] && msgs[i].role === 'me') { userText = chatVoiceHtml(msgs[i]); break; }
+      }
+      var d = chatHeartData();
+      var replyText = m.text || '';
+      var systemTxt = '你现在是「' + d.name + '」这个角色。请用第一人称写一条这段回复背后的“心声”：角色发完这条消息后心里真正在想什么——真心话、潜台词、没说出口的温柔或小吐槽都可以，语气自然细腻、像真实的人在心底嘀咕，至少50字、不超过180字；不要重复回复正文内容本身，不要出现任何标签或引号，只输出心声正文。';
+      var userTxt = '对方刚才说：' + (userText || '（开场白）') + '\n\n你回复：' + replyText + '\n\n请写下你这句话背后此刻真正的心声：';
+      var base = String(cfg.baseUrl || '').replace(/\/+$/, '');
+      if (!/\/chat\/completions$/.test(base)) base += '/chat/completions';
+      fetch(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+        body: JSON.stringify({ model: cfg.model, messages: [{ role: 'system', content: systemTxt }, { role: 'user', content: userTxt }], temperature: 1, stream: false })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (data) {
+        var t = '';
+        if (data && data.choices && data.choices.length && data.choices[0].message) t = String(data.choices[0].message.content || '').trim();
+        if (!t) throw new Error('返回为空');
+        m.inner = t;
+        saveConvs(); renderChatMessages();
+        cb(null, t);
+      }).catch(function (e) {
+        cb(e && e.message ? e.message : String(e));
+      });
     }
     function chatPlayVoice(row) {
       if (!chatCurrentConv) return;
@@ -5475,7 +5599,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var sysInjected = false;
       for (var mi = 1; mi < messages.length; mi++) {
         if (!sysInjected && messages[mi].role === 'user') {
-          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。）';
+          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。）';
           sysInjected = true;
         }
       }
@@ -5498,17 +5622,31 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         return res.json();
       }).then(function (data) {
         var text = '';
-        if (data && data.choices && data.choices.length && data.choices[0].message) text = data.choices[0].message.content || '';
+        var heartVoice = '';
+        if (data && data.choices && data.choices.length && data.choices[0].message) {
+          text = data.choices[0].message.content || '';
+          /* v169：解析 [[AETHER_HEART]] 标记后的“心声”，并从可见正文中剥离 */
+          var _mk = '[[AETHER_HEART]]';
+          var _p = text.lastIndexOf(_mk);
+          if (_p >= 0) {
+            var _tail = text.slice(_p + _mk.length).trim();
+            text = text.slice(0, _p).trim();
+            if (_tail.length >= 20) heartVoice = _tail;
+          }
+        }
         if (!text && data && data.error) throw new Error(data.error.message || '接口错误');
         if (!text) throw new Error('AI返回内容为空');
         var bubbles = splitBubbles(text);
         if (!bubbles.length) bubbles = [text];
         var step = 0;
+        var lastTurnMsg = null;
         var done = function () {
           chatAiBusy = false;
           if (recvBtn) recvBtn.classList.remove('busy');
           if (statusEl) statusEl.textContent = baseStatus;
           if (active) { s.auto = s.auto || {}; s.auto.last = Date.now(); saveConvs(); }
+          /* 模型没带心声时，后台自动补写一条（不阻塞聊天） */
+          if (lastTurnMsg && !lastTurnMsg.inner) chatHeartGenFor(lastTurnMsg, function () {});
         };
         var pushOne = function () {
           if (step < bubbles.length) {
@@ -5536,6 +5674,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               });
             } else {
               addChatMsg('other', { type: 'text', text: txt });
+            }
+            var justMsg = chatCurrentConv.messages[chatCurrentConv.messages.length - 1];
+            lastTurnMsg = justMsg;
+            /* v169：把该轮“心声”挂到最后一条消息上 */
+            if (step === bubbles.length - 1 && heartVoice && justMsg) {
+              justMsg.inner = heartVoice;
+              saveConvs(); renderChatMessages();
             }
             step++;
             if (step < bubbles.length) {
@@ -6728,33 +6873,34 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         chatSettingsGoBack();
       });
     }
-    // 内嵌子视图：模型配置（不跳转，直接在当前面板拉取已配置的聊天API）
+    // 内嵌子视图：模型配置（不跳转，直接在当前面板拉取已配置的聊天API，点选作用于当前窗口）
     function renderChatModelView() {
       if (!chatCurrentConv) return;
       document.getElementById('chatSettingsTitle').textContent = '专属聊天模型';
       var s = chatCurrentConv.settings;
-      var html = '<div class="group-title">已配置的聊天API</div>';
+      var html = '<div class="group-title">模型列表（点击选用，仅作用当前窗口）</div>';
       if (!chatConfigs.length) {
         html += '<div class="empty">尚未配置聊天API，请先在「设置 → 聊天API」中添加</div>';
       } else {
         chatConfigs.forEach(function (cfg, i) {
-          var active = (s.apiName && s.apiName === cfg.name) || (!s.apiName && s.model && s.model === cfg.model);
-          html += '<div class="chat-setting-switch chat-cfg-row" data-cfg="' + i + '" style="cursor:pointer">' +
-            '<div style="min-width:0"><div class="sw-label">' + escHtml(cfg.name) + (active ? ' <span class="chat-cfg-active">使用中</span>' : '') + '</div>' +
-            '<div class="sw-desc">' + escHtml(cfg.model || '') + ' · 温度 ' + (cfg.temperature != null ? cfg.temperature : 0.7) + '</div></div>' +
-            '<span class="chat-setting-value" style="color:' + (active ? '#34c759' : '#5ac8fa') + '">' + (active ? '使用中' : '使用') + '</span>' +
+          var isCur = (s.apiName && s.apiName === cfg.name) || (!s.apiName && s.model && s.model === cfg.model);
+          html += '<div class="chat-cfg-row' + (isCur ? ' active' : '') + '" data-cfg="' + i + '">' +
+            '<div class="chat-cfg-main">' +
+            '<div class="sw-label">' + escHtml(cfg.name) + (isCur ? '<span class="chat-cfg-active">当前使用</span>' : '') + '</div>' +
+            '<div class="sw-desc">' + escHtml(cfg.model || '') + ' · 温度 ' + (cfg.temperature != null ? cfg.temperature : 0.7) + '</div>' +
+            '</div>' +
+            '<button type="button" class="chat-cfg-use">' + (isCur ? '使用中' : '使用') + '</button>' +
+            '<button type="button" class="chat-cfg-edit" data-edit="' + i + '">编辑</button>' +
             '</div>';
         });
       }
-      html += '<div class="group-title">参数调节</div>';
-      html += '<div class="group-card form-card"><div class="field">' +
-        '<label>温度 <span class="temp-val" id="chatCfgTempVal">' + (s.temperature != null ? s.temperature : 0.7) + '</span></label>' +
-        '<input id="chatCfgTempRange" type="range" min="0" max="2" step="0.1" value="' + (s.temperature != null ? s.temperature : 0.7) + '">' +
-        '</div><div class="chat-cfg-tip">调低更稳定，调高更有创意；仅影响当前窗口</div></div>';
+      html += '<div class="group-title">当前窗口参数</div>';
+      html += '<div class="chat-cfg-tip">温度 ' + (s.temperature != null ? s.temperature : '跟随默认') + ' · Top P ' + (s.topP != null ? s.topP : '跟随') + ' · 频率惩罚 ' + (s.freqPenalty != null ? s.freqPenalty : '跟随') + ' · 存在感惩罚 ' + (s.presPenalty != null ? s.presPenalty : '跟随') + '。点「编辑」调当前窗口专属参数，选择模型后本窗口立即生效。</div>';
       html += '<button class="prompt-cancel" id="chatCfgBack" style="width:100%;margin-top:12px">返回设置</button>';
       chatSettingsBody.innerHTML = html;
       chatSettingsBody.querySelectorAll('.chat-cfg-row').forEach(function (row) {
-        row.addEventListener('click', function () {
+        row.addEventListener('click', function (e) {
+          if (e.target.closest('[data-edit]')) return;
           var cfg = chatConfigs[parseInt(row.getAttribute('data-cfg'), 10)];
           if (!cfg) return;
           s.model = cfg.model;
@@ -6763,18 +6909,67 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           s.topP = cfg.topP != null ? cfg.topP : 1;
           s.freqPenalty = cfg.freqPenalty != null ? cfg.freqPenalty : 0;
           s.presPenalty = cfg.presPenalty != null ? cfg.presPenalty : 0;
-          saveConvs(); renderChatModelView(); toast('已应用配置「' + cfg.name + '」');
+          saveConvs(); renderChatModelView(); toast('本窗口已使用「' + cfg.name + '」');
         });
       });
-      var tempRange = document.getElementById('chatCfgTempRange');
-      var tempVal = document.getElementById('chatCfgTempVal');
-      if (tempRange) tempRange.addEventListener('input', function () {
-        tempVal.textContent = tempRange.value;
-        s.temperature = parseFloat(tempRange.value);
-        saveConvs();
+      chatSettingsBody.querySelectorAll('[data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var cfg = chatConfigs[parseInt(btn.getAttribute('data-edit'), 10)];
+          if (!cfg) return;
+          renderChatModelEditView(cfg);
+        });
       });
       document.getElementById('chatCfgBack').addEventListener('click', function () {
         chatSettingsGoBack();
+      });
+    }
+    // 内嵌子视图：模型参数编辑（每个窗口独立保存参数）
+    function renderChatModelEditView(cfg) {
+      if (!chatCurrentConv) return;
+      document.getElementById('chatSettingsTitle').textContent = '编辑模型参数';
+      var s = chatCurrentConv.settings;
+      var vals = {
+        t: s.temperature != null ? s.temperature : (cfg.temperature != null ? cfg.temperature : 0.7),
+        p: s.topP != null ? s.topP : (cfg.topP != null ? cfg.topP : 1),
+        f: s.freqPenalty != null ? s.freqPenalty : (cfg.freqPenalty != null ? cfg.freqPenalty : 0),
+        pr: s.presPenalty != null ? s.presPenalty : (cfg.presPenalty != null ? cfg.presPenalty : 0)
+      };
+      var html = '<div class="group-title">模型</div>';
+      html += '<div class="group-card"><div class="sw-label">' + escHtml(cfg.name) + '</div><div class="sw-desc" style="white-space:normal;line-height:1.5;margin-top:4px">' + escHtml(cfg.model || '') + '</div></div>';
+      html += '<div class="group-title">参数（仅本窗口）</div>';
+      html += '<div class="group-card form-card">';
+      html += '<div class="field"><label>温度 <span class="temp-val" id="chatEditTv">' + vals.t + '</span></label><input id="chatEditT" type="range" min="0" max="2" step="0.1" value="' + vals.t + '"></div>';
+      html += '<div class="field"><label>Top P <span class="temp-val" id="chatEditPv">' + vals.p + '</span></label><input id="chatEditP" type="range" min="0" max="1" step="0.05" value="' + vals.p + '"></div>';
+      html += '<div class="field"><label>频率惩罚 <span class="temp-val" id="chatEditFv">' + vals.f + '</span></label><input id="chatEditF" type="range" min="0" max="2" step="0.1" value="' + vals.f + '"></div>';
+      html += '<div class="field"><label>存在感惩罚 <span class="temp-val" id="chatEditPrv">' + vals.pr + '</span></label><input id="chatEditPr" type="range" min="0" max="2" step="0.1" value="' + vals.pr + '"></div>';
+      html += '</div>';
+      html += '<div class="chat-cfg-tip">若未选用该模型，保存时会自动把本窗口切换到它。</div>';
+      html += '<button class="prompt-primary" id="chatEditSave" style="width:100%;margin-top:8px">保存并用于当前窗口</button>';
+      html += '<button class="prompt-cancel" id="chatEditReset" style="width:100%;margin-top:8px">恢复该API默认参数</button>';
+      html += '<button class="prompt-cancel" id="chatEditBack" style="width:100%;margin-top:8px">返回模型列表</button>';
+      chatSettingsBody.innerHTML = html;
+      function bindRange(fid, vid) {
+        var r = document.getElementById(fid), v = document.getElementById(vid);
+        if (r && v) r.addEventListener('input', function () { v.textContent = r.value; });
+      }
+      bindRange('chatEditT', 'chatEditTv'); bindRange('chatEditP', 'chatEditPv');
+      bindRange('chatEditF', 'chatEditFv'); bindRange('chatEditPr', 'chatEditPrv');
+      document.getElementById('chatEditSave').addEventListener('click', function () {
+        s.apiName = cfg.name;
+        s.model = cfg.model;
+        s.temperature = parseFloat(document.getElementById('chatEditT').value);
+        s.topP = parseFloat(document.getElementById('chatEditP').value);
+        s.freqPenalty = parseFloat(document.getElementById('chatEditF').value);
+        s.presPenalty = parseFloat(document.getElementById('chatEditPr').value);
+        saveConvs(); renderChatModelView(); toast('参数已保存到本窗口');
+      });
+      document.getElementById('chatEditReset').addEventListener('click', function () {
+        s.temperature = null; s.topP = null; s.freqPenalty = null; s.presPenalty = null;
+        saveConvs(); renderChatModelEditView(cfg); toast('已跟随该API默认参数');
+      });
+      document.getElementById('chatEditBack').addEventListener('click', function () {
+        renderChatModelView();
       });
     }
     // 内嵌子视图：提示词
