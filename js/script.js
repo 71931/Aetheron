@@ -4000,7 +4000,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (m.type === 'transfer') return '[转账] ¥' + (m.text || '');
       if (m.type === 'file') return '[文件] ' + (m.fileName || '');
       if (m.type === 'gift') return '[礼物] ' + (m.text || '');
-      if (m.type === 'location') return '[位置] ' + (m.text || '');
+      if (m.type === 'location') return '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
       if (m.type === 'system') return '[互动] ' + (m.text || '');
       return m.text || '';
     }
@@ -4431,7 +4431,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (m.type === 'html') return '<div class="chat-html-body">' + (m.text || '') + '</div>';
       if (m.type === 'file') return '<div class="chat-msg-file"><svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>' + escHtml(m.fileName || '文件') + '</div>';
       if (m.type === 'gift') return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><rect x="4" y="9" width="16" height="12" rx="1"/><path d="M12 9v12"/><path d="M4 13h16"/><path d="M12 9c-1.6-2.8-5-1.7-5 0 2 .5 5 0 5 0z"/><path d="M12 9c1.6-2.8 5-1.7 5 0-2 .5-5 0-5 0z"/></svg>礼物：' + escHtml(m.text || '') + '</span><span class="chat-msg-card-sub">送你一份礼物</span></div>';
-      if (m.type === 'location') return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><path d="M12 21s-6.5-5.6-6.5-10.5a6.5 6.5 0 1113 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.5"/></svg>' + escHtml(m.text || '位置') + '</span><span class="chat-msg-card-sub">[位置消息]</span></div>';
+      if (m.type === 'location') {
+        var _tn = chatLocThumbDataUrl(m);
+        return '<div class="chat-msg-card loc-card" data-loc-open="1"><img class="chat-loc-cardmap" src="' + _tn + '" alt=""><div class="chat-loc-cardbody"><div class="chat-loc-cardname">' + escHtml(m.text || '位置') + '</div><div class="chat-loc-carddetail">' + escHtml(m.locDetail || '') + '</div><div class="chat-loc-cardtime">' + escHtml(fmtTime(m.ts || Date.now())) + '</div></div></div>';
+      }
       if (m.type === 'system') return '<div class="chat-msg-card"><span class="chat-msg-card-title">' + escHtml(m.text || '') + '</span></div>';
       return escHtml(m.text || '');
     }
@@ -4482,6 +4485,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (vplay) { chatPlayVoice(row); return; }
           var barBtn = e.target.closest('.chat-bubble-bar button');
           if (barBtn) return;
+          // v170：点击位置卡片进入完整地图
+          var locOpen = e.target.closest('[data-loc-open]');
+          if (locOpen) {
+            var li = parseInt(row.getAttribute('data-msg-idx'), 10);
+            chatLocOpenIdx(li);
+            return;
+          }
           // 点击报错气泡本体：同样切换报错详情
           var errRow = row.classList.contains('err');
           if (errRow && !e.target.closest('[data-bubble]')) {
@@ -4623,6 +4633,452 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         cb(e && e.message ? e.message : String(e));
       });
     }
+
+    /* ========== v170：位置卡片 · 仿微信“发送位置” + 完整地图 + 坐标头像故事 ========== */
+    var CHAT_LOCS = [
+      { n: '我的位置', d: '上海市徐汇区龙漕路22号附近', c: '当前位置', cur: true },
+      { n: '半山咖啡·云栖', d: '上海市徐汇区龙漕路22号', c: '咖啡' },
+      { n: '拾光旧书店', d: '上海市徐汇区衡山路780号', c: '书店' },
+      { n: '时雨咖啡馆', d: '上海市静安区愚园路120号', c: '咖啡' },
+      { n: '木棉音乐酒吧', d: '上海市黄浦区陕西南路56号', c: '酒吧' },
+      { n: '像素游戏馆', d: '上海市徐汇区虹桥路88号', c: '游戏' },
+      { n: '静安公园', d: '上海市静安区南京西路1600号', c: '公园' },
+      { n: '滨江夜跑径', d: '上海市浦东新区滨江大道2088号', c: '运动' },
+      { n: '越界·美术馆', d: '上海市静安区汶水路210号', c: '美术馆' },
+      { n: '梧桐里甜品铺', d: '上海市徐汇区安福路37号', c: '甜品' },
+      { n: '南市河畔餐厅', d: '上海市黄浦区中山东二路600号', c: '餐厅' },
+      { n: '老城厢茶馆', d: '上海市黄浦区方浜中路265号', c: '茶' },
+      { n: '星空IMAX影城', d: '上海市静安区西藏北路166号', c: '影城' },
+      { n: '城市书房·北站', d: '上海市静安区天目西路218号', c: '书店' },
+      { n: '星野健身工坊', d: '上海市徐汇区宜山路888号', c: '健身房' },
+      { n: '花屿花店', d: '上海市静安区威海路426号', c: '花店' },
+      { n: '木间桌游社', d: '上海市长宁区定西路1235弄18号', c: '桌游' },
+      { n: '夏沫猫咪咖啡', d: '上海市长宁区愚园路1032弄', c: '宠物' },
+      { n: '白夜行古着', d: '上海市黄浦区马当路300号', c: '服饰' },
+      { n: '灵感手作工坊', d: '上海市徐汇区永康路48号', c: '手作' },
+      { n: '蝴蝶舞台剧场', d: '上海市黄浦区福州路701号', c: '剧场' },
+      { n: '星野天台酒吧', d: '上海市静安区延安中路1111号', c: '酒吧' },
+      { n: '一号线人民广场站', d: '上海市黄浦区人民大道100号', c: '地铁' },
+      { n: '第一人民医院', d: '上海市静安区南京西路1010号', c: '医院' },
+      { n: '上大校园书店', d: '上海市宝山区上大路99号', c: '书店' },
+      { n: '徐汇滨江跑道', d: '上海市徐汇区龙腾大道3000号', c: '运动' },
+      { n: '云端便利店', d: '上海市徐汇区漕溪北路1200号', c: '便利店' },
+      { n: '江湾体育场', d: '上海市杨浦区淞沪路888号', c: '运动' },
+      { n: '打浦桥夜市', d: '上海市黄浦区泰康路210弄', c: '夜市' },
+      { n: '上海环球港', d: '上海市普陀区中山北路3300号', c: '商场' },
+      { n: '前滩太古里', d: '上海市浦东新区东育路500弄', c: '商场' },
+      { n: '共青森林公园', d: '上海市杨浦区军工路2000号', c: '公园' },
+      { n: '苏州河步道', d: '上海市静安区北苏州路988号', c: '运动' },
+      { n: '海派摄影棚', d: '上海市徐汇区龙华路2577号', c: '摄影' },
+      { n: '新天地·时光里', d: '上海市黄浦区太仓路181弄', c: '街区' },
+      { n: '音乐盒博物馆', d: '上海市静安区南京西路1376号', c: '博物馆' },
+      { n: '深夜食堂·梧桐', d: '上海市长宁区番禺路900号', c: '餐厅' },
+      { n: '花见和果子', d: '上海市黄浦区思南路44号', c: '甜品' },
+      { n: '怪兽电玩城', d: '上海市静安区南京西路1618号', c: '游戏' },
+      { n: '青瓦小筑民宿', d: '上海市静安区华山路303弄', c: '民宿' },
+      { n: '樱坂公园', d: '上海市虹口区四川北路2288号', c: '公园' },
+      { n: '宇宙邮局', d: '上海市徐汇区淮海中路1555号', c: '文创' },
+      { n: '云上书房', d: '上海市黄浦区广东路51号', c: '书店' },
+      { n: '春风音乐台', d: '上海市黄浦区淮海中路300号', c: '音乐' },
+      { n: '星谷智慧园', d: '上海市闵行区吴中路1799号', c: '园区' }
+    ];
+    function locHashStr(s) {
+      var h = 5381, i;
+      s = String(s || '');
+      for (i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; }
+      return h;
+    }
+    function locCoordFor(seed) {
+      var h = locHashStr(seed + '::aetherloc');
+      return { x: 90 + (h % 820), y: 90 + ((h >>> 7) % 820) };
+    }
+    function locEnsureCoords(loc) {
+      if (loc._c) return loc._c;
+      var c = (loc.cur) ? { x: 500, y: 520 } : locCoordFor(loc.n + loc.d);
+      loc._c = c; return c;
+    }
+    function chatLocFindByName(name) {
+      var q = String(name || '').trim();
+      if (!q) return null;
+      var hit = null, best = 0;
+      for (var i = 0; i < CHAT_LOCS.length; i++) {
+        var sc = 0;
+        var nm = CHAT_LOCS[i].n;
+        if (nm === q) { hit = CHAT_LOCS[i]; break; }
+        if (nm.indexOf(q) >= 0) sc = q.length * 2;
+        else if (q.indexOf(nm) >= 0) sc = nm.length;
+        if (sc > best) { best = sc; hit = CHAT_LOCS[i]; }
+      }
+      return hit;
+    }
+    function chatLocThumbDataUrl(m) {
+      try {
+        var cv = document.createElement('canvas');
+        cv.width = 560; cv.height = 210;
+        var c = locEnsureCoords(m);
+        locDrawMapOnCv(cv, c.x, c.y, 0.62, { labels: false, sel: { x: c.x, y: c.y, color: '#fa5151' } });
+        return cv.toDataURL('image/png');
+      } catch (e) { return ''; }
+    }
+    function locDrawMapOnCv(cv, cx, cy, zoom, o) {
+      o = o || {};
+      var w = cv.width, h = cv.height;
+      var ctx = cv.getContext('2d');
+      var scale = (w / 1000) * zoom;
+      var px = function (v) { return (v - cx) * scale + w / 2; };
+      var py = function (v) { return (v - cy) * scale + h / 2; };
+      ctx.fillStyle = '#edf0ef';
+      ctx.fillRect(0, 0, w, h);
+      var block = o.block || 64;
+      var minBx = Math.floor((cx - w / (2 * scale)) / block) - 1, maxBx = Math.ceil((cx + w / (2 * scale)) / block) + 1;
+      var minBy = Math.floor((cy - h / (2 * scale)) / block) - 1, maxBy = Math.ceil((cy + h / (2 * scale)) / block) + 1;
+      var gx, gy;
+      for (gy = minBy; gy <= maxBy; gy++) {
+        for (gx = minBx; gx <= maxBx; gx++) {
+          var hh = locHashStr('c' + gx + 'x' + gy);
+          var x0 = px(gx * block), y0 = py(gy * block), s = block * scale;
+          if (x0 + s < 0 || y0 + s < 0 || x0 > w || y0 > h) continue;
+          if (hh % 23 === 0) { ctx.fillStyle = '#c7dcf3'; ctx.fillRect(x0 + 1, y0 + 1, Math.max(0, s - 2), Math.max(0, s - 2)); }
+          else if (hh % 19 === 0) { ctx.fillStyle = '#d9e9d5'; ctx.fillRect(x0 + 1, y0 + 1, Math.max(0, s - 2), Math.max(0, s - 2)); }
+          else if (hh % 13 === 0) { ctx.fillStyle = '#e8e4dc'; ctx.fillRect(x0 + 1, y0 + 1, Math.max(0, s - 2), Math.max(0, s - 2)); }
+        }
+      }
+      var roadNames = ['龙漕路', '衡山路', '愚园路', '陕西南路', '南京西路', '滨江大道', '天目西路', '定西路', '永康路', '福州路', '延安中路', '太仓路'];
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(2, (block * scale) * 0.16);
+      for (gx = minBx; gx <= maxBx; gx++) {
+        var rxx = px(gx * block);
+        if (rxx < -20 || rxx > w + 20) continue;
+        ctx.beginPath(); ctx.moveTo(rxx, 0); ctx.lineTo(rxx, h); ctx.stroke();
+        if (o.labels !== false && gx % 8 === 0 && zoom > 1.1) {
+          ctx.fillStyle = '#aab2b0'; ctx.font = Math.max(9, Math.min(13, 11 * scale / 1.6)) + 'px sans-serif';
+          ctx.fillText(roadNames[Math.abs(gx) % roadNames.length], rxx + 5, 12);
+        }
+      }
+      for (gy = minBy; gy <= maxBy; gy++) {
+        var ryy = py(gy * block);
+        if (ryy < -20 || ryy > h + 20) continue;
+        ctx.beginPath(); ctx.moveTo(0, ryy); ctx.lineTo(w, ryy); ctx.stroke();
+        if (o.labels !== false && gy % 8 === 0 && zoom > 1.1) {
+          ctx.fillStyle = '#aab2b0'; ctx.font = Math.max(9, Math.min(13, 11 * scale / 1.6)) + 'px sans-serif';
+          ctx.fillText(roadNames[Math.abs(gy + 4) % roadNames.length], 8, ryy - 4);
+        }
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+      if (o.sel) locDrawMapPin(ctx, px(o.sel.x), py(o.sel.y), o.sel.color || '#fa5151', o.sel.r || 11);
+    }
+    function locDrawMapPin(ctx, x, y, color, r) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, y + r * 1.8);
+      ctx.bezierCurveTo(x - r * 1.6, y + r * 0.3, x - r * 1.2, y - r * 1.2, x, y - r * 1.2);
+      ctx.bezierCurveTo(x + r * 1.2, y - r * 1.2, x + r * 1.6, y + r * 0.3, x, y + r * 1.8);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y - r * 0.2, r * 0.42, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
+    }
+    /* ---- 发送位置（仿微信）：顶部搜索，中间虚拟地图，下方地点列表 ---- */
+    var locPickSel = null;
+    var locPickCx = 500, locPickCy = 520, locPickZoom = 1.4;
+    var locPickQuery = '';
+    function locPickEl() {
+      var ov = chatDetailOverlay.querySelector('.chat-loc-picker');
+      if (ov) return ov;
+      ov = document.createElement('div');
+      ov.className = 'chat-loc-picker';
+      ov.innerHTML = '<div class="chat-loc-top"><button type="button" class="chat-loc-x" data-x="1"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="chat-loc-top-t">发送位置</div><span class="chat-loc-top-sp"></span></div>' +
+        '<div class="chat-loc-search"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg><input type="text" id="chatLocSearch" placeholder="搜索地点" autocomplete="off"></div>' +
+        '<div class="chat-loc-mapwrap"><canvas class="chat-loc-canvas"></canvas><div class="chat-loc-mapdot" data-dot="1"></div><div class="chat-loc-hint">拖动地图或点击列表选位置</div></div>' +
+        '<div class="chat-loc-pick-list" id="chatLocPickList"></div>' +
+        '<div class="chat-loc-foot"><div class="chat-loc-footinfo"><div class="chat-loc-footname" id="chatLocFootName"></div><div class="chat-loc-footdetail" id="chatLocFootDetail"></div></div><button type="button" class="chat-loc-send" id="chatLocSend">发送</button></div>';
+      chatDetailOverlay.appendChild(ov);
+      ov.querySelector('.chat-loc-x').addEventListener('click', function () { locPickClose(); });
+      var inp = ov.querySelector('#chatLocSearch');
+      inp.addEventListener('input', function () { locPickQuery = inp.value.trim(); locPickRenderList(); });
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+      ov.querySelector('.chat-loc-mapwrap').addEventListener('pointerdown', function (e) {
+        if (e.target.closest && e.target.closest('[data-dot]')) return;
+        var cv = ov.querySelector('.chat-loc-canvas');
+        var rect = cv.getBoundingClientRect();
+        var scale = (cv.clientWidth / 1000) * locPickZoom;
+        locPickCx = locPickCx + (e.clientX - rect.left - cv.clientWidth / 2) / scale;
+        locPickCy = locPickCy + (e.clientY - rect.top - cv.clientHeight / 2) / scale;
+        locPickClamp();
+        var best = null, bd = 1e9;
+        for (var i = 0; i < CHAT_LOCS.length; i++) {
+          if (locPickQuery && CHAT_LOCS[i].n.indexOf(locPickQuery) < 0 && CHAT_LOCS[i].d.indexOf(locPickQuery) < 0) continue;
+          var cc = locEnsureCoords(CHAT_LOCS[i]);
+          var dd = Math.pow(cc.x - locPickCx, 2) + Math.pow(cc.y - locPickCy, 2);
+          if (dd < bd) { bd = dd; best = CHAT_LOCS[i]; }
+        }
+        if (best && Math.sqrt(bd) < 260) { locPickSel = best; locPickCx = best._c.x; locPickCy = best._c.y; }
+        locPickRenderList(); locDrawPicker();
+      });
+      ov.querySelector('#chatLocSend').addEventListener('click', function () {
+        if (!locPickSel) { toast('先选一个地点'); return; }
+        var c = locEnsureCoords(locPickSel);
+        addChatMsg('me', { type: 'location', text: locPickSel.n, locDetail: locPickSel.d, locCat: locPickSel.c, locX: c.x, locY: c.y, locCur: locPickSel.cur ? 1 : 0 });
+        locPickClose();
+      });
+      return ov;
+    }
+    function locPickClamp() {
+      locPickCx = Math.max(0, Math.min(1000, locPickCx));
+      locPickCy = Math.max(0, Math.min(1000, locPickCy));
+    }
+    function locPickerCanvas() {
+      var ov = locPickEl();
+      var cv = ov.querySelector('.chat-loc-canvas');
+      if (!cv.width || !cv.height) {
+        cv.width = Math.max(100, cv.clientWidth);
+        cv.height = Math.max(100, cv.clientHeight);
+      }
+      return cv;
+    }
+    function locDrawPicker() {
+      var ov = locPickEl();
+      var cv = ov.querySelector('.chat-loc-canvas');
+      var w = cv.clientWidth, h = cv.clientHeight;
+      if (w && h) { cv.width = w; cv.height = h; }
+      var sel = locPickSel ? locEnsureCoords(locPickSel) : null;
+      if (sel) { locPickCx = sel.x; locPickCy = sel.y; }
+      locDrawMapOnCv(cv, locPickCx, locPickCy, locPickZoom, { labels: true, sel: sel ? { x: sel.x, y: sel.y } : null });
+      var dot = ov.querySelector('.chat-loc-mapdot');
+      dot.style.display = sel ? 'none' : 'block';
+    }
+    function locPickRenderList() {
+      var ov = locPickEl();
+      var box = ov.querySelector('#chatLocPickList');
+      var list = CHAT_LOCS.filter(function (p) {
+        if (!locPickQuery) return true;
+        return (p.n + p.d + p.c).indexOf(locPickQuery) >= 0;
+      });
+      if (!list.length) { box.innerHTML = '<div class="chat-loc-empty">没搜到，试试别的关键词</div>'; return; }
+      box.innerHTML = list.map(function (p, i) {
+        var sel = (locPickSel === p);
+        return '<button type="button" class="chat-loc-pick-item' + (sel ? ' sel' : '') + '" data-i="' + i + '">' +
+          '<span class="chat-loc-pick-ico"><svg viewBox="0 0 24 24"><path d="M12 21s-7-5.3-7-11a7 7 0 1 1 14 0c0 5.7-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></span>' +
+          '<span class="chat-loc-pick-mid"><span class="chat-loc-pick-name">' + escHtml(p.n) + '</span><span class="chat-loc-pick-detail">' + escHtml(p.d) + '</span></span>' +
+          '<span class="chat-loc-pick-cat">' + escHtml(p.c || '') + '</span></button>';
+      }).join('');
+      box.querySelectorAll('.chat-loc-pick-item').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var p = list[parseInt(btn.getAttribute('data-i'), 10)];
+          locPickSel = p;
+          var c = locEnsureCoords(p);
+          locPickCx = c.x; locPickCy = c.y;
+          locPickRenderList(); locDrawPicker(); locPickFoot();
+        });
+      });
+      locPickFoot();
+    }
+    function locPickFoot() {
+      var ov = locPickEl();
+      ov.querySelector('#chatLocFootName').textContent = locPickSel ? locPickSel.n : '点击选择位置';
+      ov.querySelector('#chatLocFootDetail').textContent = locPickSel ? locPickSel.d : '';
+      ov.querySelector('#chatLocSend').classList.toggle('ready', !!locPickSel);
+    }
+    function locPickOpen() {
+      var ov = locPickEl();
+      locPickQuery = '';
+      ov.querySelector('#chatLocSearch').value = '';
+      locPickSel = CHAT_LOCS[0];
+      var c = locEnsureCoords(locPickSel);
+      locPickCx = c.x; locPickCy = c.y;
+      locPickZoom = 1.5;
+      ov.classList.add('open');
+      requestAnimationFrame(function () {
+        locPickRenderList();
+        locDrawPicker();
+        ov.querySelector('#chatLocSearch').focus();
+      });
+    }
+    function locPickClose() { locPickEl().classList.remove('open'); }
+    /* ---- 完整地图查看 + 头像坐标 + “TA在这里干了什么” ---- */
+    var locViewMsg = null;
+    var locViewZoom = 2.6;
+    function locViewEl() {
+      var ov = chatDetailOverlay.querySelector('.chat-loc-view');
+      if (ov) return ov;
+      ov = document.createElement('div');
+      ov.className = 'chat-loc-view';
+      ov.innerHTML = '<div class="chat-loc-vtop"><button type="button" class="chat-loc-x" data-x="1"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="chat-loc-vtitle" id="chatLocVTitle">位置</div><span class="chat-loc-top-sp"></span></div>' +
+        '<div class="chat-loc-vmap"><canvas class="chat-loc-canvas"></canvas><div class="chat-loc-avatar-pin" id="chatLocAvatarPin" style="display:none"><div class="chat-loc-avatar"><img id="chatLocAvatarImg" alt=""><div class="chat-loc-avatar-fb" id="chatLocAvatarFb" style="display:none"></div></div><div class="chat-loc-pin-tail"></div></div><div class="chat-loc-red-pin" id="chatLocRedPin" style="display:none"></div></div>' +
+        '<div class="chat-loc-vbottom"><div class="chat-loc-vname" id="chatLocVName"></div><div class="chat-loc-vdetail" id="chatLocVDetail"></div><div class="chat-loc-vmeta" id="chatLocVMeta"></div><div class="chat-loc-vstoryhint" id="chatLocVStoryHint"></div></div>' +
+        '<div class="chat-loc-story-pop" id="chatLocStoryPop"><button type="button" class="chat-loc-x chat-loc-story-x" data-x="1"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div id="chatLocStoryBody"></div></div>';
+      chatDetailOverlay.appendChild(ov);
+      ov.querySelector('.chat-loc-x').addEventListener('click', function () { ov.classList.remove('open'); locViewMsg = null; });
+      var pin = ov.querySelector('#chatLocAvatarPin');
+      pin.addEventListener('click', function () { if (locViewMsg && locViewMsg.role === 'other') chatLocOpenStory(locViewMsg); });
+      return ov;
+    }
+    function locViewCanvas() {
+      var cv = locViewEl().querySelector('.chat-loc-canvas');
+      if (!cv.width || !cv.height) { cv.width = Math.max(200, cv.clientWidth); cv.height = Math.max(200, cv.clientHeight); }
+      return cv;
+    }
+    function locDrawView() {
+      var ov = locViewEl();
+      var cv = ov.querySelector('.chat-loc-canvas');
+      var w = cv.clientWidth, h = cv.clientHeight;
+      if (w && h) { cv.width = w; cv.height = h; }
+      var m = locViewMsg;
+      if (!m) return;
+      var c = { x: m.locX != null ? Number(m.locX) : 500, y: m.locY != null ? Number(m.locY) : 520 };
+      var zoom = locViewZoom;
+      var scale = (w / 1000) * zoom;
+      locDrawMapOnCv(cv, c.x, c.y, zoom, { labels: true, sel: { x: c.x, y: c.y, color: '#2f9e5f', r: 10 } });
+      var pin = ov.querySelector('#chatLocAvatarPin');
+      var red = ov.querySelector('#chatLocRedPin');
+      var data = chatHeartData();
+      var avatar = (m.role === 'other' ? data.avatar : (chatMine ? chatMine.avatar : '')) || '';
+      var name = (m.role === 'other' ? data.name : (chatMine ? chatMine.name : '我')) || '我';
+      var px = (c.x - c.x) * scale + w / 2, py = (c.y - c.y) * scale + h / 2;
+      pin.style.display = 'block';
+      red.style.display = 'none';
+      pin.style.left = px + 'px';
+      pin.style.top = py + 'px';
+      var img = pin.querySelector('#chatLocAvatarImg');
+      var fb = pin.querySelector('#chatLocAvatarFb');
+      if (avatar) {
+        img.src = avatar;
+        img.alt = name;
+        img.style.display = 'block';
+        fb.style.display = 'none';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+        fb.style.display = 'flex';
+        fb.style.background = data.color || '#7c5cff';
+        fb.textContent = (name || '?').slice(0, 1);
+      }
+      pin.classList.toggle('me', m.role !== 'other');
+      pin.classList.toggle('other', m.role === 'other');
+      ov.querySelector('#chatLocVStoryHint').style.display = (m.role === 'other') ? 'block' : 'none';
+      ov.querySelector('#chatLocVTitle').textContent = (m.role === 'other' ? name + '的位置' : '我的位置');
+    }
+    function locViewOpen(idx) {
+      if (!chatCurrentConv) return;
+      var m = chatCurrentConv.messages[idx];
+      if (!m || m.type !== 'location') return;
+      locViewMsg = m;
+      var ov = locViewEl();
+      ov.querySelector('#chatLocVName').textContent = m.text || '位置';
+      ov.querySelector('#chatLocVDetail').textContent = m.locDetail || '';
+      ov.querySelector('#chatLocVMeta').textContent = '虚拟坐标 · ' + (m.locCat || '位置') + ' · ' + fmtTime(m.ts || Date.now());
+      ov.querySelector('#chatLocStoryPop').classList.remove('open');
+      ov.querySelector('#chatLocVStoryHint').textContent = (m.role === 'other') ? '点击地图上的头像，看看 TA 在这里做了什么' : '';
+      ov.classList.add('open');
+      requestAnimationFrame(function () {
+        locDrawView();
+      });
+    }
+    /* ---- TA在这里：做了啥、遇见了谁（角色第一人称小剧场） ---- */
+    function locStoryByCat(cat, name) {
+      var c = String(cat || '');
+      var acts = {
+        '咖啡': '推开玻璃门，找了个靠窗的位置坐下。',
+        '书店': '在书架前停了好久，最后带走一本旧书。',
+        '餐厅': '慢慢吃完一顿饭，把没说完的话咽回肚子里。',
+        '酒吧': '点了一杯酒，听着音乐发呆。',
+        '公园': '绕着湖边走了两圈，风把心事吹散了一点。',
+        '运动': '出了一身汗，感觉自己稍微活了过来。'
+      };
+      var mets = '好像遇见了一个很久没见的人，隔着人群多看了两眼，最后还是没有上前打招呼。';
+      for (var k in acts) { if (c.indexOf(k) >= 0) return { act: acts[k], met: mets }; }
+      return { act: '在「' + (name || '这个地方') + '」待了很久，这里藏着她最近的心事。', met: mets };
+    }
+    function chatLocOpenStory(m, auto) {
+      var ov = locViewEl();
+      ov.querySelector('#chatLocStoryPop').classList.add('open');
+      if (m.locStory) { chatLocRenderStory(); return; }
+      if (m._storyBusy) { chatLocRenderStory(); return; }
+      m._storyBusy = true;
+      chatLocRenderStory();
+      chatLocGenStory(m, function (err, story) {
+        m._storyBusy = false;
+        if (!err && story) m.locStory = story;
+        else m.locStory = m.locStory || locStoryByCat(m.locCat, m.text);
+        saveConvs();
+        chatLocRenderStory();
+      });
+    }
+    function chatLocRenderStory() {
+      var ov = locViewEl();
+      var body = ov.querySelector('#chatLocStoryBody');
+      var m = locViewMsg;
+      if (!m) return;
+      if (m._storyBusy) {
+        body.innerHTML = '<div class="chat-loc-story-loading">TA正在回想在这里做了什么…<span class="chat-typing-dots"><i></i><i></i><i></i></span></div>';
+        return;
+      }
+      var st = m.locStory || locStoryByCat(m.locCat, m.text);
+      var d = chatHeartData();
+      body.innerHTML = '<div class="chat-loc-story-name">' + escHtml(d.name) + ' · ' + escHtml(m.text || '位置') + '</div>' +
+        '<div class="chat-loc-story-title">在这里做了什么</div><p>' + escHtml(st.act || '') + '</p>' +
+        '<div class="chat-loc-story-title">遇见了谁</div><p>' + escHtml(st.met || '') + '</p>' +
+        '<div class="chat-loc-story-note">（根据角色记忆推演，点击头像可重新生成）</div>';
+    }
+    function chatLocGenStory(m, cb) {
+      cb = cb || function () {};
+      var cfg = chatFindApi();
+      var d = chatHeartData();
+      var systemTxt = '你现在是「' + d.name + '」这个角色。请用第一人称写一段角色此刻身在「' + String(m.text || '某地') + '（' + String(m.locDetail || '') + '）」的小剧场：TA在这里做了什么、心情怎样、遇见了谁、有没有没说出口的话。语气像真实的人，细腻自然，不做总结。';
+      var fallback = function () {
+        var st = locStoryByCat(m.locCat, m.text);
+        cb(null, st);
+      };
+      if (!cfg) { fallback(); return; }
+      var base = String(cfg.baseUrl || '').replace(/\/+$/, '');
+      if (!/\/chat\/completions$/.test(base)) base += '/chat/completions';
+      fetch(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages: [{ role: 'system', content: systemTxt }, { role: 'user', content: '请只输出两段话，不要标题与符号：第一段写「在这里做了什么」（至少50字），第二段写「遇见了谁」（至少30字）。' }],
+          temperature: 0.95,
+          stream: false
+        })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (data) {
+        var t = '';
+        if (data && data.choices && data.choices.length && data.choices[0].message) t = String(data.choices[0].message.content || '').trim();
+        if (!t) throw new Error('空');
+        var st = { act: '', met: '' };
+        var am = t.match(/在这里做了什么[\s\S]*?([^\n]*)/);
+        if (am) st.act = am[1];
+        var parts = t.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+        if (!st.act && parts[0]) st.act = parts[0];
+        if (parts[1]) st.met = parts[1];
+        else { var mm = t.match(/遇见了谁[\s\S]*/); if (mm) st.met = mm[0].replace(/^.*遇见了谁\s*[:：]?\s*/, ''); }
+        if (!st.act) st.act = t.slice(0, Math.min(160, t.length));
+        cb(null, st);
+      }).catch(function (e) {
+        fallback();
+      });
+    }
+    function chatLocMsgFromText(name, detail, cat) {
+      var hit = chatLocFindByName(name);
+      var nm = (name && String(name).trim()) || (hit ? hit.n : '分享的位置');
+      var dt = (detail && String(detail).trim()) || (hit ? hit.d : '上海市徐汇区龙漕路22号附近');
+      var ct = (cat && String(cat).trim()) || (hit ? hit.c : '');
+      var base = hit ? locEnsureCoords(hit) : locCoordFor(nm + dt);
+      return { type: 'location', text: nm, locDetail: dt, locCat: ct, locX: base.x, locY: base.y, locCur: hit && hit.cur ? 1 : 0 };
+    }
+    function chatLocOpenIdx(idx) {
+      locViewOpen(idx);
+    }
+
     function chatPlayVoice(row) {
       if (!chatCurrentConv) return;
       var idx = parseInt(row.getAttribute('data-msg-idx'), 10);
@@ -4857,7 +5313,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (m.type === 'transfer') return '[转账] ' + (m.text || '');
       if (m.type === 'file') return '[文件] ' + (m.fileName || '');
       if (m.type === 'gift') return '[礼物] ' + (m.text || '');
-      if (m.type === 'location') return '[位置] ' + (m.text || '');
+      if (m.type === 'location') return '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
       return m.text || '';
     }
     function showChatBubbleBar(row, ev) {
@@ -5010,7 +5466,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         else if (hm.type === 'transfer') text = '[转账 ' + (hm.text || '') + ']';
         else if (hm.type === 'redpacket') text = '[红包]';
         else if (hm.type === 'gift') text = '[礼物]';
-        else if (hm.type === 'location') text = '[位置] ' + (hm.text || '');
+        else if (hm.type === 'location') text = '[位置] ' + (hm.text || '') + (hm.locDetail ? '（' + hm.locDetail + '）' : '');
         else if (hm.type === 'file') text = '[文件] ' + (hm.fileName || '');
         else if (hm.type === 'system') text = hm.text || '';
         if (text) messages.push({ role: role, content: text });
@@ -5549,7 +6005,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         else if (m.type === 'transfer') text = '[转账 ' + (m.text || '') + ']';
         else if (m.type === 'redpacket') text = '[红包]';
         else if (m.type === 'gift') text = '[礼物]';
-        else if (m.type === 'location') text = '[位置] ' + (m.text || '');
+        else if (m.type === 'location') text = '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
         else if (m.type === 'file') text = '[文件] ' + (m.fileName || '');
         else if (m.type === 'system') text = m.text || '';
         if (text) arr.push({ role: role, content: text });
@@ -5609,7 +6065,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var sysInjected = false;
       for (var mi = 1; mi < messages.length; mi++) {
         if (!sysInjected && messages[mi].role === 'user') {
-          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。）';
+          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。另外，若本条回复的场景需要向对方发送一个位置——比如约见面、报坐标、告诉对方自己此刻正待在哪儿——必须在可见正文的第一行最开头原样输出 [[AETHER_LOCATION]]地点名称，再从第二行开始写正文；不需要发位置就不要输出这个标记。[[AETHER_LOCATION]]是后台指令，绝不能显示在用户可见正文里。需要发送位置时，请从这些可用地点中选一个最贴切的并把完整地点名原样放进 [[AETHER_LOCATION]]：' + CHAT_LOCS.map(function (lp) { return lp.n; }).join('、') + '。）';
           sysInjected = true;
         }
       }
@@ -5646,6 +6102,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
         if (!text && data && data.error) throw new Error(data.error.message || '接口错误');
         if (!text) throw new Error('AI返回内容为空');
+        /* v170：解析 [[AETHER_LOCATION]] 位置指令 */
+        var locName = '';
+        var _lm = '[[AETHER_LOCATION]]';
+        var _lp = text.indexOf(_lm);
+        if (_lp >= 0) {
+          var _le = text.indexOf('\n', _lp + _lm.length);
+          if (_le < 0) _le = text.length;
+          locName = text.slice(_lp + _lm.length, _le).replace(/^[:：\s]+|[:：\s]+$/g, '').trim();
+          text = (text.slice(0, _lp) + text.slice(_le)).replace(/^\n+/, '').trim();
+        }
         var bubbles = splitBubbles(text);
         if (!bubbles.length) bubbles = [text];
         var step = 0;
@@ -5665,13 +6131,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             });
           }
         };
+        /* v170：若模型要求发位置，把位置卡片插到本轮最前面 */
+        var locObj = locName ? (chatLocFindByName(locName) || chatLocMsgFromText(locName, '', '')) : null;
+        var steps = [];
+        if (locObj) steps.push({ loc: locObj });
+        for (var _bi = 0; _bi < bubbles.length; _bi++) {
+          var _bt = String(bubbles[_bi] || '').trim();
+          if (!_bt) continue;
+          steps.push({ txt: _bt, voice: chatShouldVoice(s, _bt) });
+        }
+        if (!steps.length) steps.push({ txt: String(text || '').trim() || (locObj ? '' : '…') });
         var pushOne = function () {
-          if (step < bubbles.length) {
-            var txt = bubbles[step];
-            if (chatShouldVoice(s, txt)) {
-              addChatMsg('other', { type: 'voice', text: txt, duration: Math.max(1, Math.round(String(txt).length / 3)) + '"' });
+          if (step < steps.length) {
+            var it = steps[step];
+            if (it.loc) {
+              addChatMsg('other', { type: 'location', text: it.loc.n, locDetail: it.loc.d, locCat: it.loc.c, locX: it.loc.x, locY: it.loc.y, locCur: 0 });
+            } else if (it.voice && it.txt) {
+              addChatMsg('other', { type: 'voice', text: it.txt, duration: Math.max(1, Math.round(String(it.txt).length / 3)) + '"' });
               var lastIdx = chatCurrentConv.messages.length - 1;
-              chatTtsLang(txt, s.voice.voiceId, s.voice.speed || 1, function (audio, err) {
+              chatTtsLang(it.txt, s.voice.voiceId, s.voice.speed || 1, function (audio, err) {
                 if (err) { pushChatErrLog('AI语音合成失败: ' + err); toast('语音合成失败：' + err + '（点击语音气泡可看文字，调试日志见聊天设置 → 调试日志）'); return; }
                 if (audio && chatCurrentConv && chatCurrentConv.messages[lastIdx] && chatCurrentConv.messages[lastIdx].type === 'voice') {
                   chatCurrentConv.messages[lastIdx].audio = audio;
@@ -5690,17 +6168,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
                 }
               });
             } else {
-              addChatMsg('other', { type: 'text', text: txt });
+              addChatMsg('other', { type: 'text', text: it.txt || '' });
             }
             var justMsg = chatCurrentConv.messages[chatCurrentConv.messages.length - 1];
             lastTurnMsg = justMsg;
             /* v169：把该轮“心声”挂到最后一条消息上 */
-            if (step === bubbles.length - 1 && heartVoice && justMsg) {
+            if (step === steps.length - 1 && heartVoice && justMsg) {
               justMsg.inner = heartVoice;
               saveConvs(); renderChatMessages();
             }
             step++;
-            if (step < bubbles.length) {
+            if (step < steps.length) {
               if (statusEl) statusEl.innerHTML = '对方正在输入<span class="chat-typing-dots"><i></i><i></i><i></i></span>';
               setTimeout(pushOne, 900);
             } else done();
@@ -5745,8 +6223,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (!chatCurrentConv) return;
       closeChatFuncPanel();
       if (key === 'location') {
-        addChatMsg('me', { type: 'location', text: '当前位置（演示）' });
-        toast('已发送位置');
+        locPickOpen();
       } else if (key === 'transfer') {
         chatMini('转账', '<input class="chat-mini-input" id="cmAmt" type="number" placeholder="输入金额" value="0">', '转账', function () {
           var amt = (document.getElementById('cmAmt').value || '0').trim();
@@ -7176,7 +7653,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           else if (m.type === 'redpacket') text = '[红包] ' + (m.text || '');
           else if (m.type === 'transfer') text = '[转账] ' + (m.text || '');
           else if (m.type === 'gift') text = '[礼物] ' + (m.text || '');
-          else if (m.type === 'location') text = '[位置] ' + (m.text || '');
+          else if (m.type === 'location') text = '[位置] ' + (m.text || '') + (m.locDetail ? '（' + m.locDetail + '）' : '');
           else if (m.type === 'system') text = '[系统] ' + (m.text || '');
           else text = (m.text || '');
           var t = m.time || '';
