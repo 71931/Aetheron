@@ -2632,3 +2632,52 @@ body.light .weather-loc-bar { background: rgba(0,0,0,0.05); }
 .loc-rebtn { border: 0; border-radius: 9px; padding: 6px 10px; font-size: 11px; cursor: pointer; background: rgba(90,200,250,0.16); color: #5ac8fa; flex:0 0 auto; }
 body.light .loc-rebtn { background: rgba(90,200,250,0.22); color: #0a84ff; }
 .weather-city { cursor: pointer; }
+
+/* ===== v164：日间模式全面图标深色化 ===== */
+/* 主屏四宫格 APP/设置/聊天/MCP：图标与设置内一致为深黑，白底块 + 黑描边，保证浅色壁纸清晰 */
+.home-canvas .hg-grid .app .icon {
+  background: rgba(255,255,255,0.95);
+  border: 1px solid rgba(0,0,0,0.10);
+  box-shadow: 0 3px 10px rgba(30,30,38,0.12), inset 0 1px 0 rgba(255,255,255,0.95);
+}
+.home-canvas .hg-grid .app .icon svg {
+  stroke: #2c2c31;
+  stroke-width: 2;
+}
+.home-canvas .hg-grid .app .label {
+  color: #16161a;
+  font-weight: 700;
+  background: rgba(255,255,255,0.88);
+  padding: 2px 9px;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(30,30,38,0.10);
+}
+/* 聊天/应用面板内的浅色兜底：任何面板 icon 一律深色（与设置一致） */
+body.light .chat-app-header svg,
+body.light .chat-app-header-right svg,
+body.light .chat-app-add svg,
+body.light .chat-header .chat-header-action svg,
+body.light .chat-detail-header svg,
+body.light .chat-detail-settings-panel .item-icon svg,
+body.light .more-grid .item-icon svg,
+body.light .chat-more-item .item-icon svg { stroke: #2c2c31 !important; }
+/* 更多四格/朋友圈等子页 back 箭头与操作图标 */
+body.light .chat-app-sub .chat-back svg,
+body.light .chat-app-sub .chat-header-action svg { stroke: #2c2c31 !important; }
+
+/* v164-3：APP抽屉(#appOverlay 用 .chat-panel)与所有 chat-overlay 面板内列表图标深色化，
+   修复仅覆盖 .settings-panel 导致的漏网白图标（论坛/阅读/小剧场/听歌/播客/游戏/生成器等每行板块） */
+body.light .chat-panel .settings-item .item-icon,
+body.light .chat-overlay .settings-item .item-icon { background: rgba(0,0,0,0.06); }
+body.light .chat-panel .settings-item .item-icon svg,
+body.light .chat-overlay .settings-item .item-icon svg { stroke: #2c2c31 !important; }
+body.light .chat-panel .settings-item .item-arrow svg,
+body.light .chat-overlay .settings-item .item-arrow svg { stroke: rgba(0,0,0,0.55) !important; }
+/* v164-2：日间模式下剩余浅淡元素的对比度修正 */
+body.light .chat-tab-btn { color: #3a3a44; }
+body.light .chat-tab-btn.active { color: #17171b; }
+body.light .chat-tab-btn svg { stroke: currentColor; }
+.home-canvas .page-dots .d { border-color: #84848e; }
+.home-canvas .page-dots .d.on { background: #5f5f6a; border-color: #5f5f6a; }
+body.light .chat-conv-name, body.light .chat-contact-name { color: #17171b; }
+body.light .chat-conv-preview, body.light .chat-conv-time { color: #66666f; }

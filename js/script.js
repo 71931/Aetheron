@@ -346,10 +346,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var _elDot = document.getElementById('weatherLocDot');
         if (_elLoc && _elDot) {
           if (weatherData.mode === 'gps') { _elLoc.textContent = '已按手机 GPS 定位（点击城市或“重新定位”可再校准）'; _elDot.className = 'loc-dot gps'; }
-          else if (weatherData.mode === 'ip') { _elLoc.textContent = '未获 GPS 授权，按 IP 近似定位，点“重新定位”用手机定位'; _elDot.className = 'loc-dot ip'; }
+          else if (weatherData.mode === 'ip') { _elLoc.textContent = '当前为 IP 实时定位，点“重新定位”可用手机精确定位'; _elDot.className = 'loc-dot ip'; }
           else { _elLoc.textContent = '正在定位…'; _elDot.className = 'loc-dot'; }
         }
-        if (weatherData.mode === 'ip') _c += ' · IP近似';
+        if (weatherData.mode === 'ip') _c += ' · IP定位';
         elCity.textContent = _c;
       }
       if (weatherData.todayHi === null) {
@@ -432,33 +432,51 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         });
     }
     function weatherByIP() {
-      // 多级 IP 定位兜底：ipapi.co 被部分浏览器/隐私模式拦截时切 ipwho.is
-      var settled = false;
-      function runIp(url) {
+      // v164：真实 IP 实时定位（三级实时链：ipwho.is带坐标 → api.ip.sb带坐标 → ipinfo.io带loc）
+      var services = [
+        'https://ipwho.is/',
+        'https://api.ip.sb/geoip',
+        'https://ipinfo.io/json'
+      ];
+      var idx = 0, done = false;
+      function pick(d) {
+        if (!d) return null;
+        var lat = null, lon = null, city = '';
+        if (typeof d.latitude === 'number' && typeof d.longitude === 'number') {
+          lat = d.latitude; lon = d.longitude; city = d.city || d.region || '';
+        } else if (d.loc) {
+          var a = String(d.loc).split(',');
+          lat = parseFloat(a[0]); lon = parseFloat(a[1]); city = d.city || d.region || '';
+        }
+        if (lat === null || isNaN(lat) || lon === null || isNaN(lon)) return null;
+        return { lat: lat, lon: lon, city: city };
+      }
+      function fail() {
+        var el2 = document.getElementById('weatherTemp');
+        if (el2 && (!el2.textContent || el2.textContent === '今日状态')) el2.textContent = '天气暂不可用';
+      }
+      function next() {
+        if (idx >= services.length) { if (!done) { done = true; fail(); } return; }
+        var url = services[idx++];
+        var t = setTimeout(function () { if (!done) { done = true; fail(); } }, 9000);
         fetch(url)
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            if (settled) return;
-            if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
-              settled = true;
+            clearTimeout(t);
+            if (done) return;
+            var r = pick(d);
+            if (r) {
+              done = true;
               weatherData.mode = 'ip';
-              fetchWeather(d.latitude, d.longitude, d.city || d.city_zh || '');
-            } else if (url.indexOf('ipapi') !== -1) {
-              runIp('https://ipwho.is/');
-            }
+              lastIpLocTs = Date.now();
+              fetchWeather(r.lat, r.lon, r.city || '');
+            } else { next(); }
           })
-          .catch(function () {
-            if (settled) return;
-            if (url.indexOf('ipapi') !== -1) runIp('https://ipwho.is/');
-            else {
-              settled = true;
-              var el2 = document.getElementById('weatherTemp');
-              if (el2) el2.textContent = '天气不可用';
-            }
-          });
+          .catch(function () { clearTimeout(t); if (!done) next(); });
       }
-      runIp('https://ipapi.co/json/');
+      next();
     }
+    var lastIpLocTs = 0;
     function updateWeather() {
       // APK(WebView) 内 geolocation 常因授权缺失静默失败：Capacitor 环境优先走 IP 定位兜底
       if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
@@ -472,31 +490,53 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (done) return; done = true; clearTimeout(ipFallback);
         weatherData.mode = 'gps';
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
-      }, function () {
+      }, function (err) {
         if (done) return; done = true; clearTimeout(ipFallback);
+        // v165：失败原因细分提示，帮助诊断“为什么有的浏览器定位不了”
+        if (typeof toast === 'function') {
+          var msg = '定位不可用，天气按 IP 定位';
+          if (err && err.code === 1) msg = '定位被拒绝：请在浏览器/系统设置中允许定位权限，现按 IP 定位';
+          else if (err && err.code === 2) msg = '系统定位不可用（无GPS/信号），已按 IP 定位';
+          else if (err && err.code === 3) msg = '定位超时，已按 IP 定位';
+          toast(msg);
+        }
         weatherByIP();
-      }, { timeout: 4000, maximumAge: 600000 });
+      }, { timeout: 4000, maximumAge: 0 });
     }
     updateWeather();
+
+    // v164：真实 IP 实时刷新：回到前台且 IP 定位超过 5 分钟即重新拉取真实 IP
+    function refreshWeatherSmart() {
+      if (!window.weatherData || weatherData.mode !== 'ip') return;
+      if (Date.now() - lastIpLocTs > 300000) weatherByIP();
+    }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshWeatherSmart(); });
+    window.addEventListener('focus', refreshWeatherSmart);
 
     // 点击今日状态进入天气详情面板
     var weatherTempEl = document.getElementById('weatherTemp');
     var weatherOverlay = document.getElementById('weatherOverlay');
     /* v162：点击天气时若此前是 IP 近似（不准），借用户手势重新 GPS 精确定位 */
     function reLocateWeather() {
-      if (!navigator.geolocation) { weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('当前浏览器不支持定位，只能 IP 近似'); return; }
+      if (!navigator.geolocation) { weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('当前浏览器不支持定位，只能 IP 定位'); return; }
       var _done = false;
-      var _fb = setTimeout(function () { if (!_done) { _done = true; weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('未能获取精确定位，天气按 IP 近似'); } }, 8000);
+      var _fb = setTimeout(function () { if (!_done) { _done = true; weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('未能获取精确定位，天气按 IP 定位'); } }, 8000);
       navigator.geolocation.getCurrentPosition(function (pos) {
         if (_done) return; _done = true; clearTimeout(_fb);
         weatherData.mode = 'gps';
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
         if (typeof toast === 'function') toast('已按精确定位刷新天气');
-      }, function () {
+      }, function (err) {
         if (_done) return; _done = true; clearTimeout(_fb);
         weatherData.mode = 'ip';
         weatherByIP();
-        if (typeof toast === 'function') toast('未能获取精确定位，天气按 IP 近似显示');
+        if (typeof toast === 'function') {
+          var m2 = '未能获取精确定位，天气按 IP 定位';
+          if (err && err.code === 1) m2 = '定位被拒绝：请在浏览器/系统设置中允许定位权限';
+          else if (err && err.code === 2) m2 = '系统定位不可用（无GPS/信号），按 IP 定位';
+          else if (err && err.code === 3) m2 = '精确定位超时，按 IP 定位';
+          toast(m2);
+        }
       }, { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 });
     }
     window.__aeRelocateWeather = reLocateWeather;
