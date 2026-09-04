@@ -6261,6 +6261,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var baseStatus = s.blocked ? '已拉黑' : (chatCurrentConv.status || '在线');
       if (statusEl) statusEl.innerHTML = '对方正在输入<span class="chat-typing-dots"><i></i><i></i><i></i></span>';
       chatLocSyncCurrentPos();
+      chatBgMaybeAuto();
       var messages = [{ role: 'system', content: chatBuildSystemPrompt() }];
       var hist = chatBuildHistory();
       for (var i = 0; i < hist.length; i++) messages.push(hist[i]);
@@ -6506,6 +6507,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (chatSettingView === 'sec-role') return renderChatSectionView('role');
       if (chatSettingView === 'sec-sense') return renderChatSectionView('sense');
       if (chatSettingView === 'sec-app') return renderChatSectionView('app');
+      if (chatSettingView === 'sec-bg') return renderChatSectionView('bg');
+      if (chatSettingView === 'relation') return renderChatRelationView();
+      if (chatSettingView === 'bgact') return renderChatBgActView();
       if (chatSettingView === 'sec-data') return renderChatSectionView('data');
       var titleEl = document.getElementById('chatSettingsTitle');
       if (titleEl) titleEl.textContent = '聊天设置';
@@ -6519,6 +6523,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         { key: 'sec-role', label: '角色人格', desc: '我的身份 · 角色身份' },
         { key: 'chatmode', label: '聊天模式', desc: '旁白模式 · 线下模式 · 普通线上' },
         { key: 'sec-sense', label: '交互感知', desc: '语音配置 · 生图配置 · 自主活动' },
+        { key: 'sec-bg', label: '后台生活', desc: '角色关系（网恋/异地/同居）· 网恋定位 · 后台动态' },
         { key: 'sec-app', label: '外观设置', desc: '聊天背景 · 气泡 · 字体 · 自定义CSS' },
         { key: 'sec-data', label: '数据关系', desc: '调试日志 · 清空记录 · 拉黑联系人 · 导入导出' }
       ];
@@ -6568,6 +6573,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           { key: 'block', label: s.blocked ? '解除拉黑' : '拉黑联系人', desc: s.blocked ? '当前已拉黑，点击可解除' : '拉黑后对方消息不可达', danger: true, value: s.blocked ? '已拉黑' : '' },
           { key: 'dataio', label: '聊天数据导入导出', desc: '导出为 JSON / HTML，或导入恢复本窗口数据' },
           { key: 'delete', label: '删除联系人', desc: '删除该会话与联系人', danger: true }
+        ] },
+        bg: { title: '后台生活', items: [
+          { key: 'relation', label: '角色关系', desc: '普通朋友 · 网恋 · 异地 · 同居', value: chatRelLabel(s) },
+          { key: 'bgact', label: '后台活动', desc: 'TA离线时在做什么：动态生成并带进回复', value: (s.bgAct && s.bgAct.enabled) ? '已开启' : '已关闭' }
         ] }
       };
       var meta = SEC_META[sec];
@@ -6591,6 +6600,235 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (!s) return 0;
       var list = (Array.isArray(s.wbList) && s.wbList.length) ? s.wbList : (s.wb ? [s.wb] : []);
       return list.filter(function (w) { return w && w.enabled !== false; }).length;
+    }
+    // ===== 后台生活板块：角色关系（网恋/异地/同居）+ 网恋真实定位 + 后台活动动态 =====
+    function chatRelInit(s) {
+      if (!s) return null;
+      if (!s.relation || typeof s.relation !== 'object') s.relation = { kind: '', netCity: '', netMask: true };
+      if (s.relation.kind === 'netlove' && s.relation.netMask === undefined) s.relation.netMask = true;
+      return s.relation;
+    }
+    function chatRelLabel(s) {
+      try {
+        var r = (s && s.relation) ? s.relation : null;
+        if (!r || !r.kind) return '普通朋友';
+        if (r.kind === 'netlove') return r.netCity ? '网恋 · ' + String(r.netCity).split(',')[0].trim() : '网恋';
+        if (r.kind === 'longdist') return '异地恋';
+        if (r.kind === 'livein') return '同居';
+      } catch (e) {}
+      return '普通朋友';
+    }
+    function relCityName(r) {
+      try { if (r && r.netCity) return String(r.netCity).split(',')[0].trim(); } catch (e) {}
+      return '';
+    }
+    function relAskCity() {
+      var s = chatCurrentConv.settings;
+      var r = chatRelInit(s);
+      chatMini('网恋 · TA的真实IP定位', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-title">虚拟对标真实</div><div class="chat-swipe-card-text">填写TA在<b>现实世界</b>真正所在的城市或坐标。聊天里TA不会暴露可被导航的门牌，但发位置时可以基于这个真实定位。</div></div><input class="chat-mini-input" id="relCityInput" placeholder="如：深圳　或　深圳,22.54,114.06">', '保存', function () {
+        var v = (document.getElementById('relCityInput').value || '').trim();
+        if (!v) { toast('请输入城市或坐标'); return; }
+        r.netCity = v;
+        saveConvs(); renderChatRelationView();
+        toast('已保存TA的真实定位：' + String(v).split(',')[0].trim());
+      });
+    }
+    function renderChatRelationView() {
+      if (!chatCurrentConv) return;
+      document.getElementById('chatSettingsTitle').textContent = '角色关系';
+      var s = chatCurrentConv.settings;
+      var r = chatRelInit(s);
+      var opts = [
+        { key: '', label: '普通朋友', desc: '还没确定关系，随缘聊天' },
+        { key: 'netlove', label: '网恋', desc: '虚拟对标真实：TA在现实城市有真实定位' },
+        { key: 'longdist', label: '异地恋', desc: '隔着城市的牵挂与想念' },
+        { key: 'livein', label: '同居', desc: '同处一屋檐下的日常' }
+      ];
+      var html = '<div class="chat-cfg-tip">设定你与「' + escHtml(chatCurrentConv.name) + '」的关系。关系会写进TA的人设，影响TA的语气和后台动态内容。</div>';
+      html += '<div class="group-title">关系选项</div><div class="group-card" style="padding:4px 0">';
+      opts.forEach(function (o) {
+        var on = r.kind === o.key;
+        html += '<div class="chat-setting-switch" data-relk="' + o.key + '" style="cursor:pointer">' +
+          '<div style="min-width:0"><div class="sw-label">' + o.label + (on ? ' <span style="color:#5ac8fa">✓</span>' : '') + '</div><div class="sw-desc">' + o.desc + '</div></div>' +
+          '<span class="chat-setting-value"><span style="color:#5ac8fa">' + (on ? '当前' : '›') + '</span></span>' +
+          '</div>';
+      });
+      html += '</div>';
+      if (r.kind === 'netlove') {
+        html += '<div class="group-title">网恋 · 真实定位（虚拟对标真实）</div>';
+        html += '<div class="group-card">' +
+          '<div class="settings-item" id="relCityRow" style="cursor:pointer"><label>TA的现实定位</label><div class="settings-right"><span id="relCityVal" style="color:' + (relCityName(r) ? '#5ac8fa' : '#8e8e93') + '">' + (relCityName(r) ? escHtml(relCityName(r)) : '点击填写城市/坐标') + '</span></div></div>' +
+          '<div class="settings-item"><label>位置用虚拟名替换</label><label class="toggle-switch"><input type="checkbox" id="relMaskSw"' + (r.netMask !== false ? ' checked' : '') + '><span class="slider"></span></label></div>' +
+          '</div>';
+        html += '<div class="chat-cfg-tip">' + (r.netMask === false ? '当前：TA可以直说真实地名。' : '当前：TA发位置/提地点时使用虚拟地点名（虚构小店/街区），但坐标仍是真实定位，虚拟对标真实。') + '具体门店、小区、路线绝不可暴露可被导航的真实门牌。</div>';
+      }
+      html += '<button class="prompt-cancel" id="relBack" style="width:100%;margin-top:12px">返回聊天设置</button>';
+      chatSettingsBody.innerHTML = html;
+      chatSettingsBody.querySelectorAll('[data-relk]').forEach(function (row) {
+        row.addEventListener('click', function () {
+          var k = row.getAttribute('data-relk');
+          if (k === r.kind) return;
+          r.kind = k;
+          saveConvs();
+          renderChatRelationView();
+          toast(k === 'netlove' ? '已开启网恋模式' : (k === 'longdist' ? '已开启异地恋' : (k === 'livein' ? '已开启同居模式' : '已恢复普通朋友')));
+          if (k === 'netlove' && !relCityName(r)) setTimeout(function () { relAskCity(); }, 350);
+        });
+      });
+      var cityRow = document.getElementById('relCityRow');
+      if (cityRow) cityRow.addEventListener('click', relAskCity);
+      var maskSw = document.getElementById('relMaskSw');
+      if (maskSw) maskSw.addEventListener('change', function () {
+        r.netMask = maskSw.checked;
+        saveConvs(); renderChatRelationView();
+        toast(maskSw.checked ? '已开启：位置用虚拟名替换（真实坐标不变）' : '已关闭：TA可直说真实地名');
+      });
+      document.getElementById('relBack').addEventListener('click', function () { chatSettingsGoBack(); });
+    }
+    function chatRelPromptLine(s) {
+      try {
+        var r = (s && s.relation) ? s.relation : null;
+        if (!r || !r.kind) return '';
+        var name = chatCurrentConv ? chatCurrentConv.name : '对方';
+        if (r.kind === 'netlove') {
+          var city = relCityName(r);
+          if (city) {
+            return '【你们的关系】你和用户是网恋对象，还没线下见过面，保持暧昧、想念、期待见面的氛围。你的真实定位（IP定位）在现实城市「' + city + '」——这就是虚拟对标的真实坐标。规则：聊到位置时可以说真实城市名和大体区域，但具体门店、小区、街道一律用编造但听感真实的虚拟地点名（虚构小店/街区）代替，绝不暴露可被导航的真实门牌；用户让你发位置时，发基于「' + city + '」真实定位的地点卡，卡片上地点名' + (r.netMask === false ? '可直接显示真实地名' : '也使用虚拟地点名') + '。';
+          }
+          return '【你们的关系】你和用户是网恋对象，还没线下见过面，保持暧昧、想念、期待见面的氛围，偶尔撩对方一下。';
+        }
+        if (r.kind === 'longdist') return '【你们的关系】你和用户是异地恋，见面少、想念多；会聊到彼此城市的天气与日常，计划着下一次见面。';
+        if (r.kind === 'livein') return '【你们的关系】你和用户是同居恋人，生活在一起；聊天自带居家亲近感，可以自然提到家里、厨房、沙发、一起吃饭、等你回家等日常。';
+      } catch (e) {}
+      return '';
+    }
+    // 后台活动：TA离线时在做什么
+    function chatBgInit() {
+      var s = chatCurrentConv.settings;
+      if (!s.bgAct || typeof s.bgAct !== 'object') s.bgAct = { enabled: false, items: [] };
+      if (!Array.isArray(s.bgAct.items)) s.bgAct.items = [];
+      return s.bgAct;
+    }
+    function chatBgCity() {
+      try {
+        var r = chatCurrentConv.settings.relation;
+        if (r && r.netCity) { var c = String(r.netCity).split(',')[0].trim(); if (c) return c; }
+      } catch (e) {}
+      return '';
+    }
+    function chatBgTime(t) {
+      try { var d = new Date(t); var h = d.getHours(), m = d.getMinutes(); return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; } catch (e) { return ''; }
+    }
+    function chatBgPick() {
+      var s = chatCurrentConv.settings;
+      var r = (s && s.relation) ? s.relation : {};
+      var city = chatBgCity() || '这边';
+      var pool = [
+        '刚煮好的咖啡还没喝两口，就看到你的消息了',
+        '正在听歌发呆，被你的消息拉回了神',
+        '刚打完一把游戏，输了，心情有点复杂',
+        '窝在沙发上看剧，刚好看到一段很戳的片段',
+        '刚去楼下便利店买了瓶汽水，顺便逗了逗店猫',
+        '在阳台吹风，今晚月亮还挺亮',
+        '加班刚到家，正在热饭',
+        '刚健身完，胳膊还有点酸',
+        '正翻着外卖软件不知道吃什么',
+        '刚洗完澡，头发还没干',
+        '把猫哄睡了，它今天格外黏人',
+        '躺在沙发上放空，完全不想动'
+      ];
+      if (r.kind === 'netlove') pool = pool.concat([
+        '正在' + city + '的江边散步，风一吹突然有点想你',
+        '刚发现一家你肯定会喜欢的小店，默默记下了',
+        '躺在床上翻我们的聊天记录，翻着翻着就笑了',
+        '在' + city + '试了几件衣服，想着见面那天穿哪件好看',
+        '刚看完一部电影，片尾曲好听到想分享给你又忍住了',
+        '刷到情侣日常的视频，酸得把手机扣过去了',
+        '偷偷把我们的聊天截图存了一份，怕哪天找不到你',
+        '刚学会一道你爱吃的菜，等着见面做给你吃',
+        '看了一眼' + city + '的天气，在想你那边冷不冷',
+        '把聊天背景换成了' + city + '的夜景照'
+      ]);
+      if (r.kind === 'longdist') pool = pool.concat([
+        '刚查完去你城市的车票，默默收藏了几班',
+        '看到你那边上了新闻，第一时间想到你了',
+        '买了两杯奶茶，一杯假装是给你的',
+        '把你之前发的语音又听了一遍',
+        '在日历上画了个见面的倒计时',
+        '路过一家店觉得你会喜欢，拍了照想发给你',
+        '视频完挂断后，对着黑屏愣了一会儿'
+      ]);
+      if (r.kind === 'livein') pool = pool.concat([
+        '刚从厨房出来，把你爱吃的西瓜切好放冰箱了',
+        '听到开门声以为你回来了，结果是外卖',
+        '一个人在家把电视音量开很大，假装不冷清',
+        '把你扔沙发上的外套叠好挂起来了',
+        '刚下楼取快递，顺手买了你爱喝的酸奶',
+        '研究了一下午菜谱，想晚上给你露一手',
+        '你不在家，猫一直蹲在门口等你',
+        '刚把家里收拾了一遍，累但挺有成就感'
+      ]);
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    function chatBgMaybeAuto(force) {
+      if (!chatCurrentConv || !chatCurrentConv.settings) return null;
+      var bg = chatBgInit();
+      if (!force && !bg.enabled) return null;
+      var last = bg.items.length ? bg.items[0] : null;
+      if (!force && last && (Date.now() - last.ts) < 4 * 60 * 1000) return null;
+      var it = { ts: Date.now(), text: chatBgPick() };
+      bg.items.unshift(it);
+      if (bg.items.length > 15) bg.items.length = 15;
+      saveConvs();
+      return it;
+    }
+    function renderChatBgActView() {
+      if (!chatCurrentConv) return;
+      document.getElementById('chatSettingsTitle').textContent = '后台活动';
+      var s = chatCurrentConv.settings;
+      var bg = chatBgInit();
+      var html = '<div class="chat-cfg-tip">开启后，TA没回你消息的间隙也在过自己的生活：每次你发消息、距上一条后台动态超过4分钟，会自动生成一条「刚才在做什么」，并带进TA这次的回复里。</div>';
+      html += '<div class="group-card"><div class="settings-item"><label>后台动态自动生成</label><label class="toggle-switch"><input type="checkbox" id="bgSw"' + (bg.enabled ? ' checked' : '') + '><span class="slider"></span></label></div></div>';
+      html += '<div class="group-title">活动记录</div><div class="group-card" style="padding:4px 0">';
+      if (bg.items.length) {
+        bg.items.forEach(function (it, idx) {
+          html += '<div class="settings-item" style="align-items:flex-start"><div style="min-width:0;flex:1"><div style="font-size:12px;color:#8e8e93;margin-bottom:2px">' + chatBgTime(it.ts) + (bg.enabled && idx === 0 ? ' · 最近' : '') + '</div><div style="color:#f2f2f7">' + escHtml(it.text) + '</div></div>' +
+            '<button style="border:none;background:transparent;color:#ff6b6b;font-size:12px;padding:6px;cursor:pointer" data-bgdel="' + idx + '">删除</button></div>';
+        });
+      } else {
+        html += '<div class="settings-item"><div style="color:#8e8e93">还没有后台动态，点下方按钮生成第一条，或开启自动生成。</div></div>';
+      }
+      html += '</div>';
+      html += '<button class="prompt-cancel" id="bgGen" style="width:100%;margin-top:12px">生成一条后台动态</button>';
+      html += '<button class="prompt-cancel" id="bgBack" style="width:100%;margin-top:8px">返回聊天设置</button>';
+      chatSettingsBody.innerHTML = html;
+      var sw = document.getElementById('bgSw');
+      if (sw) sw.addEventListener('change', function () {
+        bg.enabled = sw.checked;
+        if (bg.enabled && !bg.items.length) chatBgMaybeAuto(true);
+        saveConvs(); renderChatBgActView();
+        toast(bg.enabled ? '后台活动已开启，TA开始有自己的生活了' : '后台活动已关闭');
+      });
+      chatSettingsBody.querySelectorAll('[data-bgdel]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var i = parseInt(b.getAttribute('data-bgdel'), 10);
+          if (!isNaN(i) && bg.items[i]) { bg.items.splice(i, 1); saveConvs(); renderChatBgActView(); toast('已删除该条后台动态'); }
+        });
+      });
+      document.getElementById('bgGen').addEventListener('click', function () {
+        var it = chatBgMaybeAuto(true);
+        renderChatBgActView();
+        toast(it ? '已生成：' + it.text : '生成失败');
+      });
+      document.getElementById('bgBack').addEventListener('click', function () { chatSettingsGoBack(); });
+    }
+    function chatBgPromptLine(s) {
+      try {
+        var bg = (s && s.bgAct) ? s.bgAct : null;
+        if (!bg || !bg.enabled || !Array.isArray(bg.items) || !bg.items.length) return '';
+        var recent = bg.items.slice(0, 2).map(function (it) { return '- ' + chatBgTime(it.ts) + ' ' + it.text; }).join('\n');
+        return '【后台活动·刚才的你】这是你在收到对方消息前/空闲时做过的事。TA问起就自然带出，没问不必主动汇报：\n' + recent;
+      } catch (e) { return ''; }
     }
     // Token 细分视图
     function computeChatTokenRows() {
