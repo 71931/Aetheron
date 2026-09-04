@@ -4634,54 +4634,103 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     }
 
-    /* ========== v170：位置卡片 · 仿微信“发送位置” + 完整地图 + 坐标头像故事 ========== */
+    /* ========== v170：位置卡片 · 仿微信“发送位置” + 完整地图 + 上帝视角小剧场 ========== */
+    function chatLocCurCityName() {
+      var c = '';
+      try { if (window.weatherData && weatherData.city) c = String(weatherData.city || ''); } catch (e) {}
+      return String(c || '').replace(/ · IP定位$/, '').replace(/市$/, '').trim();
+    }
+    function chatLocSyncCurrentPos() {
+      var base = CHAT_LOCS[0];
+      if (!base) return;
+      var city = chatLocCurCityName();
+      if (city && city !== '当前位置') {
+        base.d = city + '市 · 当前位置附近';
+        base._c = { x: 500, y: 520 };
+      } else {
+        base.d = '当前位置附近（系统会按 GPS/IP 自动校正）';
+        base._c = { x: 500, y: 520 };
+      }
+    }
+    /* 不再写死成“全上海”：角色世界铺满全国各地，虚拟地图只是一个抽象坐标系 */
     var CHAT_LOCS = [
-      { n: '我的位置', d: '上海市徐汇区龙漕路22号附近', c: '当前位置', cur: true },
-      { n: '半山咖啡·云栖', d: '上海市徐汇区龙漕路22号', c: '咖啡' },
-      { n: '拾光旧书店', d: '上海市徐汇区衡山路780号', c: '书店' },
-      { n: '时雨咖啡馆', d: '上海市静安区愚园路120号', c: '咖啡' },
-      { n: '木棉音乐酒吧', d: '上海市黄浦区陕西南路56号', c: '酒吧' },
-      { n: '像素游戏馆', d: '上海市徐汇区虹桥路88号', c: '游戏' },
-      { n: '静安公园', d: '上海市静安区南京西路1600号', c: '公园' },
-      { n: '滨江夜跑径', d: '上海市浦东新区滨江大道2088号', c: '运动' },
-      { n: '越界·美术馆', d: '上海市静安区汶水路210号', c: '美术馆' },
-      { n: '梧桐里甜品铺', d: '上海市徐汇区安福路37号', c: '甜品' },
-      { n: '南市河畔餐厅', d: '上海市黄浦区中山东二路600号', c: '餐厅' },
-      { n: '老城厢茶馆', d: '上海市黄浦区方浜中路265号', c: '茶' },
-      { n: '星空IMAX影城', d: '上海市静安区西藏北路166号', c: '影城' },
-      { n: '城市书房·北站', d: '上海市静安区天目西路218号', c: '书店' },
-      { n: '星野健身工坊', d: '上海市徐汇区宜山路888号', c: '健身房' },
-      { n: '花屿花店', d: '上海市静安区威海路426号', c: '花店' },
-      { n: '木间桌游社', d: '上海市长宁区定西路1235弄18号', c: '桌游' },
-      { n: '夏沫猫咪咖啡', d: '上海市长宁区愚园路1032弄', c: '宠物' },
-      { n: '白夜行古着', d: '上海市黄浦区马当路300号', c: '服饰' },
-      { n: '灵感手作工坊', d: '上海市徐汇区永康路48号', c: '手作' },
-      { n: '蝴蝶舞台剧场', d: '上海市黄浦区福州路701号', c: '剧场' },
-      { n: '星野天台酒吧', d: '上海市静安区延安中路1111号', c: '酒吧' },
-      { n: '一号线人民广场站', d: '上海市黄浦区人民大道100号', c: '地铁' },
-      { n: '第一人民医院', d: '上海市静安区南京西路1010号', c: '医院' },
-      { n: '上大校园书店', d: '上海市宝山区上大路99号', c: '书店' },
-      { n: '徐汇滨江跑道', d: '上海市徐汇区龙腾大道3000号', c: '运动' },
-      { n: '云端便利店', d: '上海市徐汇区漕溪北路1200号', c: '便利店' },
-      { n: '江湾体育场', d: '上海市杨浦区淞沪路888号', c: '运动' },
-      { n: '打浦桥夜市', d: '上海市黄浦区泰康路210弄', c: '夜市' },
-      { n: '上海环球港', d: '上海市普陀区中山北路3300号', c: '商场' },
-      { n: '前滩太古里', d: '上海市浦东新区东育路500弄', c: '商场' },
-      { n: '共青森林公园', d: '上海市杨浦区军工路2000号', c: '公园' },
-      { n: '苏州河步道', d: '上海市静安区北苏州路988号', c: '运动' },
-      { n: '海派摄影棚', d: '上海市徐汇区龙华路2577号', c: '摄影' },
-      { n: '新天地·时光里', d: '上海市黄浦区太仓路181弄', c: '街区' },
-      { n: '音乐盒博物馆', d: '上海市静安区南京西路1376号', c: '博物馆' },
-      { n: '深夜食堂·梧桐', d: '上海市长宁区番禺路900号', c: '餐厅' },
-      { n: '花见和果子', d: '上海市黄浦区思南路44号', c: '甜品' },
-      { n: '怪兽电玩城', d: '上海市静安区南京西路1618号', c: '游戏' },
-      { n: '青瓦小筑民宿', d: '上海市静安区华山路303弄', c: '民宿' },
-      { n: '樱坂公园', d: '上海市虹口区四川北路2288号', c: '公园' },
-      { n: '宇宙邮局', d: '上海市徐汇区淮海中路1555号', c: '文创' },
-      { n: '云上书房', d: '上海市黄浦区广东路51号', c: '书店' },
-      { n: '春风音乐台', d: '上海市黄浦区淮海中路300号', c: '音乐' },
-      { n: '星谷智慧园', d: '上海市闵行区吴中路1799号', c: '园区' }
+      { n: '我的位置', d: '当前位置附近（系统会按 GPS/IP 自动校正）', c: '当前位置', cur: true },
+      { n: '半山咖啡·云栖', d: '深圳市南山区创意园北区B3栋106', c: '咖啡' },
+      { n: '拾光旧书店', d: '北京市朝阳区三里屯路19号院', c: '书店' },
+      { n: '时雨咖啡馆', d: '杭州市西湖区文三路90号', c: '咖啡' },
+      { n: '木棉音乐酒吧', d: '成都市锦江区镋钯街27号', c: '酒吧' },
+      { n: '像素游戏馆', d: '广州市天河区体育西路191号', c: '游戏' },
+      { n: '清晏公园', d: '重庆市渝中区嘉滨路88号', c: '公园' },
+      { n: '滨江夜跑径', d: '武汉市武昌区临江大道2088号', c: '运动' },
+      { n: '越界·美术馆', d: '西安市雁塔区雁南一路6号', c: '美术馆' },
+      { n: '梧桐里甜品铺', d: '长沙市岳麓区麓山南路282号', c: '甜品' },
+      { n: '南河谣餐厅', d: '南京市秦淮区贡院西街56号', c: '餐厅' },
+      { n: '旧城茶馆', d: '苏州市姑苏区平江路38号', c: '茶' },
+      { n: '星空IMAX影城', d: '北京市海淀区学院路甲38号', c: '影城' },
+      { n: '城市书房·北站', d: '深圳市福田区深南中路2002号', c: '书店' },
+      { n: '星野健身工坊', d: '成都市武侯区科华北路121号', c: '健身房' },
+      { n: '花屿花店', d: '杭州市上城区中山中路99号', c: '花店' },
+      { n: '木间桌游社', d: '重庆市江北区观音桥步行街8号', c: '桌游' },
+      { n: '夏沫猫咪咖啡', d: '广州市越秀区惠福东路455号', c: '宠物' },
+      { n: '白夜行古着', d: '武汉市江岸区黎黄陂路12号', c: '服饰' },
+      { n: '灵感手作工坊', d: '长沙市开福区太平街113号', c: '手作' },
+      { n: '蝴蝶舞台剧场', d: '南京市玄武区长江路264号', c: '剧场' },
+      { n: '星野天台酒吧', d: '深圳市南山区蛇口海上世界C区', c: '酒吧' },
+      { n: '云麓广场站·地铁2号线', d: '长沙市岳麓区岳麓大道988号', c: '地铁' },
+      { n: '云杉综合医院', d: '成都市青羊区一环路西二段33号', c: '医院' },
+      { n: '河畔校园书店', d: '北京市海淀区成府路59号', c: '书店' },
+      { n: '双塔滨水跑道', d: '苏州市吴中区太湖东路500号', c: '运动' },
+      { n: '云端便利店', d: '深圳市宝安区创业一路3001号', c: '便利店' },
+      { n: '湖心体育场', d: '杭州市滨江区江南大道2300号', c: '运动' },
+      { n: '星火夜市', d: '重庆市九龙坡区杨家坪步行街9号', c: '夜市' },
+      { n: '云顶购物中心', d: '广州市天河区天河路208号', c: '商场' },
+      { n: '潮汐天地', d: '厦门市思明区演武西路182号', c: '商场' },
+      { n: '岚山森林公园', d: '南京市栖霞区环陵路500号', c: '公园' },
+      { n: '河畔清风步道', d: '武汉市江汉区沿江大道268号', c: '运动' },
+      { n: '一格摄影棚', d: '青岛市市南区八大关景区内', c: '摄影' },
+      { n: '时光里街区', d: '成都市青羊区宽窄巷子29号', c: '街区' },
+      { n: '八音盒博物馆', d: '厦门市思明区曾厝垵北路66号', c: '博物馆' },
+      { n: '深夜食堂·青竹', d: '西安市碑林区南院门32号', c: '餐厅' },
+      { n: '花见和果子屋', d: '苏州市姑苏区观前街128号', c: '甜品' },
+      { n: '霓虹电玩城', d: '武汉市洪山区光谷步行街F区', c: '游戏' },
+      { n: '青瓦小筑民宿', d: '大理市大理镇才村码头附近', c: '民宿' },
+      { n: '樱坂公园', d: '昆明市五华区翠湖南路70号', c: '公园' },
+      { n: '宇宙邮局', d: '成都市高新区天府大道中段666号', c: '文创' },
+      { n: '云上书房', d: '杭州市拱墅区运河文化广场6号', c: '书店' },
+      { n: '春风音乐台', d: '重庆市南岸区南滨路35号', c: '音乐' },
+      { n: '星谷智慧园', d: '深圳市龙岗区坂田五和大道4006号', c: '园区' }
     ];
+    /* v170.2：把旧版本里写死的“上海地址”一次性迁移成新地点库/当前城市，避免历史卡片还是全上海 */
+    function chatLocMigrateOldSaved() {
+      try {
+        var touched = false;
+        for (var ci = 0; ci < chatConvs.length; ci++) {
+          var msgs = chatConvs[ci].messages || [];
+          for (var mi = 0; mi < msgs.length; mi++) {
+            var m = msgs[mi];
+            if (!m || m.type !== 'location' || !m.locDetail) continue;
+            var od = String(m.locDetail);
+            if (od.indexOf('上海市') !== 0) continue;
+            if (m.locCur) {
+              var city = chatLocCurCityName();
+              m.locDetail = (city && city !== '当前位置') ? (city + '市 · 当前位置附近') : '当前位置附近';
+              touched = true;
+            } else {
+              for (var pi = 0; pi < CHAT_LOCS.length; pi++) {
+                var p = CHAT_LOCS[pi];
+                if (!p.cur && p.n === String(m.text || '')) {
+                  m.locDetail = p.d;
+                  touched = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        if (touched) saveConvs();
+      } catch (e) {}
+    }
+    chatLocMigrateOldSaved();
     function locHashStr(s) {
       var h = 5381, i;
       s = String(s || '');
@@ -4743,7 +4792,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           else if (hh % 13 === 0) { ctx.fillStyle = '#e8e4dc'; ctx.fillRect(x0 + 1, y0 + 1, Math.max(0, s - 2), Math.max(0, s - 2)); }
         }
       }
-      var roadNames = ['龙漕路', '衡山路', '愚园路', '陕西南路', '南京西路', '滨江大道', '天目西路', '定西路', '永康路', '福州路', '延安中路', '太仓路'];
+      var roadNames = ['解放路', '中山路', '人民路', '建设路', '青年路', '迎宾路', '滨江路', '和平路', '朝阳路', '公园路', '文化路', '站前路'];
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = Math.max(2, (block * scale) * 0.16);
       for (gx = minBx; gx <= maxBx; gx++) {
@@ -4795,7 +4844,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       ov.className = 'chat-loc-picker';
       ov.innerHTML = '<div class="chat-loc-top"><button type="button" class="chat-loc-x" data-x="1"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="chat-loc-top-t">发送位置</div><span class="chat-loc-top-sp"></span></div>' +
         '<div class="chat-loc-search"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg><input type="text" id="chatLocSearch" placeholder="搜索地点" autocomplete="off"></div>' +
-        '<div class="chat-loc-mapwrap"><canvas class="chat-loc-canvas"></canvas><div class="chat-loc-mapdot" data-dot="1"></div><div class="chat-loc-hint">拖动地图或点击列表选位置</div></div>' +
+        '<div class="chat-loc-mapwrap"><canvas class="chat-loc-canvas"></canvas><div class="chat-loc-mapdot" data-dot="1"></div><div class="chat-loc-hint">按住地图拖动找附近地点 · 点下方列表精准选</div></div>' +
         '<div class="chat-loc-pick-list" id="chatLocPickList"></div>' +
         '<div class="chat-loc-foot"><div class="chat-loc-footinfo"><div class="chat-loc-footname" id="chatLocFootName"></div><div class="chat-loc-footdetail" id="chatLocFootDetail"></div></div><button type="button" class="chat-loc-send" id="chatLocSend">发送</button></div>';
       chatDetailOverlay.appendChild(ov);
@@ -4803,33 +4852,62 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var inp = ov.querySelector('#chatLocSearch');
       inp.addEventListener('input', function () { locPickQuery = inp.value.trim(); locPickRenderList(); });
       inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
-      ov.querySelector('.chat-loc-mapwrap').addEventListener('pointerdown', function (e) {
-        if (e.target.closest && e.target.closest('[data-dot]')) return;
+      /* v170.1：真·按住拖动地图，松手自动吸附最近的地点（不再原地乱跳） */
+      var mapwrap = ov.querySelector('.chat-loc-mapwrap');
+      var drag = null;
+      function pickScale() {
         var cv = ov.querySelector('.chat-loc-canvas');
-        var rect = cv.getBoundingClientRect();
-        var scale = (cv.clientWidth / 1000) * locPickZoom;
-        locPickCx = locPickCx + (e.clientX - rect.left - cv.clientWidth / 2) / scale;
-        locPickCy = locPickCy + (e.clientY - rect.top - cv.clientHeight / 2) / scale;
-        locPickClamp();
+        return (cv.clientWidth / 1000) * locPickZoom;
+      }
+      function pickRender() { locPickFoot(); locPickRenderList(); locDrawPicker(); }
+      mapwrap.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        locPickSel = null; // 拖动时先取消选中，露出中心红点
+        locPickCx = locPickCx || 500; locPickCy = locPickCy || 520;
+        drag = { sx: e.clientX, sy: e.clientY, cx: locPickCx, cy: locPickCy, moved: false };
+        try { mapwrap.setPointerCapture(e.pointerId); } catch (err) {}
+        pickRender();
+      });
+      mapwrap.addEventListener('pointermove', function (e) {
+        if (!drag) return;
+        var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+        if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+        var sc = pickScale();
+        locPickCx = locPickClamp(drag.cx - dx / sc);
+        locPickCy = locPickClamp(drag.cy - dy / sc);
+        locDrawPicker();
+      });
+      function pickEndSnap() {
+        if (!drag) return;
+        drag = null;
         var best = null, bd = 1e9;
         for (var i = 0; i < CHAT_LOCS.length; i++) {
-          if (locPickQuery && CHAT_LOCS[i].n.indexOf(locPickQuery) < 0 && CHAT_LOCS[i].d.indexOf(locPickQuery) < 0) continue;
+          if (locPickQuery && (CHAT_LOCS[i].n + CHAT_LOCS[i].d + CHAT_LOCS[i].c).indexOf(locPickQuery) < 0) continue;
           var cc = locEnsureCoords(CHAT_LOCS[i]);
           var dd = Math.pow(cc.x - locPickCx, 2) + Math.pow(cc.y - locPickCy, 2);
           if (dd < bd) { bd = dd; best = CHAT_LOCS[i]; }
         }
-        if (best && Math.sqrt(bd) < 260) { locPickSel = best; locPickCx = best._c.x; locPickCy = best._c.y; }
-        locPickRenderList(); locDrawPicker();
-      });
+        if (best && Math.sqrt(bd) < 330) {
+          locPickSel = best;
+          var bc = locEnsureCoords(best);
+          locPickCx = bc.x; locPickCy = bc.y;
+        } else {
+          locPickSel = null;
+        }
+        pickRender();
+      }
+      mapwrap.addEventListener('pointerup', pickEndSnap);
+      mapwrap.addEventListener('pointercancel', pickEndSnap);
       ov.querySelector('#chatLocSend').addEventListener('click', function () {
-        if (!locPickSel) { toast('先选一个地点'); return; }
+        if (!locPickSel) { toast('先在地图上或列表里选一个地点'); return; }
         var c = locEnsureCoords(locPickSel);
         addChatMsg('me', { type: 'location', text: locPickSel.n, locDetail: locPickSel.d, locCat: locPickSel.c, locX: c.x, locY: c.y, locCur: locPickSel.cur ? 1 : 0 });
         locPickClose();
       });
       return ov;
     }
-    function locPickClamp() {
+    function locPickClamp(v) {
+      if (typeof v === 'number') return Math.max(0, Math.min(1000, v));
       locPickCx = Math.max(0, Math.min(1000, locPickCx));
       locPickCy = Math.max(0, Math.min(1000, locPickCy));
     }
@@ -4889,6 +4967,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var ov = locPickEl();
       locPickQuery = '';
       ov.querySelector('#chatLocSearch').value = '';
+      chatLocSyncCurrentPos();
       locPickSel = CHAT_LOCS[0];
       var c = locEnsureCoords(locPickSel);
       locPickCx = c.x; locPickCy = c.y;
@@ -4910,13 +4989,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       ov = document.createElement('div');
       ov.className = 'chat-loc-view';
       ov.innerHTML = '<div class="chat-loc-vtop"><button type="button" class="chat-loc-x" data-x="1"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="chat-loc-vtitle" id="chatLocVTitle">位置</div><span class="chat-loc-top-sp"></span></div>' +
-        '<div class="chat-loc-vmap"><canvas class="chat-loc-canvas"></canvas><div class="chat-loc-avatar-pin" id="chatLocAvatarPin" style="display:none"><div class="chat-loc-avatar"><img id="chatLocAvatarImg" alt=""><div class="chat-loc-avatar-fb" id="chatLocAvatarFb" style="display:none"></div></div><div class="chat-loc-pin-tail"></div></div><div class="chat-loc-red-pin" id="chatLocRedPin" style="display:none"></div></div>' +
+        '<div class="chat-loc-vmap"><canvas class="chat-loc-canvas"></canvas><div class="chat-loc-godbar" id="chatLocGodBar" style="display:none"><span class="chat-loc-god-eye">上帝视角</span><span class="chat-loc-god-txt" id="chatLocGodTxt">正在看TA…</span></div><div class="chat-loc-avatar-pin" id="chatLocAvatarPin" style="display:none"><div class="chat-loc-avatar"><img id="chatLocAvatarImg" alt=""><div class="chat-loc-avatar-fb" id="chatLocAvatarFb" style="display:none"></div></div><div class="chat-loc-pin-tail"></div></div><div class="chat-loc-red-pin" id="chatLocRedPin" style="display:none"></div></div>' +
         '<div class="chat-loc-vbottom"><div class="chat-loc-vname" id="chatLocVName"></div><div class="chat-loc-vdetail" id="chatLocVDetail"></div><div class="chat-loc-vmeta" id="chatLocVMeta"></div><div class="chat-loc-vstoryhint" id="chatLocVStoryHint"></div></div>' +
         '<div class="chat-loc-story-pop" id="chatLocStoryPop"><button type="button" class="chat-loc-x chat-loc-story-x" data-x="1"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div id="chatLocStoryBody"></div></div>';
       chatDetailOverlay.appendChild(ov);
-      ov.querySelector('.chat-loc-x').addEventListener('click', function () { ov.classList.remove('open'); locViewMsg = null; });
+      ov.querySelector('.chat-loc-x').addEventListener('click', function () {
+        ov.classList.remove('open');
+        locViewMsg = null;
+        chatLocLiveStop();
+        ov.querySelector('#chatLocGodBar').style.display = 'none';
+      });
       var pin = ov.querySelector('#chatLocAvatarPin');
       pin.addEventListener('click', function () { if (locViewMsg && locViewMsg.role === 'other') chatLocOpenStory(locViewMsg); });
+      var storyX = ov.querySelector('.chat-loc-story-x');
+      storyX.addEventListener('click', function () {
+        ov.querySelector('#chatLocStoryPop').classList.remove('open');
+        chatLocLiveStop();
+        ov.querySelector('#chatLocGodBar').style.display = 'none';
+      });
       return ov;
     }
     function locViewCanvas() {
@@ -4974,10 +5064,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       ov.querySelector('#chatLocVDetail').textContent = m.locDetail || '';
       ov.querySelector('#chatLocVMeta').textContent = '虚拟坐标 · ' + (m.locCat || '位置') + ' · ' + fmtTime(m.ts || Date.now());
       ov.querySelector('#chatLocStoryPop').classList.remove('open');
-      ov.querySelector('#chatLocVStoryHint').textContent = (m.role === 'other') ? '点击地图上的头像，看看 TA 在这里做了什么' : '';
+      ov.querySelector('#chatLocVStoryHint').textContent = (m.role === 'other') ? '上帝视角已开启：正在实时观看 TA 在这个地方做了什么' : '';
       ov.classList.add('open');
       requestAnimationFrame(function () {
         locDrawView();
+        if (m.role === 'other') chatLocOpenStory(m);
       });
     }
     /* ---- TA在这里：做了啥、遇见了谁（角色第一人称小剧场） ---- */
@@ -4995,7 +5086,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       for (var k in acts) { if (c.indexOf(k) >= 0) return { act: acts[k], met: mets }; }
       return { act: '在「' + (name || '这个地方') + '」待了很久，这里藏着她最近的心事。', met: mets };
     }
-    function chatLocOpenStory(m, auto) {
+    /* ---- TA在这里：上帝视角小剧场（点开位置自动播放，地图上的头像会自己动） ---- */
+    var locLiveTimer = null;
+    var locLiveStep = -1;
+    var locLiveScenes = [];
+    function chatLocLiveStop() {
+      if (locLiveTimer) { clearTimeout(locLiveTimer); locLiveTimer = null; }
+      locLiveStep = -1;
+    }
+    function chatLocOpenStory(m) {
       var ov = locViewEl();
       ov.querySelector('#chatLocStoryPop').classList.add('open');
       if (m.locStory) { chatLocRenderStory(); return; }
@@ -5010,27 +5109,128 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         chatLocRenderStory();
       });
     }
+    function chatLocScenesFor(m, st) {
+      var name = String(m.text || '这里');
+      var detail = String(m.locDetail || '').trim();
+      var actText = st.act || ('在「' + name + '」待着，什么也没做。');
+      if (actText.indexOf(name) < 0 && actText.indexOf('在这里') < 0) {
+        actText = '在「' + name + '」，' + actText.replace(/^[，。,.、\s]+/, '');
+      }
+      var scenes = [
+        { label: '抵达', txt: '刚到「' + name + '」' + (detail ? '（' + detail + '）' : '附近') + '，脚步慢了下来。' },
+        { label: '在做', txt: actText },
+        { label: '遇见', txt: st.met || '好像谁也没遇见，一个人待了很久。' },
+        { label: '还没走', txt: '到现在还没离开「' + name + '」，像在等谁，又像在等自己。' }
+      ];
+      return scenes;
+    }
+    function chatLocLiveStepPoint(i) {
+      var m = locViewMsg;
+      if (!m) return { x: 500, y: 520 };
+      var bx = m.locX != null ? Number(m.locX) : 500;
+      var by = m.locY != null ? Number(m.locY) : 520;
+      var offs = [{ x: 0, y: 0 }, { x: 34, y: -48 }, { x: -50, y: 30 }, { x: 14, y: 8 }];
+      var o = offs[i] || { x: 0, y: 0 };
+      return { x: Math.max(40, Math.min(960, bx + o.x)), y: Math.max(40, Math.min(960, by + o.y)) };
+    }
+    function chatLocLivePinTo(pt) {
+      var ov = locViewEl();
+      var m = locViewMsg;
+      if (!m || !pt) return;
+      var cv = ov.querySelector('.chat-loc-canvas');
+      var w = cv.clientWidth, h = cv.clientHeight;
+      var bx = m.locX != null ? Number(m.locX) : 500;
+      var by = m.locY != null ? Number(m.locY) : 520;
+      var scale = (w / 1000) * locViewZoom;
+      var pin = ov.querySelector('#chatLocAvatarPin');
+      pin.style.left = (w / 2 + (pt.x - bx) * scale) + 'px';
+      pin.style.top = (h / 2 + (pt.y - by) * scale) + 'px';
+    }
+    function chatLocLiveSetStep(i) {
+      var ov = locViewEl();
+      var body = ov.querySelector('#chatLocStoryBody');
+      if (!body) return;
+      var rows = body.querySelectorAll('.chat-loc-live-row');
+      for (var k = 0; k < rows.length; k++) rows[k].classList.toggle('active', k === i);
+      var god = ov.querySelector('#chatLocGodBar');
+      var txt = ov.querySelector('#chatLocGodTxt');
+      if (i >= 0 && locLiveScenes[i]) {
+        god.style.display = 'flex';
+        var scene = locLiveScenes[i];
+        var brief = scene.txt.length > 26 ? scene.txt.slice(0, 26) + '…' : scene.txt;
+        txt.textContent = '第' + (i + 1) + '幕 · ' + scene.label + '｜' + brief;
+      } else if (i === -1) {
+        god.style.display = 'flex';
+        txt.textContent = '正在抵达现场…';
+      } else {
+        god.style.display = 'flex';
+        txt.textContent = '这一幕看完了 · TA 还停在这里';
+      }
+    }
+    function chatLocLivePlay(st) {
+      chatLocLiveStop();
+      var ov = locViewEl();
+      var m = locViewMsg;
+      if (!m || m.role !== 'other') return;
+      var stObj = st || m.locStory || locStoryByCat(m.locCat, m.text);
+      locLiveScenes = chatLocScenesFor(m, stObj);
+      var god = ov.querySelector('#chatLocGodBar');
+      god.style.display = 'flex';
+      var pre = { x: Math.max(30, (m.locX != null ? Number(m.locX) : 500) - 110), y: Math.max(30, (m.locY != null ? Number(m.locY) : 520) - 40) };
+      chatLocLivePinTo(pre);
+      chatLocLiveSetStep(-1);
+      locLiveTimer = setTimeout(function () { chatLocLiveTick(0); }, 300);
+    }
+    function chatLocLiveTick(i) {
+      locLiveTimer = null;
+      var ov = locViewEl();
+      var m = locViewMsg;
+      if (!m || m.role !== 'other') return;
+      if (i >= locLiveScenes.length) {
+        locLiveStep = -1;
+        chatLocLiveSetStep(-2);
+        chatLocLivePinTo(chatLocLiveStepPoint(3));
+        return;
+      }
+      locLiveStep = i;
+      chatLocLiveSetStep(i);
+      chatLocLivePinTo(chatLocLiveStepPoint(i));
+      var dur = (i === 0) ? 2400 : 3800;
+      locLiveTimer = setTimeout(function () { chatLocLiveTick(i + 1); }, dur);
+    }
     function chatLocRenderStory() {
       var ov = locViewEl();
       var body = ov.querySelector('#chatLocStoryBody');
       var m = locViewMsg;
       if (!m) return;
       if (m._storyBusy) {
-        body.innerHTML = '<div class="chat-loc-story-loading">TA正在回想在这里做了什么…<span class="chat-typing-dots"><i></i><i></i><i></i></span></div>';
+        chatLocLiveStop();
+        var godL = ov.querySelector('#chatLocGodBar');
+        godL.style.display = 'flex';
+        ov.querySelector('#chatLocGodTxt').textContent = '正在读取TA的记忆…';
+        body.innerHTML = '<div class="chat-loc-story-loading">上帝视角连接中，TA正在回想在这里做了什么…<span class="chat-typing-dots"><i></i><i></i><i></i></span></div>';
         return;
       }
       var st = m.locStory || locStoryByCat(m.locCat, m.text);
       var d = chatHeartData();
+      locLiveScenes = chatLocScenesFor(m, st);
+      var rows = locLiveScenes.map(function (s, i) {
+        return '<div class="chat-loc-live-row" data-i="' + i + '"><span class="chat-loc-live-tag">' + escHtml(s.label) + '</span><p>' + escHtml(s.txt) + '</p></div>';
+      }).join('');
       body.innerHTML = '<div class="chat-loc-story-name">' + escHtml(d.name) + ' · ' + escHtml(m.text || '位置') + '</div>' +
-        '<div class="chat-loc-story-title">在这里做了什么</div><p>' + escHtml(st.act || '') + '</p>' +
-        '<div class="chat-loc-story-title">遇见了谁</div><p>' + escHtml(st.met || '') + '</p>' +
-        '<div class="chat-loc-story-note">（根据角色记忆推演，点击头像可重新生成）</div>';
+        '<div class="chat-loc-live-top">上帝视角 · 正在看 TA 在「' + escHtml(m.text || '这里') + '」做了什么</div>' +
+        rows +
+        '<button type="button" class="chat-loc-live-replay" id="chatLocLiveReplay">重播这一幕</button>' +
+        '<div class="chat-loc-story-note">（根据角色记忆推演 · 点头像或重播可再看一遍）</div>';
+      var replay = body.querySelector('#chatLocLiveReplay');
+      if (replay) replay.addEventListener('click', function () { chatLocLivePlay(); });
+      chatLocLivePlay();
     }
     function chatLocGenStory(m, cb) {
       cb = cb || function () {};
       var cfg = chatFindApi();
       var d = chatHeartData();
-      var systemTxt = '你现在是「' + d.name + '」这个角色。请用第一人称写一段角色此刻身在「' + String(m.text || '某地') + '（' + String(m.locDetail || '') + '）」的小剧场：TA在这里做了什么、心情怎样、遇见了谁、有没有没说出口的话。语气像真实的人，细腻自然，不做总结。';
+      var systemTxt = '你现在是「' + d.name + '」这个角色。请用第一人称写一段角色此刻身在「' + String(m.text || '某地') + '（' + String(m.locDetail || '') + '）」的小剧场：TA在这里做了什么、心情怎样、遇见了谁、有没有没说出口的话。语气像真实的人，细腻自然，不做总结。两段正文都必须自然写到这个地方的具体地名「' + String(m.text || '') + '」，不要只把它放在标题里。';
       var fallback = function () {
         var st = locStoryByCat(m.locCat, m.text);
         cb(null, st);
@@ -5068,9 +5268,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     }
     function chatLocMsgFromText(name, detail, cat) {
+      chatLocSyncCurrentPos();
       var hit = chatLocFindByName(name);
       var nm = (name && String(name).trim()) || (hit ? hit.n : '分享的位置');
-      var dt = (detail && String(detail).trim()) || (hit ? hit.d : '上海市徐汇区龙漕路22号附近');
+      var city = chatLocCurCityName();
+      var cityDef = (city && city !== '当前位置') ? (city + '市 · 附近') : '当前位置附近';
+      var dt = (detail && String(detail).trim()) || (hit ? hit.d : cityDef);
       var ct = (cat && String(cat).trim()) || (hit ? hit.c : '');
       var base = hit ? locEnsureCoords(hit) : locCoordFor(nm + dt);
       return { type: 'location', text: nm, locDetail: dt, locCat: ct, locX: base.x, locY: base.y, locCur: hit && hit.cur ? 1 : 0 };
@@ -6057,6 +6260,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var statusEl = document.getElementById('chatDetailStatus');
       var baseStatus = s.blocked ? '已拉黑' : (chatCurrentConv.status || '在线');
       if (statusEl) statusEl.innerHTML = '对方正在输入<span class="chat-typing-dots"><i></i><i></i><i></i></span>';
+      chatLocSyncCurrentPos();
       var messages = [{ role: 'system', content: chatBuildSystemPrompt() }];
       var hist = chatBuildHistory();
       for (var i = 0; i < hist.length; i++) messages.push(hist[i]);
@@ -6065,7 +6269,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var sysInjected = false;
       for (var mi = 1; mi < messages.length; mi++) {
         if (!sysInjected && messages[mi].role === 'user') {
-          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。另外，若本条回复的场景需要向对方发送一个位置——比如约见面、报坐标、告诉对方自己此刻正待在哪儿——必须在可见正文的第一行最开头原样输出 [[AETHER_LOCATION]]地点名称，再从第二行开始写正文；不需要发位置就不要输出这个标记。[[AETHER_LOCATION]]是后台指令，绝不能显示在用户可见正文里。需要发送位置时，请从这些可用地点中选一个最贴切的并把完整地点名原样放进 [[AETHER_LOCATION]]：' + CHAT_LOCS.map(function (lp) { return lp.n; }).join('、') + '。）';
+          messages[mi].content = messages[mi].content + '\n\n（请严格遵循上方系统提示词中规定的聊天格式与回复方法，以' + chatCurrentConv.name + '的口吻自然回复，不要提及这条要求。整条可见回复的正文结束后，另起一行原样输出标记 [[AETHER_HEART]]，然后继续用第一人称写下这段回复背后的内心独白：真心话、潜台词、没说出口的温柔或吐槽，内容不得与正文重复，不少于50字。[[AETHER_HEART]] 标记与该内心独白只用于后台存档，绝不能出现在用户可见的正文之中。另外，若本条回复的场景需要向对方发送一个位置——比如约见面、报坐标、告诉对方自己此刻正待在哪儿——必须在可见正文的第一行最开头原样输出 [[AETHER_LOCATION]]地点名称，再从第二行开始写正文；不需要发位置就不要输出这个标记。[[AETHER_LOCATION]]是后台指令，绝不能显示在用户可见正文里。需要发送位置时，请从这些可用地点中选一个最贴切的并把完整地点名原样放进 [[AETHER_LOCATION]]：' + CHAT_LOCS.map(function (lp) { return lp.n; }).join('、') + '。发出位置后，可见正文里必须自然说出你所在的具体地名（例如「我在半山咖啡·云栖，南山创意园这边」），不要让对方只收到一张看不出地点的卡片；正文内容要与该地点发生的事相关。）';
           sysInjected = true;
         }
       }
