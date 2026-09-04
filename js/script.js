@@ -3775,34 +3775,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var preview = last ? msgPreview(last) : (c.msg || '暂无消息');
         var t = last ? fmtTime(last.ts) : (c.time || '');
         return '<div class="chat-conv-swipe' + (c.pinned ? ' pinned' : '') + '" data-swipe-conv="' + c.id + '">' +
-          '<div class="chat-conv-actions">' +
-          '<button class="chat-conv-action pin' + (c.pinned ? ' on' : '') + '" data-act="pin" title="置顶"><svg viewBox="0 0 24 24"><path d="M9 4h6M10 4v6l-3 4v2h10v-2l-3-4V4"/><path d="M12 16v4"/></svg>' + (c.pinned ? '取消置顶' : '置顶') + '</button>' +
-          '<button class="chat-conv-action rst" data-act="reset" title="重置美化"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>重置</button>' +
-          '<button class="chat-conv-action clr" data-act="clear" title="清空记录与记忆"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 14h10l1-14"/></svg>清空</button>' +
-          '<button class="chat-conv-action del" data-act="delete" title="删除会话保留联系人"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>删除</button>' +
-          '</div>' +
-          '<div class="chat-conv-item" data-conv-id="' + c.id + '">' + convAvatarHtml(c, '#7c5cff') + '<div class="chat-conv-info"><div class="chat-conv-top"><span class="chat-conv-name">' + escHtml(convDisplayName(c)) + '</span>' + (t ? '<span class="chat-conv-time">' + escHtml(t) + '</span>' : '') + '</div><div class="chat-conv-msg">' + escHtml(preview) + '</div></div></div>' +
+          '<div class="chat-conv-item" data-conv-id="' + c.id + '">' + convAvatarHtml(c, '#7c5cff') + '<div class="chat-conv-info"><div class="chat-conv-top"><span class="chat-conv-name-wrap"><span class="chat-conv-name">' + escHtml(convDisplayName(c)) + '</span>' + (c.pinned ? '<span class="chat-conv-pin-tag">置顶</span>' : '') + '</span>' + (t ? '<span class="chat-conv-time">' + escHtml(t) + '</span>' : '') + '</div><div class="chat-conv-msg">' + escHtml(preview) + '</div></div></div>' +
           '</div>';
       }).join('');
       bindConvSwipe();
     }
-    /* v166：会话卡片长按 —— 长按唤出操作栏（置顶/重置/清空/删除），单击进入聊天 */
+    /* v167：会话卡片长按 —— 长按直接置顶/取消置顶（不再弹出操作框），单击进入聊天 */
     function bindConvSwipe() {
-      var closeConvSwipes = function (except) {
-        chatConvList.querySelectorAll('.chat-conv-swipe.open').forEach(function (o) { if (o !== except) o.classList.remove('open'); });
-      };
       chatConvList.querySelectorAll('.chat-conv-swipe').forEach(function (wrap) {
         var item = wrap.querySelector('.chat-conv-item');
         var longT = null, longFired = false, sx = 0, sy = 0;
         item.addEventListener('contextmenu', function (e) { e.preventDefault(); });
         item.addEventListener('pointerdown', function (e) {
-          if (e.target.closest('.chat-conv-actions')) return;
-          closeConvSwipes(wrap);
           longFired = false;
           sx = e.clientX; sy = e.clientY;
           longT = setTimeout(function () {
             longT = null; longFired = true;
-            wrap.classList.toggle('open');
             try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) {}
           }, 480);
         });
@@ -3815,78 +3803,37 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (longT) { clearTimeout(longT); longT = null; }
           sx = 0; sy = 0;
         };
-        item.addEventListener('pointerup', endLong);
+        item.addEventListener('pointerup', function () {
+          endLong();
+          if (!longFired) return;
+          longFired = false;
+          var cid = wrap.getAttribute('data-swipe-conv');
+          var c = chatConvs.find(function (x) { return x.id === cid; });
+          if (!c) return;
+          c.pinned = !c.pinned;
+          saveConvs();
+          // 置顶后立刻重排会打断手指，先吞掉松手瞬间产生的 click，再重绘
+          var lst = document.getElementById('chatConvList');
+          if (lst) {
+            var swallow = function (ev) {
+              ev.preventDefault(); ev.stopPropagation();
+              lst.removeEventListener('click', swallow, true);
+            };
+            lst.addEventListener('click', swallow, true);
+            setTimeout(function () { lst.removeEventListener('click', swallow, true); }, 600);
+          }
+          renderChatConvs();
+          toast(c.pinned ? '已置顶「' + convDisplayName(c) + '」' : '已取消置顶「' + convDisplayName(c) + '」');
+        });
         item.addEventListener('pointercancel', endLong);
         wrap.addEventListener('click', function (e) {
-          var act = e.target.closest('.chat-conv-action');
-          if (act) { e.stopPropagation(); convSwipeAction(wrap, act); return; }
-          if (longFired) { e.stopPropagation(); longFired = false; return; }
           var item2 = e.target.closest('.chat-conv-item');
-          if (item2) { wrap.classList.remove('open'); openChatDetailById(item2.getAttribute('data-conv-id')); }
+          if (!item2) return;
+          e.stopPropagation();
+          openChatDetailById(item2.getAttribute('data-conv-id'));
         });
       });
-      chatConvList.addEventListener('pointerdown', function (e) {
-        if (!e.target.closest('.chat-conv-swipe')) closeConvSwipes(null);
-      });
-      chatConvList.addEventListener('scroll', function () { closeConvSwipes(null); });
     }
-    /* v108：全局兜底 —— 任意一次点击都会自动收起所有已滑开的操作栏（click 阶段触发，不影响按钮点击） */
-    if (!window.__convGlobalCloseBound) {
-      window.__convGlobalCloseBound = true;
-      document.addEventListener('click', function () {
-        var list = document.getElementById('chatConvList');
-        if (!list) return;
-        list.querySelectorAll('.chat-conv-swipe.open').forEach(function (o) { o.classList.remove('open'); });
-      });
-    }
-    function convSwipeAction(wrap, actBtn) {
-      /* v108：点击动作后先收起操作栏，避免弹窗/渲染后残留（延时再收一次，双保险） */
-      wrap.classList.remove('open');
-      setTimeout(function () { wrap.classList.remove('open'); }, 80);
-      var cid = wrap.getAttribute('data-swipe-conv');
-      var c = chatConvs.find(function (x) { return x.id === cid; });
-      if (!c) return;
-      var act = actBtn.getAttribute('data-act');
-      if (act === 'pin') {
-        c.pinned = !c.pinned;
-        saveConvs(); renderChatConvs();
-        toast(c.pinned ? '已置顶「' + convDisplayName(c) + '」' : '已取消置顶');
-        return;
-      }
-      if (act === 'reset') {
-        var s = c.settings || {};
-        delete s.myBubbleColor; delete s.otherBubbleColor; delete s.fontSize; delete s.fontModes;
-        delete s.wallpaper; delete s.wallpaperOpacity; delete s.bubblePadY; delete s.bubblePadX;
-        delete s.bubbleRadius; delete s.chatMode; delete s.customCss; delete s.bubbleStyle;
-        if (c.settings && c.settings.appearance == null) c.settings.appearance = 'dark';
-        saveConvs(); renderChatConvs();
-        if (chatCurrentConv && chatCurrentConv.id === c.id) applyChatAppearance();
-        toast('已重置「' + convDisplayName(c) + '」的聊天美化');
-        return;
-      }
-      if (act === 'clear') {
-        chatMini('清空聊天', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定清空与 <b>' + escHtml(convDisplayName(c)) + '</b> 的全部聊天记录 <b>和记忆</b> 吗？删除后不可恢复。</div></div>', '清空', function () {
-          c.messages = [];
-          var s = c.settings || {};
-          s.memories = []; s.memShort = null; s.memLong = []; s.impressions = [];
-          saveConvs(); renderChatConvs();
-          if (chatCurrentConv && chatCurrentConv.id === c.id) { renderChatMessages(); renderChatSettings(); }
-          toast('已清空聊天记录与记忆');
-        }, true);
-        return;
-      }
-      if (act === 'delete') {
-        chatMini('移除对话框', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定将 <b>' + escHtml(convDisplayName(c)) + '</b> 从会话列表移除吗？聊天记录保留，仍可从<b>联系人</b>入口进入继续聊天。</div></div>', '移除', function () {
-          c.hidden = true;
-          saveConvs();
-          if (chatCurrentConv && chatCurrentConv.id === c.id) closeChatDetail();
-          renderChatConvs();
-          toast('已从列表移除，联系人入口仍可进入');
-        }, true);
-        return;
-      }
-    }
-
     // 右上角：添加好友 / 创建群聊
     var chatModalCb = null;
     function openModal(title, ph, cb) {
@@ -5705,11 +5652,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           { key: 'auto', label: '自主活动', desc: 'AI空闲时主动找你说话', value: (s.auto && s.auto.enabled) ? '开启' : '关闭' }
         ] },
         app: { title: '外观设置', items: [
-          { key: 'appearance', label: '外观设置', desc: '聊天背景 · 气泡 · 字体 · 自定义CSS', value: s.appearance === 'light' ? '浅色' : '深色' }
+          { key: 'appearance', label: '外观设置', desc: '聊天背景 · 气泡 · 字体 · 自定义CSS', value: s.appearance === 'light' ? '浅色' : '深色' },
+          { key: 'resetapp', label: '重置聊天美化', desc: '恢复默认背景、气泡、字体等外观', danger: true }
         ] },
         data: { title: '数据关系', items: [
           { key: 'logs', label: '调试日志', desc: '查看运行报错与控制台输出', value: chatErrLogs.length ? chatErrLogs.length + ' 条' : '无报错' },
           { key: 'clear', label: '清空记录', desc: '删除本窗口全部聊天记录', danger: true },
+          { key: 'softdel', label: '从会话列表移除', desc: '仅从列表隐藏，仍可从联系人进入聊天', danger: true },
           { key: 'block', label: s.blocked ? '解除拉黑' : '拉黑联系人', desc: s.blocked ? '当前已拉黑，点击可解除' : '拉黑后对方消息不可达', danger: true, value: s.blocked ? '已拉黑' : '' },
           { key: 'dataio', label: '聊天数据导入导出', desc: '导出为 JSON / HTML，或导入恢复本窗口数据' },
           { key: 'delete', label: '删除联系人', desc: '删除该会话与联系人', danger: true }
@@ -7682,6 +7631,27 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           saveConvs(); renderChatMessages(); renderChatSettings();
           chatMiniMask.classList.remove('show');
           toast('聊天记录已清空');
+        }, true);
+      } else if (key === 'resetapp') {
+        chatMini('重置聊天美化', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定将 <b>' + escHtml(chatCurrentConv.name) + '</b> 的背景、气泡、字体、聊天模式等外观恢复默认吗？</div></div>', '重置', function () {
+          var cs = chatCurrentConv.settings || {};
+          delete cs.myBubbleColor; delete cs.otherBubbleColor; delete cs.fontSize; delete cs.fontModes;
+          delete cs.wallpaper; delete cs.wallpaperOpacity; delete cs.bubblePadY; delete cs.bubblePadX;
+          delete cs.bubbleRadius; delete cs.chatMode; delete cs.customCss; delete cs.bubbleStyle;
+          if (cs.appearance == null) cs.appearance = 'dark';
+          saveConvs(); renderChatSettings();
+          applyChatAppearance();
+          chatMiniMask.classList.remove('show');
+          toast('已重置聊天美化');
+        }, true);
+      } else if (key === 'softdel') {
+        chatMini('从会话列表移除', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定将 <b>' + escHtml(chatCurrentConv.name) + '</b> 从会话列表移除吗？聊天记录保留，仍可从<b>联系人</b>入口进入继续聊天。</div></div>', '移除', function () {
+          chatCurrentConv.hidden = true;
+          saveConvs();
+          chatMiniMask.classList.remove('show');
+          closeChatDetail();
+          renderChatConvs();
+          toast('已从列表移除，联系人入口仍可进入');
         }, true);
       } else if (key === 'appearance') {
         chatSettingView = 'appearance';
