@@ -4535,6 +4535,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (!m) return;
       chatHeartMsg = m;
       chatHeartRender();
+      /* v169.1：心声与对话同步生成——打开后自动补写，无需再点任何按钮 */
+      if (!(m.inner && String(m.inner).trim()) && !m._heartBusy) {
+        m._heartBusy = true;
+        chatHeartRender();
+        chatHeartGenFor(m, function (err) {
+          m._heartBusy = false;
+          if (chatHeartMsg === m) chatHeartRender();
+          if (err && chatHeartMsg === m) toast('心声生成失败：' + err);
+        });
+      }
     }
     function chatHeartRender() {
       var ov = chatHeartOverlayEl();
@@ -5646,7 +5656,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (statusEl) statusEl.textContent = baseStatus;
           if (active) { s.auto = s.auto || {}; s.auto.last = Date.now(); saveConvs(); }
           /* 模型没带心声时，后台自动补写一条（不阻塞聊天） */
-          if (lastTurnMsg && !lastTurnMsg.inner) chatHeartGenFor(lastTurnMsg, function () {});
+          if (lastTurnMsg && !lastTurnMsg.inner && !lastTurnMsg._heartBusy) {
+            lastTurnMsg._heartBusy = true;
+            if (chatHeartMsg === lastTurnMsg) chatHeartRender();
+            chatHeartGenFor(lastTurnMsg, function () {
+              lastTurnMsg._heartBusy = false;
+              if (chatHeartMsg === lastTurnMsg) chatHeartRender();
+            });
+          }
         };
         var pushOne = function () {
           if (step < bubbles.length) {
