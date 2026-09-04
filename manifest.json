@@ -1,7 +1,7 @@
 {
   "name": "Aetheron 黑白桌面",
   "short_name": "Aetheron",
-  "start_url": "./index.html?v=163",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "portrait",

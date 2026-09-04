@@ -2681,3 +2681,62 @@ body.light .chat-tab-btn svg { stroke: currentColor; }
 .home-canvas .page-dots .d.on { background: #5f5f6a; border-color: #5f5f6a; }
 body.light .chat-conv-name, body.light .chat-contact-name { color: #17171b; }
 body.light .chat-conv-preview, body.light .chat-conv-time { color: #66666f; }
+
+/* ===== v166：需求合入 ===== */
+/* 主屏四宫格图标：白底不透明 → 磨砂半透明（壁纸下通透） */
+.home-canvas .hg-grid .app .icon {
+  background: rgba(255,255,255,0.42);
+  border: 1px solid rgba(255,255,255,0.75);
+  box-shadow: 0 3px 10px rgba(30,30,38,0.10), inset 0 1px 0 rgba(255,255,255,0.75);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
+}
+/* 图标文字：去掉白底胶囊“包裹”，单行不换行，超长省略 */
+.home-canvas .hg-grid .app .label {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: #16161a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 84px;
+  text-shadow: 0 1px 6px rgba(255,255,255,0.85);
+}
+/* 聊天加号弹层（创建联系人/群聊）：浅色主题下白底黑字 */
+body.light .chat-plus-menu { background: #ffffff; border: 1px solid rgba(0,0,0,0.10); box-shadow: 0 12px 30px rgba(0,0,0,0.18); }
+body.light .chat-plus-item svg { stroke: #1c1c1f !important; }
+body.light .chat-plus-item span { color: #1c1c1f; }
+body.light .chat-plus-item:hover { background: rgba(0,0,0,0.06); }
+/* 置顶会话与未置顶会话颜色区分 */
+.chat-conv-swipe.pinned .chat-conv-item {
+  background: linear-gradient(90deg, rgba(90,200,250,0.16), rgba(90,200,250,0.02));
+  box-shadow: inset 3px 0 0 #5ac8fa;
+}
+body.light .chat-conv-swipe.pinned .chat-conv-item {
+  background: linear-gradient(90deg, rgba(10,132,255,0.13), rgba(10,132,255,0.02));
+  box-shadow: inset 3px 0 0 #0a84ff;
+}
+/* 天气：手动修正坐标面板 */
+.weather-manual { display: none; margin: 0 0 12px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.08); }
+body.light .weather-manual { background: rgba(0,0,0,0.05); }
+.weather-manual.open { display: block; }
+.wfix-row { display: flex; gap: 8px; }
+.weather-manual input {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 9px; padding: 8px 9px; color: #fff; font-size: 12px; outline: none;
+}
+body.light .weather-manual input { background: #fff; border-color: rgba(0,0,0,0.14); color: #1c1c1f; }
+.weather-manual input::placeholder { opacity: .5; }
+.wfix-actions { display: flex; gap: 8px; margin-top: 8px; }
+.wfix-actions button { flex: 1; border: 0; border-radius: 9px; padding: 8px 0; font-size: 12px; cursor: pointer; font-weight: 700; }
+#wfixApply { background: rgba(90,200,250,0.20); color: #5ac8fa; }
+body.light #wfixApply { background: rgba(10,132,255,0.16); color: #0a84ff; }
+#wfixAuto { background: rgba(255,255,255,0.09); color: var(--text-faint); border: 1px solid rgba(255,255,255,0.12); }
+body.light #wfixAuto { background: rgba(0,0,0,0.05); color: #66666f; border-color: rgba(0,0,0,0.12); }
+.wfix-tip { font-size: 11px; color: var(--text-faint); margin-top: 8px; line-height: 1.45; min-height: 0; }
+.loc-rebtn.fix { background: rgba(255,159,10,0.16); color: #ff9f0a; }
+body.light .loc-rebtn.fix { background: rgba(255,149,0,0.16); color: #c93400; }
+.loc-dot.manual { background: #5ac8fa; box-shadow: 0 0 0 3px rgba(90,200,250,0.18); }

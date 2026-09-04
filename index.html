@@ -10,9 +10,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<link rel="manifest" href="manifest.json?v=165">
+<link rel="manifest" href="manifest.json">
 <title>Aetheron 黑白桌面 · v165</title>
-<link rel="stylesheet" href="css/style.css?v=165">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <!-- 原小组件（已从主界面移除，隐藏保留引用） -->
@@ -305,7 +305,20 @@
         <div class="weather-loc-bar" id="weatherLocBar">
           <span class="loc-dot" id="weatherLocDot"></span>
           <span class="loc-txt" id="weatherLocTxt">正在定位…</span>
+          <button class="loc-rebtn fix" id="weatherLocFix">手动修正</button>
           <button class="loc-rebtn" id="weatherLocBtn">重新定位</button>
+        </div>
+        <div class="weather-manual" id="weatherManualPanel">
+          <input id="wfixCity" placeholder="输入城市名，如：岳阳市" autocomplete="off">
+          <div class="wfix-row" style="margin-top:6px">
+            <input id="wfixLat" placeholder="纬度 如 29.36" inputmode="decimal" autocomplete="off">
+            <input id="wfixLon" placeholder="经度 如 113.13" inputmode="decimal" autocomplete="off">
+          </div>
+          <div class="wfix-actions">
+            <button id="wfixApply" type="button">应用坐标</button>
+            <button id="wfixAuto" type="button">恢复自动定位</button>
+          </div>
+          <div class="wfix-tip" id="wfixTip">GPS 与 IP 都不准时，可在这里手动指定城市或经纬度覆盖定位结果。</div>
         </div>
         <div class="weather-block">
           <div class="weather-daytag">今天</div>
@@ -346,7 +359,7 @@
           </div>
           <div class="group-title">娱乐</div>
           <div class="group-card">
-            <div class="settings-item"><div class="item-icon"><svg viewBox="0 0 24 24"><path d="M6 9h12a4 4 0 0 1 4 4v2a2 2 0 0 1-2 2h-2.5L16 15H8l-1.5 2H4a2 2 0 0 1-2-2v-2a4 4 0 0 1 4-4z"/><path d="M8 11v2M7 12h2"/><circle cx="15" cy="11.5" r="1"/><circle cx="18" cy="14" r="1"/></svg></div><div class="item-body"><div class="item-title">游戏</div><div class="item-sub">互动小游戏</div></div><div class="item-arrow"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div></div>
+            <div class="settings-item"><div class="item-icon"><svg viewBox="0 0 24 24"><path d="M8.5 6h7a5.5 5.5 0 0 1 5.5 5.5v1.5a3.5 3.5 0 0 1-6.2 2.1l-.5-.6h-5.6l-.5.6A3.5 3.5 0 0 1 2.5 13v-1.5A5.5 5.5 0 0 1 8.5 6z"/><path d="M7.2 9.4v3.2M5.6 11h3.2"/><circle cx="16.2" cy="10.6" r="1.15"/><circle cx="18.4" cy="13.2" r="1.15"/></svg></div><div class="item-body"><div class="item-title">游戏</div><div class="item-sub">互动小游戏</div></div><div class="item-arrow"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div></div>
             <div class="settings-item"><div class="item-icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/></svg></div><div class="item-body"><div class="item-title">生成器</div><div class="item-sub">内容创作工具</div></div><div class="item-arrow"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div></div>
           </div>
         </div>
@@ -1347,6 +1360,6 @@
   </div>
 </div>
 
-<script src="js/script.js?v=165"></script>
+<script src="js/script.js"></script>
   </body>
 </html>

@@ -345,11 +345,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var _elLoc = document.getElementById('weatherLocTxt');
         var _elDot = document.getElementById('weatherLocDot');
         if (_elLoc && _elDot) {
-          if (weatherData.mode === 'gps') { _elLoc.textContent = '已按手机 GPS 定位（点击城市或“重新定位”可再校准）'; _elDot.className = 'loc-dot gps'; }
-          else if (weatherData.mode === 'ip') { _elLoc.textContent = '当前为 IP 实时定位，点“重新定位”可用手机精确定位'; _elDot.className = 'loc-dot ip'; }
+          if (weatherData.mode === 'gps') { _elLoc.textContent = '已按手机 GPS 定位（点“重新定位”可校准）'; _elDot.className = 'loc-dot gps'; }
+          else if (weatherData.mode === 'ip') { _elLoc.textContent = '当前为 IP 实时定位，点“重新定位”可尝试手机精确定位'; _elDot.className = 'loc-dot ip'; }
+          else if (weatherData.mode === 'manual') { _elLoc.textContent = '已按手动修正坐标定位，点“手动修正”可修改或恢复自动'; _elDot.className = 'loc-dot manual'; }
           else { _elLoc.textContent = '正在定位…'; _elDot.className = 'loc-dot'; }
         }
         if (weatherData.mode === 'ip') _c += ' · IP定位';
+        else if (weatherData.mode === 'manual') _c += ' · 手动定位';
         elCity.textContent = _c;
       }
       if (weatherData.todayHi === null) {
@@ -477,7 +479,76 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       next();
     }
     var lastIpLocTs = 0;
+    /* ===== v166：手动修正坐标定位（覆盖 GPS/IP） ===== */
+    function getManualLoc() {
+      try {
+        var s = localStorage.getItem('ae_manual_loc');
+        if (s) { var o = JSON.parse(s); if (o && typeof o.lat === 'number' && typeof o.lon === 'number') return o; }
+      } catch (e) {}
+      return null;
+    }
+    function setManualLoc(o) { try { localStorage.setItem('ae_manual_loc', JSON.stringify(o)); } catch (e) {} }
+    function clearManualLoc() { try { localStorage.removeItem('ae_manual_loc'); } catch (e) {} }
+    function manualLocApply(lat, lon, city) {
+      weatherData.mode = 'manual';
+      setManualLoc({ lat: lat, lon: lon, city: city || '' });
+      fetchWeather(lat, lon, city || '');
+    }
+    function wfixTip(t) { var el = document.getElementById('wfixTip'); if (el) el.textContent = t; }
+    function wfixApplyClick() {
+      var cityEl = document.getElementById('wfixCity');
+      var latEl = document.getElementById('wfixLat');
+      var lonEl = document.getElementById('wfixLon');
+      var city = cityEl ? cityEl.value.trim() : '';
+      var lat = latEl ? parseFloat(latEl.value) : NaN;
+      var lon = lonEl ? parseFloat(lonEl.value) : NaN;
+      if (!isNaN(lat) && !isNaN(lon)) {
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) { wfixTip('经纬度超出有效范围，请检查后重试'); return; }
+        var nm = city || ('手动坐标 ' + lat.toFixed(2) + ', ' + lon.toFixed(2));
+        manualLocApply(lat, lon, nm);
+        wfixTip('已按手动坐标（' + nm + '）刷新天气，可再点「恢复自动定位」还原。');
+        return;
+      }
+      if (!city) { wfixTip('请先输入城市名，或直接填写完整经纬度。'); return; }
+      wfixTip('正在按城市「' + city + '」换算坐标…');
+      fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(city) + '&count=5&language=zh&format=json')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var rs = d && d.results;
+          if (!rs || !rs.length) { wfixTip('未找到城市「' + city + '」，可改用经纬度直接输入。'); return; }
+          var it = rs[0];
+          var nm = it.name || city;
+          if (it.admin1 && nm.indexOf(it.admin1) < 0) nm = it.admin1 + nm;
+          manualLocApply(it.latitude, it.longitude, nm);
+          wfixTip('已按「' + nm + '」（' + it.latitude.toFixed(3) + ', ' + it.longitude.toFixed(3) + '）刷新天气。');
+        })
+        .catch(function () { wfixTip('城市换算服务暂时不可用，请直接填经纬度。'); });
+    }
+    var wfixBtnEl = document.getElementById('weatherLocFix');
+    if (wfixBtnEl) wfixBtnEl.addEventListener('click', function () {
+      var p = document.getElementById('weatherManualPanel');
+      if (p) p.classList.toggle('open');
+    });
+    var wfixApplyBtn = document.getElementById('wfixApply');
+    if (wfixApplyBtn) wfixApplyBtn.addEventListener('click', wfixApplyClick);
+    var wfixCityInp = document.getElementById('wfixCity');
+    if (wfixCityInp) wfixCityInp.addEventListener('keydown', function (e) { if (e.key === 'Enter') wfixApplyClick(); });
+    var wfixAutoBtn = document.getElementById('wfixAuto');
+    if (wfixAutoBtn) wfixAutoBtn.addEventListener('click', function () {
+      clearManualLoc();
+      var p = document.getElementById('weatherManualPanel');
+      if (p) p.classList.remove('open');
+      if (typeof toast === 'function') toast('已恢复自动定位');
+      updateWeather();
+    });
     function updateWeather() {
+      var manual = getManualLoc();
+      if (manual) {
+        weatherData.mode = 'manual';
+        weatherData.city = manual.city || '手动位置';
+        fetchWeather(manual.lat, manual.lon, manual.city || '');
+        return;
+      }
       // APK(WebView) 内 geolocation 常因授权缺失静默失败：Capacitor 环境优先走 IP 定位兜底
       if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
         weatherByIP();
@@ -518,6 +589,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var weatherOverlay = document.getElementById('weatherOverlay');
     /* v162：点击天气时若此前是 IP 近似（不准），借用户手势重新 GPS 精确定位 */
     function reLocateWeather() {
+      var manualR = getManualLoc();
+      if (manualR) {
+        if (typeof toast === 'function') toast('当前为手动修正坐标（' + (manualR.city || '手动位置') + '），天气面板点「手动修正 → 恢复自动定位」可还原');
+        return;
+      }
       if (!navigator.geolocation) { weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('当前浏览器不支持定位，只能 IP 定位'); return; }
       var _done = false;
       var _fb = setTimeout(function () { if (!_done) { _done = true; weatherData.mode = 'ip'; weatherByIP(); if (typeof toast === 'function') toast('未能获取精确定位，天气按 IP 定位'); } }, 8000);
@@ -549,7 +625,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       weatherTempEl.addEventListener('click', function () {
         renderWeatherPanel();
         if (weatherOverlay) weatherOverlay.classList.add('open');
-        reLocateWeather();
+        if (!getManualLoc()) reLocateWeather();
       });
     }
     var weatherCloseBtn = document.getElementById('weatherClose');
@@ -3693,12 +3769,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     function renderChatConvs() {
       if (!chatConvs.length) { chatConvList.innerHTML = '<div class="chat-empty">暂无会话</div>'; return; }
-      var list = chatConvs.slice().sort(function (a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0); });
+      var list = chatConvs.filter(function (x) { return !x.hidden; }).sort(function (a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0); });
       chatConvList.innerHTML = list.map(function (c) {
         var last = c.messages && c.messages.length ? c.messages[c.messages.length - 1] : null;
         var preview = last ? msgPreview(last) : (c.msg || '暂无消息');
         var t = last ? fmtTime(last.ts) : (c.time || '');
-        return '<div class="chat-conv-swipe" data-swipe-conv="' + c.id + '">' +
+        return '<div class="chat-conv-swipe' + (c.pinned ? ' pinned' : '') + '" data-swipe-conv="' + c.id + '">' +
           '<div class="chat-conv-actions">' +
           '<button class="chat-conv-action pin' + (c.pinned ? ' on' : '') + '" data-act="pin" title="置顶"><svg viewBox="0 0 24 24"><path d="M9 4h6M10 4v6l-3 4v2h10v-2l-3-4V4"/><path d="M12 16v4"/></svg>' + (c.pinned ? '取消置顶' : '置顶') + '</button>' +
           '<button class="chat-conv-action rst" data-act="reset" title="重置美化"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>重置</button>' +
@@ -3710,41 +3786,41 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }).join('');
       bindConvSwipe();
     }
-    /* v102：会话卡片左滑 —— 手势打开/关闭 + 置顶/重置/清空/删除 */
+    /* v166：会话卡片长按 —— 长按唤出操作栏（置顶/重置/清空/删除），单击进入聊天 */
     function bindConvSwipe() {
       var closeConvSwipes = function (except) {
         chatConvList.querySelectorAll('.chat-conv-swipe.open').forEach(function (o) { if (o !== except) o.classList.remove('open'); });
       };
       chatConvList.querySelectorAll('.chat-conv-swipe').forEach(function (wrap) {
         var item = wrap.querySelector('.chat-conv-item');
-        var sx = 0, sy = 0, swiping = false, captured = false;
-        wrap.addEventListener('pointerdown', function (e) {
+        var longT = null, longFired = false, sx = 0, sy = 0;
+        item.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        item.addEventListener('pointerdown', function (e) {
           if (e.target.closest('.chat-conv-actions')) return;
-          /* v108：点击任意会话时，先收起其它已滑开的操作栏，避免残留遮挡 */
           closeConvSwipes(wrap);
-          sx = e.clientX; sy = e.clientY; swiping = false;
-          try { wrap.setPointerCapture(e.pointerId); captured = true; } catch (err) {}
+          longFired = false;
+          sx = e.clientX; sy = e.clientY;
+          longT = setTimeout(function () {
+            longT = null; longFired = true;
+            wrap.classList.toggle('open');
+            try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) {}
+          }, 480);
         });
-        wrap.addEventListener('pointermove', function (e) {
-          if (sx === 0 && sy === 0) return;
-          var dx = e.clientX - sx, dy = e.clientY - sy;
-          if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.6) {
-            swiping = true;
-            closeConvSwipes(wrap);
-            if (dx < 0) wrap.classList.add('open');
-            else wrap.classList.remove('open');
+        item.addEventListener('pointermove', function (e) {
+          if (longT && sx !== 0 && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) {
+            clearTimeout(longT); longT = null;
           }
         });
-        var endSwipe = function () {
-          sx = 0; sy = 0; swiping = false;
-          if (captured) { try { wrap.releasePointerCapture(); } catch (err) {} captured = false; }
+        var endLong = function () {
+          if (longT) { clearTimeout(longT); longT = null; }
+          sx = 0; sy = 0;
         };
-        wrap.addEventListener('pointerup', endSwipe);
-        wrap.addEventListener('pointercancel', endSwipe);
+        item.addEventListener('pointerup', endLong);
+        item.addEventListener('pointercancel', endLong);
         wrap.addEventListener('click', function (e) {
           var act = e.target.closest('.chat-conv-action');
           if (act) { e.stopPropagation(); convSwipeAction(wrap, act); return; }
-          if (swiping) { e.stopPropagation(); swiping = false; return; }
+          if (longFired) { e.stopPropagation(); longFired = false; return; }
           var item2 = e.target.closest('.chat-conv-item');
           if (item2) { wrap.classList.remove('open'); openChatDetailById(item2.getAttribute('data-conv-id')); }
         });
@@ -3752,7 +3828,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       chatConvList.addEventListener('pointerdown', function (e) {
         if (!e.target.closest('.chat-conv-swipe')) closeConvSwipes(null);
       });
-      /* v108：列表滚动时自动收起已滑开的操作栏 */
       chatConvList.addEventListener('scroll', function () { closeConvSwipes(null); });
     }
     /* v108：全局兜底 —— 任意一次点击都会自动收起所有已滑开的操作栏（click 阶段触发，不影响按钮点击） */
@@ -3801,13 +3876,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         return;
       }
       if (act === 'delete') {
-        chatMini('删除会话', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">删除与 <b>' + escHtml(convDisplayName(c)) + '</b> 的聊天对话框并清空聊天记录，<b>保留联系人</b>。确定继续吗？</div></div>', '删除', function () {
-          var wasCurrent = (chatCurrentConv && chatCurrentConv.id === c.id);
-          chatConvs = chatConvs.filter(function (x) { return x.id !== c.id; });
+        chatMini('移除对话框', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定将 <b>' + escHtml(convDisplayName(c)) + '</b> 从会话列表移除吗？聊天记录保留，仍可从<b>联系人</b>入口进入继续聊天。</div></div>', '移除', function () {
+          c.hidden = true;
           saveConvs();
-          if (wasCurrent) { chatCurrentConv = null; closeChatDetail(); }
+          if (chatCurrentConv && chatCurrentConv.id === c.id) closeChatDetail();
           renderChatConvs();
-          toast('已删除会话，联系人已保留');
+          toast('已从列表移除，联系人入口仍可进入');
         }, true);
         return;
       }
