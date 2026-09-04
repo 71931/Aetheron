@@ -693,10 +693,22 @@
   .chat-search-bar input::placeholder { color: var(--text-faint); }
   .chat-conv-list, .chat-contact-list { display: flex; flex-direction: column; }
   .chat-conv-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-  /* v167：会话卡片（长按直接置顶，无操作框） */
+  /* v168：会话卡片左滑操作栏（置顶/重置/清空/移除） */
   .chat-conv-swipe { position: relative; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,0.05); border-radius: 12px; }
-  .chat-conv-swipe .chat-conv-item { border-bottom: none; background: var(--app-bg, #101013); position: relative; z-index: 2; }
+  .chat-conv-swipe .chat-conv-item { border-bottom: none; background: var(--app-bg, #101013); position: relative; z-index: 2; transition: transform .18s ease; will-change: transform; }
   body.light .chat-conv-swipe .chat-conv-item { background: rgba(250,250,252,0.98); }
+  .chat-conv-swipe.open .chat-conv-item { transform: translateX(-168px); }
+  .chat-conv-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 168px; display: flex; z-index: 1; }
+  .chat-conv-action { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #fff; font-size: 10px; font-weight: 700; cursor: pointer; border: none; background: transparent; padding: 0; font-family: inherit; }
+  .chat-conv-action svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .chat-conv-action.pin { background: #5ac8fa; }
+  .chat-conv-action.pin.on { background: #34c759; }
+  .chat-conv-action.rst { background: #ff9f0a; }
+  .chat-conv-action.clr { background: #ff9500; }
+  .chat-conv-action.del { background: #ff453a; }
+  /* 置顶会话：整行浅蓝渐变，始终可见区分 */
+  .chat-conv-swipe.pinned .chat-conv-item { background: linear-gradient(90deg, rgba(90,200,250,0.14), rgba(90,200,250,0.02)); }
+  body.light .chat-conv-swipe.pinned .chat-conv-item { background: linear-gradient(90deg, rgba(10,132,255,0.10), rgba(10,132,255,0.02)); }
   .chat-avatar { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #fff; flex: none; }
   .chat-conv-info { flex: 1; min-width: 0; }
   .chat-conv-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

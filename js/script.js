@@ -3767,6 +3767,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       for (var ci = 0; ci < chatConvs.length; ci++) if (chatConvs[ci].contactId === c.id) return chatConvs[ci];
       return null;
     }
+    var ICON_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v4"/><path d="M9 3h6l-1 6 3 3v1H7v-1l3-3z"/></svg>';
+    var ICON_PIN_ON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17v4"/><path d="M9 3h6l-1 6 3 3v1H7v-1l3-3z"/></svg>';
+    var ICON_RST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.7-6.4L3 8"/><path d="M3 3v5h5"/></svg>';
+    var ICON_CLR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>';
+    var ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.2"/><path d="M8 12h8"/></svg>';
     function renderChatConvs() {
       if (!chatConvs.length) { chatConvList.innerHTML = '<div class="chat-empty">暂无会话</div>'; return; }
       var list = chatConvs.filter(function (x) { return !x.hidden; }).sort(function (a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0); });
@@ -3775,64 +3780,122 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var preview = last ? msgPreview(last) : (c.msg || '暂无消息');
         var t = last ? fmtTime(last.ts) : (c.time || '');
         return '<div class="chat-conv-swipe' + (c.pinned ? ' pinned' : '') + '" data-swipe-conv="' + c.id + '">' +
+          '<div class="chat-conv-actions">' +
+          '<button type="button" class="chat-conv-action' + (c.pinned ? ' pin on' : ' pin') + '" data-act="pin">' + (c.pinned ? ICON_PIN_ON : ICON_PIN) + '<span>' + (c.pinned ? '取消置顶' : '置顶') + '</span></button>' +
+          '<button type="button" class="chat-conv-action rst" data-act="rst">' + ICON_RST + '<span>重置</span></button>' +
+          '<button type="button" class="chat-conv-action clr" data-act="clr">' + ICON_CLR + '<span>清空</span></button>' +
+          '<button type="button" class="chat-conv-action del" data-act="del">' + ICON_DEL + '<span>移除</span></button>' +
+          '</div>' +
           '<div class="chat-conv-item" data-conv-id="' + c.id + '">' + convAvatarHtml(c, '#7c5cff') + '<div class="chat-conv-info"><div class="chat-conv-top"><span class="chat-conv-name-wrap"><span class="chat-conv-name">' + escHtml(convDisplayName(c)) + '</span>' + (c.pinned ? '<span class="chat-conv-pin-tag">置顶</span>' : '') + '</span>' + (t ? '<span class="chat-conv-time">' + escHtml(t) + '</span>' : '') + '</div><div class="chat-conv-msg">' + escHtml(preview) + '</div></div></div>' +
           '</div>';
       }).join('');
       bindConvSwipe();
     }
-    /* v167：会话卡片长按 —— 长按直接置顶/取消置顶（不再弹出操作框），单击进入聊天 */
+    /* v168：会话卡片左滑操作栏（置顶/重置/清空/移除），仅一行可滑开；置顶后保持在顶部并带标签 */
     function bindConvSwipe() {
       chatConvList.querySelectorAll('.chat-conv-swipe').forEach(function (wrap) {
         var item = wrap.querySelector('.chat-conv-item');
-        var longT = null, longFired = false, sx = 0, sy = 0;
+        if (!item) return;
+        var pos = null, drag = false, dragOpen = false, swallowClick = false;
+        function closeAll(except) {
+          chatConvList.querySelectorAll('.chat-conv-swipe.open').forEach(function (w) {
+            if (except && w === except) return;
+            w.classList.remove('open');
+            var it = w.querySelector('.chat-conv-item');
+            if (it) it.style.transform = '';
+          });
+        }
+        function closeMe() {
+          wrap.classList.remove('open');
+          item.style.transform = '';
+        }
+        function markSwallow() {
+          swallowClick = true;
+          setTimeout(function () { swallowClick = false; }, 120);
+        }
         item.addEventListener('contextmenu', function (e) { e.preventDefault(); });
         item.addEventListener('pointerdown', function (e) {
-          longFired = false;
-          sx = e.clientX; sy = e.clientY;
-          longT = setTimeout(function () {
-            longT = null; longFired = true;
-            try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) {}
-          }, 480);
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          if (e.target.closest('.chat-conv-action')) return;
+          pos = { x: e.clientX, y: e.clientY };
+          drag = false;
         });
         item.addEventListener('pointermove', function (e) {
-          if (longT && sx !== 0 && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) {
-            clearTimeout(longT); longT = null;
+          if (!pos) return;
+          var dx = e.clientX - pos.x, dy = e.clientY - pos.y;
+          if (!drag) {
+            if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { pos = null; return; }
+            if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy)) return;
+            drag = true;
+            closeAll(wrap);
+            try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) {}
           }
+          e.preventDefault();
+          var open = wrap.classList.contains('open');
+          var base = open ? -168 : 0;
+          var t = Math.max(-168, Math.min(0, base + dx));
+          item.style.transform = 'translateX(' + t + 'px)';
+          dragOpen = t < -60;
         });
-        var endLong = function () {
-          if (longT) { clearTimeout(longT); longT = null; }
-          sx = 0; sy = 0;
+        var endDrag = function () {
+          if (pos === null) return;
+          pos = null;
+          var wasDrag = drag;
+          drag = false;
+          if (!wasDrag) return;
+          if (dragOpen) { closeAll(wrap); wrap.classList.add('open'); item.style.transform = ''; markSwallow(); }
+          else { closeMe(); markSwallow(); }
         };
-        item.addEventListener('pointerup', function () {
-          endLong();
-          if (!longFired) return;
-          longFired = false;
-          var cid = wrap.getAttribute('data-swipe-conv');
-          var c = chatConvs.find(function (x) { return x.id === cid; });
-          if (!c) return;
-          c.pinned = !c.pinned;
-          saveConvs();
-          // 置顶后立刻重排会打断手指，先吞掉松手瞬间产生的 click，再重绘
-          var lst = document.getElementById('chatConvList');
-          if (lst) {
-            var swallow = function (ev) {
-              ev.preventDefault(); ev.stopPropagation();
-              lst.removeEventListener('click', swallow, true);
-            };
-            lst.addEventListener('click', swallow, true);
-            setTimeout(function () { lst.removeEventListener('click', swallow, true); }, 600);
-          }
-          renderChatConvs();
-          toast(c.pinned ? '已置顶「' + convDisplayName(c) + '」' : '已取消置顶「' + convDisplayName(c) + '」');
-        });
-        item.addEventListener('pointercancel', endLong);
+        item.addEventListener('pointerup', endDrag);
+        item.addEventListener('pointercancel', endDrag);
         wrap.addEventListener('click', function (e) {
-          var item2 = e.target.closest('.chat-conv-item');
-          if (!item2) return;
+          var btn = e.target.closest('.chat-conv-action');
+          if (btn) {
+            e.stopPropagation();
+            if (swallowClick) return;
+            var cid = wrap.getAttribute('data-swipe-conv');
+            convSwipeAction(btn.getAttribute('data-act'), cid);
+            return;
+          }
+          var it2 = e.target.closest('.chat-conv-item');
+          if (!it2) return;
           e.stopPropagation();
-          openChatDetailById(item2.getAttribute('data-conv-id'));
+          if (swallowClick) return;
+          if (wrap.classList.contains('open')) { closeAll(); return; }
+          openChatDetailById(it2.getAttribute('data-conv-id'));
         });
       });
+    }
+    function convSwipeAction(act, cid) {
+      var c = chatConvs.find(function (x) { return x.id === cid; });
+      if (!c) return;
+      if (act === 'pin') {
+        c.pinned = !c.pinned;
+        saveConvs();
+        renderChatConvs();
+        if (c.pinned) toast('已置顶「' + convDisplayName(c) + '」，保持在列表最前');
+        else toast('已取消置顶「' + convDisplayName(c) + '」');
+      } else if (act === 'rst') {
+        var cs = c.settings || {};
+        delete cs.myBubbleColor; delete cs.otherBubbleColor; delete cs.fontSize; delete cs.fontModes;
+        delete cs.wallpaper; delete cs.wallpaperOpacity; delete cs.bubblePadY; delete cs.bubblePadX;
+        delete cs.bubbleRadius; delete cs.chatMode; delete cs.customCss; delete cs.bubbleStyle;
+        if (cs.appearance == null) cs.appearance = 'dark';
+        saveConvs();
+        renderChatConvs();
+        toast('已重置「' + convDisplayName(c) + '」聊天美化');
+      } else if (act === 'clr') {
+        if (!c.messages || !c.messages.length) { toast('没有可清空的记录'); return; }
+        c.messages = [];
+        saveConvs();
+        renderChatConvs();
+        toast('已清空与「' + convDisplayName(c) + '」的聊天记录');
+      } else if (act === 'del') {
+        c.hidden = true;
+        saveConvs();
+        renderChatConvs();
+        toast('已从列表移除，联系人入口仍可进入');
+      }
     }
     // 右上角：添加好友 / 创建群聊
     var chatModalCb = null;
