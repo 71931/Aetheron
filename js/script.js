@@ -186,7 +186,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         } catch (e2) {}
         // 同步写入设置界面的"控制台输出"（全量日志，不限于语音）
         try { if (typeof logToConsole === 'function') logToConsole('[MarvisLog] ' + String(msg).slice(0, 200)); } catch (e2) {}
-        chatErrLogs.push({ t: Date.now(), msg: String(msg).slice(0, 500), src: source ? String(source).split('/').pop() : '', line: line || 0, stack: stack ? String(stack).slice(0, 800) : '' });
+        chatErrLogs.push({ t: Date.now(), conv: (typeof chatCurrentConv !== 'undefined' && chatCurrentConv) ? chatCurrentConv.id : '', msg: String(msg).slice(0, 500), src: source ? String(source).split('/').pop() : '', line: line || 0, stack: stack ? String(stack).slice(0, 800) : '' });
         if (chatErrLogs.length > 60) chatErrLogs = chatErrLogs.slice(chatErrLogs.length - 60);
         dbSet(CHAT_ERR_KEY, JSON.stringify(chatErrLogs));
       } catch (e) {}
@@ -1675,6 +1675,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
     document.querySelectorAll('.settings-item').forEach(function (item) {
       item.addEventListener('click', function () {
+        if (item.closest('#appOverlay')) return; // 应用抽屉内项由抽屉委托处理
         var t = item.querySelector('.item-title');
         var name = t ? t.textContent : item.textContent;
         if (name === '聊天API') {
@@ -2010,12 +2011,87 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     // ===== 应用抽屉开关 =====
     var appOverlay = document.getElementById('appOverlay');
+    var appTitleEl = appOverlay.querySelector('.chat-header .title');
+    var appScrollEl = appOverlay.querySelector('.chat-scroll');
+    var appHomeHtml = appScrollEl.innerHTML;
+    function appBackToHome() {
+      appScrollEl.innerHTML = appHomeHtml;
+      appTitleEl.textContent = '应用';
+      document.querySelectorAll('.chat-header .chat-back').forEach(function (b) { b.style.visibility = ''; });
+      appHomeHtml = appScrollEl.innerHTML;
+    }
+    function openMemberList() {
+      appHomeHtml = appScrollEl.innerHTML;
+      appTitleEl.textContent = '名单';
+      renderMemberPage();
+    }
     document.getElementById('appBack').addEventListener('click', function () {
+      if (appTitleEl.textContent === '名单') { appBackToHome(); return; }
       appOverlay.classList.remove('open');
     });
     appOverlay.addEventListener('click', function (e) {
-      if (e.target === appOverlay) appOverlay.classList.remove('open');
+      if (e.target === appOverlay && appTitleEl.textContent !== '名单') appOverlay.classList.remove('open');
+      var _it = e.target.closest && e.target.closest('.settings-item');
+      if (_it) {
+        var _nm = _it.getAttribute('data-appitem') || (_it.querySelector('.item-title') ? _it.querySelector('.item-title').textContent : '');
+        if (_nm === 'memberlist' || _nm === '名单') {
+          openMemberList();
+        } else {
+          var _t = _it.querySelector('.item-title');
+          toast('「' + (_t ? _t.textContent : '') + '」功能即将接入');
+        }
+      }
     });
+
+    // ===== v173：名单（成员通讯录） =====
+    var MEMBER_KEY = 'aether_members_v1';
+    function memberLoad() { try { var _a = JSON.parse(dbGet(MEMBER_KEY) || '[]'); return Array.isArray(_a) ? _a : []; } catch (e) { return []; } }
+    function memberSave(list) { dbSet(MEMBER_KEY, JSON.stringify(list)); }
+    function memberAvatar(name) { return escHtml(String(name || '?').trim().charAt(0) || '?'); }
+    function renderMemberPage() {
+      var list = memberLoad();
+      var rows = '';
+      if (list.length === 0) {
+        rows = '<div style="padding:18px 16px;text-align:center;color:var(--text-faint);font-size:13px;line-height:1.7">名单还是空的<br>把TA世界里的人记下来吧</div>';
+      } else {
+        rows = list.map(function (m, i) {
+          return '<div class="chat-search-item member-row" data-idx="' + i + '"><span class="member-avatar">' + memberAvatar(m.name) + '</span><span class="chat-search-text" style="flex:1"><span style="display:block;font-size:14px;font-weight:800;color:var(--text)">' + escHtml(m.name || '未命名') + '</span><span style="display:block;font-size:11.5px;color:var(--text-faint);margin-top:2px;line-height:1.4">' + (m.tag ? escHtml(m.tag) : '') + (m.note ? ' · ' + escHtml(m.note) : '') + '</span></span><span class="chat-search-go">›</span></div>';
+        }).join('');
+      }
+      var html = '<div style="padding:12px 12px 16px">' + rows + '<div class="chat-mini-list-btn" id="memberAddBtn" style="margin-top:10px;justify-content:center;text-align:center;color:var(--accent,#0aa2ff)">＋ 添加成员</div></div>';
+      appScrollEl.innerHTML = html;
+      appScrollEl.querySelectorAll('.member-row').forEach(function (row) {
+        row.addEventListener('click', function () { memberOp(row.getAttribute('data-idx')); });
+      });
+      var _add = appScrollEl.querySelector('#memberAddBtn');
+      if (_add) _add.addEventListener('click', memberEdit);
+    }
+    function memberEdit(seed) {
+      seed = seed || {};
+      chatMini((seed.name ? '编辑成员' : '添加成员'),
+        '<div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">名字</div><input class="chat-mini-input" id="memberName" style="width:100%;box-sizing:border-box;margin-bottom:8px" value="' + escHtml(seed.name || '') + '"><div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">关系标签（选填）</div><input class="chat-mini-input" id="memberTag" style="width:100%;box-sizing:border-box;margin-bottom:8px" value="' + escHtml(seed.tag || '') + '"><div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">备注（选填）</div><input class="chat-mini-input" id="memberNote" style="width:100%;box-sizing:border-box" value="' + escHtml(seed.note || '') + '">',
+        seed.name ? '保存' : '添加', function () {
+          var name = (chatMiniBox.querySelector('#memberName').value || '').trim();
+          if (!name) { toast('名字不能为空'); return; }
+          var list = memberLoad();
+          var obj = { name: name, tag: (chatMiniBox.querySelector('#memberTag').value || '').trim(), note: (chatMiniBox.querySelector('#memberNote').value || '').trim() };
+          if (seed._idx != null) list[seed._idx] = obj; else list.unshift(obj);
+          memberSave(list);
+          renderMemberPage();
+        });
+    }
+    function memberOp(idx) {
+      var list = memberLoad();
+      var m = list[idx];
+      if (!m) return;
+      chatMini('成员：' + m.name, '<div class="chat-mini-list"><button class="chat-mini-list-btn" id="memEdit">编辑资料</button><button class="chat-mini-list-btn" id="memDel" style="color:#ff453a">删除成员</button></div>', '关闭', function () {});
+      chatMiniBox.querySelector('#memEdit').addEventListener('click', function () { memberEdit({ _idx: idx, name: m.name, tag: m.tag, note: m.note }); });
+      chatMiniBox.querySelector('#memDel').addEventListener('click', function () {
+        chatMini('删除成员', '<div style="font-size:13px;color:var(--text-dim);line-height:1.6">确定把「' + escHtml(m.name) + '」从名单移除？</div>', '删除', function () {
+          var _l = memberLoad(); _l.splice(idx, 1); memberSave(_l); renderMemberPage();
+        }, true);
+      });
+    }
 
     // ===== 生图API 配置 =====
     var imgOverlay = document.getElementById('imgOverlay');
@@ -3986,7 +4062,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     // ===== 聊天详情（v43） =====
     function defaultConvSettings() {
-      return { model: '默认模型', prompt: '', thinkPrompt: '', statusPrompt: '', wb: null, myIdentity: '', roleIdentity: '', memory: 20, appearance: 'dark', blocked: false, memories: [], memShort: null, memLong: [], impressions: [], branches: [], favs: [], auto: null, apiName: '', voice: null };
+      return { model: '默认模型', prompt: '', thinkPrompt: '', statusPrompt: '', wb: null, myIdentity: '', roleIdentity: '', memory: 20, appearance: 'dark', blocked: false, memories: [], memShort: null, memLong: [], impressions: [], branches: [], favs: [], auto: null, apiName: '', voice: null, sentMin: null, sentMax: null };
     }
     function msgPreview(m) {
       if (!m) return '';
@@ -4021,6 +4097,32 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       if (!out.length && String(text).trim()) out.push(String(text).trim());
       return out;
+    }
+
+    /* v173：每轮句数控制 —— 最少/最多气泡数（null 表示不限制） */
+    function chatSentInit(s) {
+      if (!s) return;
+      if (s.sentMin != null && !(s.sentMin >= 1)) s.sentMin = null;
+      if (s.sentMax != null && !(s.sentMax >= 1)) s.sentMax = null;
+      if (s.sentMin != null && s.sentMax != null && s.sentMin > s.sentMax) { var _t = s.sentMin; s.sentMin = s.sentMax; s.sentMax = _t; }
+    }
+    function chatSentLabel(s) {
+      chatSentInit(s);
+      if (!s || (s.sentMin == null && s.sentMax == null)) return '不限制';
+      return ((s.sentMin != null ? '最少' + s.sentMin : '不限') + ' / ' + (s.sentMax != null ? '最多' + s.sentMax : '不限')) + ' 句';
+    }
+    function chatSentPromptLine(s) {
+      chatSentInit(s);
+      var mn = (s && s.sentMin != null) ? s.sentMin : null;
+      var mx = (s && s.sentMax != null) ? s.sentMax : null;
+      if (mn == null && mx == null) return '';
+      var desc = [];
+      if (mn != null && mx != null) desc.push('本条回复总共说 ' + mn + '~' + mx + ' 句');
+      else if (mn != null) desc.push('本条回复至少说 ' + mn + ' 句');
+      else desc.push('本条回复最多说 ' + mx + ' 句');
+      var seg = '每一句就是一条独立的气泡消息（按 。！？…换行自然切分）';
+      var extra = (mx != null) ? ' 超出部分会被截断不显示。' : ' 若你觉得话太少，就把意思拆成几句连续说完。';
+      return '【句数控制】' + desc.join('，') + '。' + seg + extra + '不要为了凑数说废话，按这个数量自然表达即可。';
     }
 
     var chatDetailOverlay = document.getElementById('chatDetailOverlay');
@@ -4434,23 +4536,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var _rp = m.pay || {};
         var _rpSt = _rp.state || 'sent';
         var _rpAmt = _rp.amount != null ? _rp.amount : (m.amount != null ? m.amount : '');
-        var _rpFoot = _rpSt === 'taken' ? '已领取 · ¥' + _rpAmt : (_rpSt === 'returned' ? '已退还 · ¥' + _rpAmt : '查看红包');
-        return '<div class="chat-redpacket-card" data-pay-open="1"><div class="rp-top"><svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:#fff;stroke-width:2"><path d="M4 9.5h16"/><path d="M5.5 9.5V19a2 2 0 002 2h9a2 2 0 002-2V9.5"/><path d="M12 9.5l-2.6-4.3M12 9.5l2.6-4.3"/><path d="M4 6.5h16V9.5H4z"/></svg>恭喜发财</div><div class="rp-word">' + escHtml(String(m.text || _rp.note || '恭喜发财')) + '</div><div class="rp-foot"><span>' + (m.role === 'other' ? 'TA的红包' : '我的红包') + '</span><span>' + _rpFoot + '</span></div></div>';
+        var _rpAmtTxt = _rpAmt !== '' ? '¥' + escHtml(String(_rpAmt)) : '';
+        var _rpNote = (m.text != null && String(m.text).trim()) ? m.text : (_rp.note != null && String(_rp.note).trim() ? _rp.note : '恭喜发财，大吉大利');
+        var _rpWho = m.role === 'other' ? 'TA 的红包' : '我发出的红包';
+        var _rpStTxt = _rpSt === 'taken' ? '已领取' : (_rpSt === 'returned' ? '已退还' : (m.role === 'other' ? '拆开看看' : '等待领取'));
+        var _rpStCls = _rpSt === 'taken' ? ' ok' : (_rpSt === 'returned' ? ' back' : '');
+        var _rpIco = '<svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8"><path d="M4 9.5h16"/><path d="M5.5 9.5V19a2 2 0 002 2h9a2 2 0 002-2V9.5"/><path d="M12 9.5l-2.6-4.3M12 9.5l2.6-4.3"/><path d="M4 6.5h16V9.5H4z"/></svg>';
+        return '<div class="chat-redpacket-card" data-pay-open="1"><div class="rp-head"><span class="rp-ico">' + _rpIco + '</span><span class="rp-txt">恭喜发财</span><span class="rp-state' + _rpStCls + '">' + _rpStTxt + '</span></div><div class="rp-amt">' + _rpAmtTxt + '</div><div class="rp-note">' + escHtml(String(_rpNote)) + '</div><div class="rp-foot"><span>' + _rpWho + '</span><span class="rp-open">详情 ›</span></div></div>';
       }
       if (m.type === 'transfer') {
         var _tr = m.pay || {};
         var _trSt = _tr.state || 'sent';
         var _trAmt = _tr.amount != null ? _tr.amount : (m.amount != null ? m.amount : (m.text ? String(m.text).split('\n')[0] : '0'));
         var _trMsg = _tr.note || m.msg || (m.text && String(m.text).split('\n')[1]) || '转账留言';
-        var _trFoot = _trSt === 'taken' ? '已收款' : (_trSt === 'returned' ? '已退还' : '等待确认');
-        return '<div class="chat-transfer-card" data-pay-open="1"><div class="tf-top">转账</div><div class="tf-amt">¥' + escHtml(String(_trAmt)) + '</div><div class="tf-msg">' + escHtml(String(_trMsg)) + '</div><div class="tf-foot"><span>' + _trFoot + '</span></div></div>';
+        var _trStTxt = _trSt === 'taken' ? '已收款' : (_trSt === 'returned' ? '已退还' : (m.role === 'other' ? '收款' : '待收款'));
+        var _trStCls = _trSt === 'taken' ? ' ok' : (_trSt === 'returned' ? ' back' : '');
+        var _trWho = m.role === 'other' ? 'TA 转给你' : '你转给 TA';
+        return '<div class="chat-transfer-card" data-pay-open="1"><div class="tf-head"><span class="tf-tag">转账</span><span class="tf-state' + _trStCls + '">' + _trStTxt + '</span></div><div class="tf-amt">¥' + escHtml(String(_trAmt)) + '</div><div class="tf-msg">' + escHtml(String(_trMsg)) + '</div><div class="tf-foot"><span>' + _trWho + '</span><span class="tf-open">详情 ›</span></div></div>';
       }
       if (m.type === 'html') return '<div class="chat-html-body">' + (m.text || '') + '</div>';
       if (m.type === 'file') return '<div class="chat-msg-file"><svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>' + escHtml(m.fileName || '文件') + '</div>';
       if (m.type === 'gift') return '<div class="chat-msg-card"><span class="chat-msg-card-title"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><rect x="4" y="9" width="16" height="12" rx="1"/><path d="M12 9v12"/><path d="M4 13h16"/><path d="M12 9c-1.6-2.8-5-1.7-5 0 2 .5 5 0 5 0z"/><path d="M12 9c1.6-2.8 5-1.7 5 0-2 .5-5 0-5 0z"/></svg>礼物：' + escHtml(m.text || '') + '</span><span class="chat-msg-card-sub">送你一份礼物</span></div>';
       if (m.type === 'location') {
         var _tn = chatLocThumbDataUrl(m);
-        return '<div class="chat-msg-card loc-card" data-loc-open="1"><img class="chat-loc-cardmap" src="' + _tn + '" alt=""><div class="chat-loc-cardbody"><div class="chat-loc-cardname">' + escHtml(m.text || '位置') + '</div><div class="chat-loc-carddetail">' + escHtml(m.locDetail || '') + '</div><div class="chat-loc-cardtime">' + escHtml(fmtTime(m.ts || Date.now())) + '</div></div></div>';
+        return '<div class="chat-msg-card loc-card" data-loc-open="1"><div class="loc-mapwrap"><img class="chat-loc-cardmap" src="' + _tn + '" alt=""><span class="loc-pin"></span></div><div class="chat-loc-cardbody"><div class="chat-loc-cardname">' + escHtml(m.text || '位置') + '</div><div class="chat-loc-carddetail">' + escHtml(m.locDetail || '') + '</div><div class="loc-row"><span class="chat-loc-cardtime">' + escHtml(fmtTime(m.ts || Date.now())) + '</span><span class="loc-open">查看位置 ›</span></div></div></div>';
       }
       if (m.type === 'system') return '<div class="chat-msg-card"><span class="chat-msg-card-title">' + escHtml(m.text || '') + '</span></div>';
       return escHtml(m.text || '');
@@ -5978,6 +6087,41 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           try { chatMemShortFill(false); } catch (e) {}
         }
       }
+      /* v173：我发出的红包/转账，TA 稍后会自己领取或退回 */
+      if (role === 'me' && m.pay && m.pay.state === 'sent' && (m.type === 'redpacket' || m.type === 'transfer')) {
+        var _c = chatCurrentConv;
+        var _m = m;
+        setTimeout(function () { try { chatPayAutoReact(_c, _m); } catch (e) {} }, 5000 + Math.floor(Math.random() * 9000));
+      }
+    }
+    /* v173：TA 自动处理我发出的红包/转账：领走 / 退回来 / 暂时没看到 */
+    function chatPayAutoReact(conv, m) {
+      if (!conv || !m) return;
+      if (m.pay.state !== 'sent') return;
+      var isRed = m.type === 'redpacket';
+      var roll = Math.random();
+      var act = isRed ? (roll < 0.42 ? 'take' : (roll < 0.82 ? 'back' : 'wait')) : (roll < 0.5 ? 'take' : (roll < 0.85 ? 'back' : 'wait'));
+      if (act === 'wait') {
+        if (chatCurrentConv === conv) toast(conv.name + ' 还没看到这笔' + (isRed ? '红包' : '转账') + '…');
+        return;
+      }
+      m.pay.state = act === 'take' ? 'taken' : 'returned';
+      var thanks = isRed
+        ? ['哇！刚看到，谢谢老板，红包收下啦～', '啊你最好啦！红包已领，爱你！', '居然给我发红包，太惊喜了，领啦！']
+        : ['转账收到啦，谢谢你～', '刚看到转账，收了，下次我请你！', '收到！你总是这么贴心，那我就不客气啦'];
+      var backs = isRed
+        ? ['红包我就不领啦，你留着用嘛。', '先退给你，不用老给我发红包～', '红包退你啦，心意我收到啦！']
+        : ['这笔转账退给你啦，不用这么客气。', '转的钱我退回去啦，你留着自己用。'];
+      var txt = act === 'take'
+        ? thanks[Math.floor(Math.random() * thanks.length)]
+        : backs[Math.floor(Math.random() * backs.length)];
+      conv.messages.push({ role: 'other', type: 'text', text: txt, ts: Date.now() });
+      saveConvs();
+      if (chatCurrentConv === conv) {
+        renderChatMessages();
+        chatDetailBody.scrollTop = chatDetailBody.scrollHeight;
+        renderChatConvs();
+      }
     }
     document.getElementById('chatDetailSendBtn').addEventListener('click', function () {
       var v = chatDetailInput.value.trim();
@@ -6237,6 +6381,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (relLine) parts.push(relLine);
       var timeLine = chatTimePromptLine(s);
       if (timeLine) parts.push(timeLine);
+      var sentLine = chatSentPromptLine(s);
+      if (sentLine) parts.push(sentLine);
       parts.push('请始终以「' + chatCurrentConv.name + '」的口吻回复，像真实聊天一样自然、简短，不要输出任何解释。其中【系统提示词】【专属提示词】【世界书】【角色人设】【我的人设】是必须严格遵守的规则，请完全遵循其中规定的聊天格式与回复方法。');
       return parts.join('\n\n');
     }
@@ -6398,6 +6544,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
         var bubbles = splitBubbles(text);
         if (!bubbles.length) bubbles = [text];
+        /* v173：每轮句数上限硬截断（超出部分丢弃），下限由系统提示词约束 */
+        var _mxS = (s.sentMax != null && s.sentMax >= 1) ? s.sentMax : null;
+        if (_mxS && bubbles.length > _mxS) bubbles = bubbles.slice(0, _mxS);
         var step = 0;
         var lastTurnMsg = null;
         var done = function () {
@@ -6784,7 +6933,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           { key: 'think', label: '思维链', desc: '该窗口的思维链指令', value: s.thinkPrompt ? '已配置' : '跟随全局' },
           { key: 'status', label: '状态栏', desc: '该窗口的状态栏描述', value: s.statusPrompt ? '已配置' : '跟随全局' },
           { key: 'wb', label: '世界书', desc: '角色世界观设定（支持多本同时启用）', value: getWbEnabledCount(s) ? '已启用 ' + getWbEnabledCount(s) + ' 本' : '未启用' },
-          { key: 'memory', label: '上下文记忆', desc: 'AI记住最近多少句对话', value: s.memory + ' 句' }
+          { key: 'memory', label: '上下文记忆', desc: 'AI记住最近多少句对话', value: s.memory + ' 句' },
+          { key: 'sent', label: '每轮句数', desc: 'AI每轮回复最少/最多多少句（气泡数）', value: chatSentLabel(s) }
         ] },
         role: { title: '角色人格', items: [
           { key: 'myIdentity', label: '我的身份', desc: '你的身份设定', value: (s.myIdentity || chatMine.identity) ? '已配置' : '未配置' },
@@ -6800,9 +6950,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           { key: 'resetapp', label: '重置聊天美化', desc: '恢复默认背景、气泡、字体等外观', danger: true }
         ] },
         data: { title: '数据关系', items: [
-          { key: 'logs', label: '调试日志', desc: '查看运行报错与控制台输出', value: chatErrLogs.length ? chatErrLogs.length + ' 条' : '无报错' },
+          { key: 'logs', label: '调试日志', desc: '查看本聊天窗口的运行与控制台日志', value: chatCurLogCount(s) + ' 条' },
           { key: 'clear', label: '清空记录', desc: '删除本窗口全部聊天记录', danger: true },
-          { key: 'softdel', label: '从会话列表移除', desc: '仅从列表隐藏，仍可从联系人进入聊天', danger: true },
           { key: 'block', label: s.blocked ? '解除拉黑' : '拉黑联系人', desc: s.blocked ? '当前已拉黑，点击可解除' : '拉黑后对方消息不可达', danger: true, value: s.blocked ? '已拉黑' : '' },
           { key: 'dataio', label: '聊天数据导入导出', desc: '导出为 JSON / HTML，或导入恢复本窗口数据' },
           { key: 'delete', label: '删除联系人', desc: '删除该会话与联系人', danger: true }
@@ -6847,7 +6996,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var r = (s && s.relation) ? s.relation : null;
         if (!r || !r.kind) return '普通朋友';
         if (r.kind === 'netlove') return r.netCity ? '网恋 · ' + String(r.netCity).split(',')[0].trim() : '网恋';
-        if (r.kind === 'longdist') return '异地恋';
+        if (r.kind === 'longdist') return r.netCity ? '异地恋 · ' + String(r.netCity).split(',')[0].trim() : '异地恋';
         if (r.kind === 'livein') return '同居';
       } catch (e) {}
       return '普通朋友';
@@ -6859,12 +7008,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function relAskCity() {
       var s = chatCurrentConv.settings;
       var r = chatRelInit(s);
-      chatMini('网恋 · TA的真实IP定位', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-title">虚拟对标真实</div><div class="chat-swipe-card-text">填写TA在<b>现实世界</b>真正所在的城市或坐标。聊天里TA不会暴露可被导航的门牌，但发位置时可以基于这个真实定位。</div></div><input class="chat-mini-input" id="relCityInput" placeholder="如：深圳　或　深圳,22.54,114.06">', '保存', function () {
+      var isNet = r.kind === 'netlove';
+      chatMini((isNet ? '网恋 · TA的真实IP定位' : '异地恋 · TA所在的城市'), '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-title">' + (isNet ? '虚拟对标真实' : '隔着城市的牵挂') + '</div><div class="chat-swipe-card-text">' + (isNet ? '填写TA在<b>现实世界</b>真正所在的城市或坐标。聊天里TA不会暴露可被导航的门牌，但发位置时可以基于这个真实定位。' : '填写TA在<b>另一个城市</b>生活的位置（城市或坐标）。TA会聊自己城市的天气日常，发位置也基于这里。') + '</div></div><input class="chat-mini-input" id="relCityInput" placeholder="如：深圳　或　深圳,22.54,114.06">', '保存', function () {
         var v = (document.getElementById('relCityInput').value || '').trim();
         if (!v) { toast('请输入城市或坐标'); return; }
         r.netCity = v;
         saveConvs(); renderChatRelationView();
-        toast('已保存TA的真实定位：' + String(v).split(',')[0].trim());
+        toast('已保存TA所在位置：' + String(v).split(',')[0].trim());
       });
     }
     function renderChatRelationView() {
@@ -6896,6 +7046,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           '</div>';
         html += '<div class="chat-cfg-tip">' + (r.netMask === false ? '当前：TA可以直说真实地名。' : '当前：TA发位置/提地点时使用虚拟地点名（虚构小店/街区），但坐标仍是真实定位，虚拟对标真实。') + '具体门店、小区、路线绝不可暴露可被导航的真实门牌。</div>';
       }
+      if (r.kind === 'longdist') {
+        html += '<div class="group-title">异地恋 · TA所在的城市</div>';
+        html += '<div class="group-card">' +
+          '<div class="settings-item" id="relCityRow" style="cursor:pointer"><label>TA在哪个城市</label><div class="settings-right"><span id="relCityVal" style="color:' + (relCityName(r) ? '#5ac8fa' : '#8e8e93') + '">' + (relCityName(r) ? escHtml(relCityName(r)) : '点击填写城市/坐标') + '</span></div></div>' +
+          '</div>';
+        html += '<div class="chat-cfg-tip">填写TA在异地生活的城市或坐标。聊天里TA会提到那里的天气、街道、日常，你发位置时TA也会基于「' + (relCityName(r) || '那边') + '」回一个地点卡。</div>';
+      }
       html += '<button class="prompt-cancel" id="relBack" style="width:100%;margin-top:12px">返回聊天设置</button>';
       chatSettingsBody.innerHTML = html;
       chatSettingsBody.querySelectorAll('[data-relk]').forEach(function (row) {
@@ -6906,7 +7063,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           saveConvs();
           renderChatRelationView();
           toast(k === 'netlove' ? '已开启网恋模式' : (k === 'longdist' ? '已开启异地恋' : (k === 'livein' ? '已开启同居模式' : '已恢复普通朋友')));
-          if (k === 'netlove' && !relCityName(r)) setTimeout(function () { relAskCity(); }, 350);
+          if ((k === 'netlove' || k === 'longdist') && !relCityName(r)) setTimeout(function () { relAskCity(); }, 350);
         });
       });
       var cityRow = document.getElementById('relCityRow');
@@ -6931,7 +7088,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           }
           return '【你们的关系】你和用户是网恋对象，还没线下见过面，保持暧昧、想念、期待见面的氛围，偶尔撩对方一下。';
         }
-        if (r.kind === 'longdist') return '【你们的关系】你和用户是异地恋，见面少、想念多；会聊到彼此城市的天气与日常，计划着下一次见面。';
+        if (r.kind === 'longdist') {
+          var lcity = relCityName(r);
+          if (lcity) return '【你们的关系】你和用户是异地恋，见面少、想念多；你现在住在现实城市「' + lcity + '」，聊到天气、街道、日常都以那里为背景，会计划着下一次见面的城市与日期。规则：可以直说「' + lcity + '」的真实地名与坐标，用户让你发位置时发基于「' + lcity + '」的真实地点卡；不要编造另一个城市的场景。';
+          return '【你们的关系】你和用户是异地恋，见面少、想念多；会聊到彼此城市的天气与日常，计划着下一次见面。';
+        }
         if (r.kind === 'livein') return '【你们的关系】你和用户是同居恋人，生活在一起；聊天自带居家亲近感，可以自然提到家里、厨房、沙发、一起吃饭、等你回家等日常。';
       } catch (e) {}
       return '';
@@ -6991,7 +7152,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var t = chatTimeInit(s);
       var modes = [
         { k: 'sync', label: '时间同步', desc: '你和TA的时间完全同步：现在几点就是几点，作息一致，聊天里的时间不会对不上' },
-        { k: 'async', label: '时间异步', desc: '你和TA的时间流逝不同（如TA比你慢3小时）：可手动调时差，聊天里会自然体现' },
+        { k: 'async', label: '时间异步', desc: '你和TA处在不同时间（TA比你慢/快几小时）：TA那边时间会换算后显示' },
         { k: 'off', label: '时间感知关闭', desc: 'TA完全无法感知时间：不主动提几点、今天、明天这类时间概念' }
       ];
       var html = '<div class="chat-cfg-tip">控制「' + escHtml(chatCurrentConv.name) + '」对时间的感知。TA聊到时间时会按这里的设定表现。</div>';
@@ -7004,10 +7165,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
       html += '</div>';
       if (t.mode === 'async') {
+        var dNow = new Date();
+        var dh = (dNow.getHours() < 10 ? '0' : '') + dNow.getHours();
+        var dm = (dNow.getMinutes() < 10 ? '0' : '') + dNow.getMinutes();
+        var taD = new Date(dNow.getTime() - ((t.diff || 0) * 60 * 1000));
+        var th = (taD.getHours() < 10 ? '0' : '') + taD.getHours();
+        var tm = (taD.getMinutes() < 10 ? '0' : '') + taD.getMinutes();
         html += '<div class="group-title">手动调整时差</div><div class="group-card"><div class="settings-item"><label>当前时差</label><div class="settings-right"><span style="color:#5ac8fa">' + escHtml(chatTimeDiffText(t.diff || 0)) + '</span></div></div>' +
           '<div class="chat-time-adj"><button class="chat-time-btn" data-tadj="-180">TA快3小时</button><button class="chat-time-btn" data-tadj="-60">TA快1小时</button><button class="chat-time-btn" data-tadj="-15">TA快15分钟</button><button class="chat-time-btn" data-tadj="15">TA慢15分钟</button><button class="chat-time-btn" data-tadj="60">TA慢1小时</button><button class="chat-time-btn" data-tadj="180">TA慢3小时</button></div>' +
           '<div class="settings-item" style="justify-content:flex-end"><button class="chat-time-btn" data-tadj="zero">归零（恢复同步）</button></div></div>';
-        html += '<div class="chat-cfg-tip">把TA调“慢”，就是TA那边还停留在你几小时前；把TA调“快”，就是TA已经走到你前面去了。</div>';
+        html += '<div class="group-title">双方时间对照（实时换算）</div><div class="group-card"><div class="chat-time-demo">' +
+          '<div class="chat-time-demo-row"><span class="chat-time-demo-tag me">你</span><b class="chat-time-demo-num">' + dh + ':' + dm + '</b><span class="chat-time-demo-desc">你的现在</span></div>' +
+          '<div class="chat-time-demo-arrow">⇣ ' + escHtml(chatTimeDiffText(t.diff || 0)) + '</div>' +
+          '<div class="chat-time-demo-row"><span class="chat-time-demo-tag ta">' + escHtml(chatCurrentConv.name) + '</span><b class="chat-time-demo-num ta">' + th + ':' + tm + '</b><span class="chat-time-demo-desc">TA那边的现在</span></div>' +
+          '</div>' +
+          '<div class="chat-time-bubble-sample">' +
+          '<div class="chat-time-bub mine">你 · ' + dh + ':' + dm + '<br><span>睡了吗？都这个点了。</span></div>' +
+          '<div class="chat-time-bub theirs">' + escHtml(chatCurrentConv.name) + ' · ' + th + ':' + tm + '<br><span>还没呢，才刚醒——我这边天刚亮，早安呀。</span></div>' +
+          '</div></div>';
+        html += '<div class="chat-cfg-tip">' + (t.diff > 0 ? 'TA比你慢：现在你 ' + dh + ':' + dm + '，TA那边才 ' + th + ':' + tm + '，TA会表现成刚起床/还没睡的样子。' : (t.diff < 0 ? 'TA比你快：现在你 ' + dh + ':' + dm + '，TA已经到 ' + th + ':' + tm + '，TA会表现出你还没经历过的那个时刻。' : '时差已归零，与时间同步一致。')) + '</div>';
       }
       html += '<button class="prompt-cancel" id="timeBack" style="width:100%;margin-top:12px">返回聊天设置</button>';
       chatSettingsBody.innerHTML = html;
@@ -7336,104 +7512,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function renderChatLogsView() {
       var titleEl = document.getElementById('chatSettingsTitle');
       if (titleEl) titleEl.textContent = '调试日志';
-      var logs = chatErrLogs.slice().reverse();
-      var lastVoiceFail = null;
-      for (var li = 0; li < logs.length; li++) {
-        if (/语音|TTS|decode|合成|播放|解码/.test(logs[li].msg) && /失败|被拒|错误|异常/.test(logs[li].msg)) { lastVoiceFail = logs[li]; break; }
-      }
+      var cname = chatCurrentConv ? escHtml(chatCurrentConv.name) : '当前窗口';
+      var cur = chatCurLogs();
       var html = '';
-      html += '<div class="group-title">错误日志（全部）</div>';
-      html += '<div class="group-card" style="overflow:hidden">' +
-        (logs.length ? logs.map(function (l) {
-          var d = new Date(l.t);
-          var pad = function (n) { return (n < 10 ? '0' : '') + n; };
-          var ts = pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-          return '<div class="chat-err-log-item"><div class="chat-err-log-time">' + ts + (l.src ? ' · ' + l.src + (l.line ? ':' + l.line : '') : '') + '</div><div class="chat-err-log-msg">' + escHtml(l.msg) + '</div>' + (l.stack ? '<div style="margin-top:3px;color:var(--text-faint);font-size:10px;white-space:pre-wrap">' + escHtml(l.stack.split('\n').slice(0, 4).join('\n')) + '</div>' : '') + '</div>';
-        }).join('') : '<div class="chat-err-log-item" style="text-align:center;color:var(--text-faint)">暂无错误记录。所有脚本错误、Promise 失败与 console.error 都会记录在这里。</div>') +
-        '</div>';
-      html += '<div class="chat-cfg-tip">自动记录全部脚本错误、Promise 失败与 console.error 输出，最多保留 60 条，并同步打印到浏览器控制台（前缀 [MarvisLog]）。</div>';
-      html += '<div class="group-title">控制台输出（全部日志）</div>';
-      html += '<div class="group-card form-card"><div class="console-box" style="min-height:90px" id="logsConsoleBox">' + escHtml((typeof consoleLogs !== 'undefined' && consoleLogs.length ? consoleLogs.slice(-50).join('\n') : '（暂无日志）')) + '</div>' +
-        '<button class="prompt-cancel" id="logsConsoleClear" style="width:100%;margin-top:8px">清空控制台日志</button></div>';
-      html += '<div class="chat-cfg-tip">此处展示全部操作与提示日志（不限于语音），与浏览器控制台实时同步，最多保留 200 条。</div>';
-      html += '<button class="prompt-cancel" id="logsDiag" style="width:100%;margin-top:8px">语音自检（一键诊断）</button>';
-      html += '<button class="prompt-cancel" id="logsCopy" style="width:100%;margin-top:8px">复制全部日志</button>';
-      html += '<button class="prompt-cancel" id="logsClear" style="width:100%;margin-top:8px">清空日志</button>';
+      html += '<div class="chat-cfg-tip">仅显示「' + cname + '」这个聊天窗口的控制台输出。其他窗口的日志已隔离，不在这里出现。</div>';
+      html += '<div class="group-title">控制台输出（本窗口 · ' + cur.length + ' 条）</div>';
+      html += '<div class="group-card form-card"><div class="console-box" style="min-height:140px" id="logsConsoleBox">' + escHtml(cur.length ? cur.map(fmtLogEntry).join('\n') : '（本窗口暂无日志）') + '</div></div>';
+      html += '<button class="prompt-cancel" id="logsCopy" style="width:100%;margin-top:8px">复制本窗口日志</button>';
+      html += '<button class="prompt-cancel" id="logsConsoleClear" style="width:100%;margin-top:8px">清空本窗口日志</button>';
       html += '<button class="prompt-cancel" id="logsBack" style="width:100%;margin-top:8px">返回设置</button>';
       chatSettingsBody.innerHTML = html;
-      var clr = document.getElementById('logsClear');
-      if (clr) clr.addEventListener('click', function () { clearChatErrLogs(); renderChatSettings(); toast('调试日志已清空'); });
-      var cpyTop = document.getElementById('logsCopyTop');
-      if (cpyTop) cpyTop.addEventListener('click', function () {
-        var txt = '【语音报错】' + String(lastVoiceFail.msg).slice(0, 500) + '\n【时间】' + new Date(lastVoiceFail.t).toLocaleString();
+      document.getElementById('logsCopy').addEventListener('click', function () {
+        var txt = '===== 控制台输出 · ' + (chatCurrentConv ? chatCurrentConv.name : '当前窗口') + ' =====\n' + (cur.length ? cur.map(fmtLogEntry).join('\n') : '（暂无日志）');
         try {
-          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function () { toast('已复制，直接粘贴发我'); }, function () { fallbackCopy(txt); });
-          else fallbackCopy(txt);
-        } catch (e) { toast('复制失败，请长按上方红字手动复制'); }
-      });
-      document.getElementById('logsBack').addEventListener('click', function () { chatSettingsGoBack(); });
-      var consoleClear = document.getElementById('logsConsoleClear');
-      if (consoleClear) consoleClear.addEventListener('click', function () {
-        consoleLogs = [];
-        try { dbRemove(CONSOLE_KEY); } catch (e) {}
-        renderChatLogsView();
-        toast('控制台日志已清空');
-      });
-      var cpy = document.getElementById('logsCopy');
-      if (cpy) cpy.addEventListener('click', function () {
-        var txt = logs.map(function (l) {
-          var d = new Date(l.t);
-          return '[' + d.toLocaleString() + '] ' + (l.src ? l.src + (l.line ? ':' + l.line : '') + ' ' : '') + l.msg + (l.stack ? '\n' + l.stack : '');
-        }).join('\n\n');
-        if (typeof consoleLogs !== 'undefined' && consoleLogs.length) txt = (txt ? txt + '\n\n' : '') + '===== 控制台输出（全部日志）=====\n' + consoleLogs.join('\n');
-        if (!txt) txt = '暂无日志';
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function () { toast('日志已复制，可直接粘贴发给我'); }, function () { toast('复制失败，请手动截图'); });
-          else { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toast('日志已复制，可直接粘贴发给我'); }
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function () { toast('日志已复制，可直接粘贴发我'); }, function () { toast('复制失败，请手动截图'); });
+          else { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toast('日志已复制，可直接粘贴发我'); }
         } catch (e) { toast('复制失败，请手动截图'); }
       });
-      var diag = document.getElementById('logsDiag');
-      if (diag) diag.addEventListener('click', function () {
-        pushChatErrLog('[自检] ===== 开始语音自检 =====');
-        var mm = loadMMConfig();
-        pushChatErrLog('[自检] MiniMax配置：' + (mm && mm.groupId && mm.apiKey ? '已配置 groupId=' + String(mm.groupId).slice(0, 6) + '...' : '未配置/不完整！'));
-        var s2 = chatCurrentConv ? chatCurrentConv.settings : null;
-        var v2 = s2 ? chatVoiceInit().voice : null;
-        if (v2) pushChatErrLog('[自检] 会话语音配置：enabled=' + v2.enabled + ' voiceId=' + (v2.voiceId || '空') + ' lang=' + v2.lang + ' speed=' + v2.speed + ' synthMusic=' + v2.synthMusic);
-        if (chatCurrentConv) {
-          var vmsgs = chatCurrentConv.messages.filter(function (x) { return x.type === 'voice'; });
-          pushChatErrLog('[自检] 语音消息数=' + vmsgs.length + '，最近3条：' + vmsgs.slice(-3).map(function (x) {
-            return '[' + (x.audio ? '有audio(' + String(x.audio).length + '字符)' : '无audio') + ']' + String(x.text || '').slice(0, 12);
-          }).join(' | '));
-        }
-        pushChatErrLog('[自检] 浏览器音频能力：Audio=' + (typeof Audio !== 'undefined') + ' speechSynthesis=' + (window.speechSynthesis ? '支持' : '不支持') + ' AudioContext=' + ((window.AudioContext || window.webkitAudioContext) ? '支持' : '不支持'));
-        if (!mm || !mm.groupId || !mm.apiKey) {
-          pushChatErrLog('[自检] 未配置MiniMax语音API，请到「设置 → 语音」填写 groupId 与 apiKey');
-          toast('未配置 MiniMax 语音API');
-          return;
-        }
-        pushChatErrLog('[自检] 正在试听合成…');
-        toast('自检中：正在合成试听…');
-        chatTts('语音自检成功，你应该能听到我说话', v2 ? v2.voiceId : '', v2 ? v2.speed : 1, function (audio, err) {
-          if (err) { pushChatErrLog('[自检] 合成失败：' + err); toast('合成失败：' + err); return; }
-          pushChatErrLog('[自检] 合成成功，audio长度=' + String(audio).length + '，字节头=' + chatAudioMagicHex(audio) + '，尝试解码播放…');
-          chatDecodePlay(audio, null, function (why) {
-            pushChatErrLog('[自检] 解码兜底失败(' + why + ')，回退<audio>元素播放…');
-            try {
-              var aa = new Audio(audio);
-              aa.onended = function () { pushChatErrLog('[自检] 播放正常结束（能出声）'); toast('自检完成：试听播放成功'); };
-              aa.onerror = function () { pushChatErrLog('[自检] 播放触发 onerror，无法出声；字节头=' + chatAudioMagicHex(audio)); toast('自检完成：音频无法播放，见日志'); };
-              var pr2 = aa.play();
-              if (pr2 && pr2.catch) pr2.catch(function (e) { pushChatErrLog('[自检] 播放被拒绝：' + (e && e.name ? e.name + ': ' + e.message : String(e))); toast('自检完成：播放被浏览器拦截，见日志'); });
-              else if (!pr2) pushChatErrLog('[自检] play()返回undefined');
-            } catch (e) { pushChatErrLog('[自检] 播放异常：' + (e && e.message ? e.message : String(e))); }
-          }, function () {
-            pushChatErrLog('[自检] 解码播放成功（能出声）'); toast('自检完成：试听播放成功');
-          });
-        });
+      document.getElementById('logsConsoleClear').addEventListener('click', function () {
+        var cid = chatCurrentConv ? chatCurrentConv.id : '';
+        consoleLogs = consoleLogs.filter(function (e) { return !(e && typeof e === 'object' && e.msg != null && e.conv === cid); });
+        try { dbSet(CONSOLE_KEY, JSON.stringify(consoleLogs)); } catch (e) {}
         renderChatLogsView();
+        toast('已清空本窗口日志');
       });
+      document.getElementById('logsBack').addEventListener('click', function () { chatSettingsGoBack(); });
     }
+
     // 语音配置视图（v57：TTS开关 + 语音ID + 语言/方言 + 乐谱合成 + 语速 + 试听）
     var chatLangPresets = [
       { code: '', label: '自动识别 (Auto)' },
@@ -9194,6 +9299,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           s.memory = Math.min(n, 200);
           saveConvs(); renderChatSettings(); toast('上下文记忆：最近 ' + s.memory + ' 句');
         });
+      } else if (key === 'sent') {
+        chatSentInit(s);
+        chatMini('每轮句数', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-title">TA每轮回复最少/最多几句</div><div class="chat-swipe-card-text">每一句 = 一条独立气泡。最少句数通过系统提示词约束；最多句数为硬性上限，超出会被截断不显示。留空 = 不限制。</div></div><div class="chat-sent-row"><input class="chat-mini-input" id="cmSentMin" type="number" min="1" max="50" placeholder="最少（留空不限）" value="' + (s.sentMin != null ? s.sentMin : '') + '"><input class="chat-mini-input" id="cmSentMax" type="number" min="1" max="50" placeholder="最多（留空不限）" value="' + (s.sentMax != null ? s.sentMax : '') + '"></div><div class="chat-cfg-tip">例如：最少1句 / 最多3句，TA每轮就只会说 1~3 条气泡。设“最多1句”可强制TA每轮只回一句话。</div>', '保存', function () {
+          var nMin = parseInt(document.getElementById('cmSentMin').value, 10);
+          var nMax = parseInt(document.getElementById('cmSentMax').value, 10);
+          s.sentMin = (!isNaN(nMin) && nMin >= 1) ? Math.min(nMin, 50) : null;
+          s.sentMax = (!isNaN(nMax) && nMax >= 1) ? Math.min(nMax, 50) : null;
+          if (s.sentMin != null && s.sentMax != null && s.sentMin > s.sentMax) { var _sw = s.sentMin; s.sentMin = s.sentMax; s.sentMax = _sw; }
+          saveConvs(); renderChatSettings(); toast('每轮句数：' + chatSentLabel(s));
+        });
       } else if (key === 'auto') {
         chatSettingView = 'auto';
         renderChatSettings();
@@ -9239,15 +9354,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           applyChatAppearance();
           chatMiniMask.classList.remove('show');
           toast('已重置聊天美化');
-        }, true);
-      } else if (key === 'softdel') {
-        chatMini('从会话列表移除', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定将 <b>' + escHtml(chatCurrentConv.name) + '</b> 从会话列表移除吗？聊天记录保留，仍可从<b>联系人</b>入口进入继续聊天。</div></div>', '移除', function () {
-          chatCurrentConv.hidden = true;
-          saveConvs();
-          chatMiniMask.classList.remove('show');
-          closeChatDetail();
-          renderChatConvs();
-          toast('已从列表移除，联系人入口仍可进入');
         }, true);
       } else if (key === 'appearance') {
         chatSettingView = 'appearance';
@@ -10415,19 +10521,37 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var CONSOLE_KEY = 'ins-console-log';
     var consoleLogs = (function () { try { return JSON.parse(dbGet(CONSOLE_KEY)) || []; } catch (e) { return []; } })();
 
+    /* v173：控制台日志改为按聊天窗口标记（conv=会话id，空=全局）。设置里的"调试日志"只显示当前窗口。 */
+    function fmtLogEntry(e) {
+      if (e == null) return '';
+      if (typeof e === 'string') return e;
+      if (typeof e === 'object' && e.msg != null) return String(e.msg);
+      return String(e);
+    }
+    function chatCurLogs() {
+      var cid = (typeof chatCurrentConv !== 'undefined' && chatCurrentConv) ? chatCurrentConv.id : '';
+      var out = [];
+      for (var i = 0; i < consoleLogs.length; i++) {
+        var e = consoleLogs[i];
+        if (e && typeof e === 'object' && e.msg != null && e.conv === cid) out.push(e);
+      }
+      return out;
+    }
+    function chatCurLogCount() { return chatCurLogs().length; }
     function logToConsole(msg) {
       var t = new Date();
       var hh = (t.getHours() < 10 ? '0' : '') + t.getHours();
       var mm = (t.getMinutes() < 10 ? '0' : '') + t.getMinutes();
       var ss = (t.getSeconds() < 10 ? '0' : '') + t.getSeconds();
-      consoleLogs.push(hh + ':' + mm + ':' + ss + '  ' + msg);
+      var conv = (typeof chatCurrentConv !== 'undefined' && chatCurrentConv) ? chatCurrentConv.id : '';
+      consoleLogs.push({ t: hh + ':' + mm + ':' + ss, conv: conv, msg: String(msg) });
       if (consoleLogs.length > 200) consoleLogs.splice(0, consoleLogs.length - 200);
       try { dbSet(CONSOLE_KEY, JSON.stringify(consoleLogs)); } catch (e) {}
       if (consoleBox && dataOverlay.classList.contains('open')) renderConsole();
     }
     function renderConsole() {
       if (!consoleBox) return;
-      consoleBox.textContent = consoleLogs.slice(-50).join('\n') || '（暂无日志）';
+      consoleBox.textContent = consoleLogs.slice(-50).map(fmtLogEntry).join('\n') || '（暂无日志）';
       consoleBox.scrollTop = consoleBox.scrollHeight;
     }
     function openDataManage() {
