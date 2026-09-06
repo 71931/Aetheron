@@ -1698,9 +1698,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         } else if (name === '状态栏') {
           settingsOverlay.classList.remove('open');
           openMpPrompts('status');
-        } else if (name === '后台活动') {
-          settingsOverlay.classList.remove('open');
-          openBgActivity();
         } else if (name === 'UI 美化') {
           settingsOverlay.classList.remove('open');
           openBeautyCenter();
@@ -4052,10 +4049,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     /* v98：设置子页 → 板块 → 主列表 的返回层级 */
     var SETTING_PARENT = {
       model: 'sec-core', prompt: 'sec-core', think: 'sec-core', status: 'sec-core', wb: 'sec-core', search: 'sec-core', token: 'sec-core',
-      'sec-core': 'list', 'sec-role': 'list', 'chatmode': 'list', 'sec-sense': 'list', 'sec-app': 'list', 'sec-data': 'list',
+      'sec-core': 'list', 'sec-role': 'list', 'chatmode': 'list', 'sec-sense': 'list', 'sec-app': 'list', 'sec-data': 'list', 'sec-bg': 'list',
       voice: 'sec-sense', imag: 'sec-sense', auto: 'sec-sense',
       appearance: 'sec-app', apcss: 'sec-app',
-      logs: 'sec-data', dataio: 'sec-data'
+      logs: 'sec-data', dataio: 'sec-data',
+      relation: 'sec-bg', bgact: 'sec-bg', time: 'sec-bg'
     };
     function chatSettingsGoBack() {
       chatSettingView = SETTING_PARENT[chatSettingView] || 'list';
@@ -9210,6 +9208,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         renderChatSettings();
       } else if (key === 'imag') {
         chatSettingView = 'imag';
+        renderChatSettings();
+      } else if (key === 'relation') {
+        chatSettingView = 'relation';
+        renderChatSettings();
+      } else if (key === 'bgact') {
+        chatSettingView = 'bgact';
+        renderChatSettings();
+      } else if (key === 'time') {
+        chatSettingView = 'time';
         renderChatSettings();
       } else if (key === 'dataio') {
         chatSettingView = 'dataio';
