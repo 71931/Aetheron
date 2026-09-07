@@ -30,14 +30,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       return a;
     };
   }
-  if (!Element.prototype.closest) {
+  if (!Array.isArray) { Array.isArray = function (v) { return Object.prototype.toString.call(v) === '[object Array]'; }; }
+  if (window.Element && Element.prototype && !Element.prototype.closest) {
     Element.prototype.closest = function (sel) {
       var el = this;
       while (el) { if (el.matches && el.matches(sel)) return el; el = el.parentElement || el.parentNode; }
       return null;
     };
   }
-  if (!Element.prototype.matches) {
+  if (window.Element && Element.prototype && !Element.prototype.matches) {
     Element.prototype.matches = Element.prototype.matchesSelector || Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector || function () { return false; };
   }
   if (!Array.prototype.includes) {
@@ -45,6 +46,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   if (!String.prototype.startsWith) { String.prototype.startsWith = function (p) { return this.slice(0, p.length) === p; }; }
   if (!String.prototype.endsWith) { String.prototype.endsWith = function (p) { return this.slice(-p.length) === p; }; }
+  if (window.NodeList && !NodeList.prototype.forEach) {
+    NodeList.prototype.forEach = function (fn, ctx) { for (var i = 0; i < this.length; i++) fn.call(ctx || null, this[i], i, this); };
+  }
+  if (window.HTMLCollection && !HTMLCollection.prototype.forEach) {
+    HTMLCollection.prototype.forEach = function (fn, ctx) { for (var i = 0; i < this.length; i++) fn.call(ctx || null, this[i], i, this); };
+  }
 })();
 /* ===== v162：移动端沉浸全屏（触碰即尝试全屏，隐藏浏览器顶栏底栏；iframe/桌面不触发） ===== */
 (function () {
@@ -2381,10 +2388,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
 
     // ===== AI 辅助 =====
+    function memberFindApi() {
+      /* v174.1：名单 AI 独立取配置——不依赖当前聊天会话（chatFindApi 要求 chatCurrentConv 存在，名单里没有会话会误报"未配置"） */
+      var list = [];
+      try { list = (typeof chatConfigs !== 'undefined' && chatConfigs && chatConfigs.length) ? chatConfigs : (JSON.parse(dbGet('ins-chat-configs')) || []); } catch (e) { try { list = JSON.parse(dbGet('ins-chat-configs')) || []; } catch (e2) { list = []; } }
+      if (!Array.isArray(list)) list = [];
+      for (var i = 0; i < list.length; i++) { if (list[i] && list[i].baseUrl && list[i].apiKey && list[i].model) return list[i]; }
+      return list.length ? list[0] : null;
+    }
     function memberAiAsk(sys, user, cb) {
       var cfg = null;
-      try { cfg = chatFindApi(); } catch (e) {}
-      if (!cfg || !cfg.baseUrl || !cfg.apiKey || !cfg.model) { cb && cb(null, '未配置聊天 API，先到「设置 → 聊天API」配置再试'); return; }
+      try { cfg = memberFindApi(); } catch (e) {}
+      if (!cfg || !cfg.baseUrl || !cfg.apiKey || !cfg.model) { cb && cb(null, '未找到完整聊天 API 配置，先到「设置 → 聊天API」检查 baseUrl / API Key / 模型 是否都已填写'); return; }
       var url = String(cfg.baseUrl).replace(/\/+$/, '');
       if (!/\/chat\/completions$/.test(url)) url += '/chat/completions';
       fetch(url, {

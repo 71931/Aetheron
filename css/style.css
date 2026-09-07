@@ -2916,7 +2916,7 @@ body.light .chat-cfg-edit { background: rgba(0,0,0,.08); color: #000; }
 .member-row:active { background: rgba(255,255,255,0.09); transform: scale(0.985); }
 .mem-ava-img, .mem-ava-letter { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex: none; }
 .mem-ava-img { background-size: cover; background-position: center; border: 1px solid rgba(255,255,255,0.12); }
-.mem-ava-letter { background: rgba(124,92,255,0.22); color: #c4b0ff; font-weight: 700; letter-spacing: .5px; }
+.mem-ava-letter { background: rgba(255,255,255,0.16); color: #ffffff; font-weight: 700; letter-spacing: .5px; }
 .member-row-bd { flex: 1; min-width: 0; margin-left: 14px; }
 .member-row-name { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--text); }
 .member-row-net { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.42); background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 10px; }
@@ -2929,7 +2929,7 @@ body.light .chat-cfg-edit { background: rgba(0,0,0,.08); color: #000; }
 .member-hero { padding: 26px 20px 14px; display: flex; flex-direction: column; align-items: center; }
 .member-avatar-edit { position: relative; width: 104px; height: 104px; border-radius: 50%; background: rgba(255,255,255,0.07); background-size: cover; background-position: center; border: 1px dashed rgba(255,255,255,0.28); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.42); cursor: pointer; overflow: visible; transition: border-color .2s; }
 .member-avatar-edit svg { width: 46px; height: 46px; }
-.member-avatar-edit i { position: absolute; right: 8px; bottom: 6px; font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: rgba(124,92,255,0.9); color: #fff; font-size: 17px; line-height: 24px; text-align: center; }
+.member-avatar-edit i { position: absolute; right: 8px; bottom: 6px; font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.92); color: #fff; font-size: 17px; line-height: 24px; text-align: center; }
 .member-avatar-edit.has { border-style: solid; border-color: transparent; }
 .member-avatar-x { position: absolute; right: -4px; top: -4px; width: 30px; height: 30px; border-radius: 50%; background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.75); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .member-avatar-x svg { width: 13px; height: 13px; }
@@ -2937,27 +2937,27 @@ body.light .chat-cfg-edit { background: rgba(0,0,0,.08); color: #000; }
 
 .member-card { border-top: 8px solid rgba(255,255,255,0.02); }
 .member-card .field { position: relative; }
-.mem-seq { display: inline-block; min-width: 22px; margin-right: 6px; font-size: 10px; font-weight: 700; color: rgba(124,92,255,0.9); letter-spacing: 1px; }
+.mem-seq { display: inline-block; min-width: 22px; margin-right: 6px; font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 1px; }
 .mem-label-ai-hint { display: inline-flex; }
-.mem-ai { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding: 4px 9px; border: 1px solid rgba(124,92,255,0.45); background: rgba(124,92,255,0.12); color: #a78bfa; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.mem-ai { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding: 4px 9px; border: 1px solid rgba(255,255,255,0.38); background: rgba(255,255,255,0.1); color: #ffffff; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
 .mem-ai svg { width: 13px; height: 13px; }
 #memberEditScroll .field input[type="text"], #memberEditScroll .field textarea { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 13px; color: var(--text); font-size: 14px; outline: none; transition: border-color .2s; }
 #memberEditScroll .field textarea { resize: vertical; line-height: 1.7; font-family: inherit; margin-top: 4px; }
-#memberEditScroll .field input[type="text"]:focus, #memberEditScroll .field textarea:focus { border-color: rgba(124,92,255,0.7); background: rgba(255,255,255,0.08); }
+#memberEditScroll .field input[type="text"]:focus, #memberEditScroll .field textarea:focus { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.08); }
 #memberEditScroll .field input::placeholder, #memberEditScroll .field textarea::placeholder { color: rgba(255,255,255,0.28); }
 .mem-field-foot { margin-top: 7px; font-size: 11px; color: var(--text-faint); line-height: 1.6; }
 
 .mem-sex-row { display: flex; gap: 10px; margin-top: 6px; }
 .mem-chip { flex: 1; padding: 10px 0; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.55); font-size: 14px; cursor: pointer; transition: all .18s; }
-.mem-chip.on { background: rgba(124,92,255,0.22); border-color: rgba(124,92,255,0.8); color: #c9b6ff; font-weight: 700; }
+.mem-chip.on { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.85); color: #0a0a0b; font-weight: 700; }
 
 .mem-look-label { margin: 16px 0 10px; font-size: 12px; color: var(--text-dim); font-weight: 600; letter-spacing: .3px; }
 .mem-look-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.mem-look-cell { position: relative; aspect-ratio: 1; border-radius: 14px; background-size: cover; background-position: center; border: 1px solid rgba(255,255,255,0.1); }
+.mem-look-cell { position: relative; height: 0; padding-top: 100%; box-sizing: border-box; border-radius: 14px; background-size: cover; background-position: center; border: 1px solid rgba(255,255,255,0.1); }
 .member-look-x { position: absolute; right: -5px; top: -5px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.8); color: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .member-look-x svg { width: 11px; height: 11px; }
-.mem-look-add { aspect-ratio: 1; border-radius: 14px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.24); color: rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.mem-look-add svg { width: 22px; height: 22px; }
+.mem-look-add { position: relative; height: 0; padding-top: 100%; box-sizing: border-box; border-radius: 14px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.24); color: rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.mem-look-add svg { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
 
 /* NPC */
 .mem-npc-list { margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
@@ -2967,12 +2967,12 @@ body.light .chat-cfg-edit { background: rgba(0,0,0,.08); color: #000; }
 .mem-npc-bd { flex: 1; min-width: 0; margin-left: 11px; }
 .mem-npc-name { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
 .mem-npc-bio { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mem-npc-op { flex: none; width: 30px; height: 30px; border-radius: 9px; background: rgba(255,82,82,0.1); color: rgba(255,99,99,0.8); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.mem-npc-op { flex: none; width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .mem-npc-op svg { width: 15px; height: 15px; }
 .mem-npc-empty { padding: 22px 0; text-align: center; font-size: 12.5px; color: var(--text-faint); }
 .mem-npc-btns { display: flex; gap: 10px; margin-top: 12px; }
 .mem-ghost { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; border-radius: 12px; background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.11); color: rgba(255,255,255,0.72); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; }
-.mem-ghost.ai { border-color: rgba(124,92,255,0.45); color: #a78bfa; background: rgba(124,92,255,0.1); }
+.mem-ghost.ai { border-color: rgba(255,255,255,0.38); color: #ffffff; background: rgba(255,255,255,0.1); }
 .mem-ghost svg { width: 16px; height: 16px; }
 
 /* 关系网 */
@@ -2982,10 +2982,10 @@ body.light .chat-cfg-edit { background: rgba(0,0,0,.08); color: #000; }
 .mem-rel-name { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .mem-rel-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 9px; }
 .mem-rel-chip { padding: 4px 11px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: rgba(255,255,255,0.5); font-size: 11.5px; cursor: pointer; transition: all .16s; }
-.mem-rel-chip.on { background: rgba(124,92,255,0.2); border-color: rgba(124,92,255,0.75); color: #c9b6ff; font-weight: 700; }
+.mem-rel-chip.on { background: #ffffff; border-color: #ffffff; color: #0a0a0b; font-weight: 700; }
 .mem-rel-input { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 9px 11px; color: var(--text); font-size: 13px; outline: none; }
-.mem-rel-input:focus { border-color: rgba(124,92,255,0.7); }
+.mem-rel-input:focus { border-color: rgba(255,255,255,0.5); }
 
 /* 删除按钮 */
-.mem-del { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 40px); margin: 26px 20px 10px; box-sizing: border-box; padding: 13px 0; border-radius: 14px; background: rgba(255,82,82,0.09); border: 1px solid rgba(255,82,82,0.3); color: #ff6961; font-size: 14px; font-weight: 600; cursor: pointer; }
+.mem-del { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 40px); margin: 26px 20px 10px; box-sizing: border-box; padding: 13px 0; border-radius: 14px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.22); color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; }
 .mem-del svg { width: 16px; height: 16px; }
