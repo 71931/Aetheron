@@ -2020,11 +2020,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       document.querySelectorAll('.chat-header .chat-back').forEach(function (b) { b.style.visibility = ''; });
       appHomeHtml = appScrollEl.innerHTML;
     }
-    function openMemberList() {
-      appHomeHtml = appScrollEl.innerHTML;
-      appTitleEl.textContent = '名单';
-      renderMemberPage();
-    }
     document.getElementById('appBack').addEventListener('click', function () {
       if (appTitleEl.textContent === '名单') { appBackToHome(); return; }
       appOverlay.classList.remove('open');
@@ -2043,55 +2038,444 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
     });
 
-    // ===== v173：名单（成员通讯录） =====
+    // ===== v174：名单 · 完整角色卡 =====
     var MEMBER_KEY = 'aether_members_v1';
-    function memberLoad() { try { var _a = JSON.parse(dbGet(MEMBER_KEY) || '[]'); return Array.isArray(_a) ? _a : []; } catch (e) { return []; } }
+    var memberOverlay = document.getElementById('memberOverlay');
+    var memberListEl = document.getElementById('memberListEl');
+    var memberEditOverlay = document.getElementById('memberEditOverlay');
+    var memberEditTitleEl = document.getElementById('memberEditTitle');
+    var memberEditScroll = document.getElementById('memberEditScroll');
+
+    function memberUid() { return 'm' + Date.now().toString(36) + Math.floor(Math.random() * 9999).toString(36); }
+    function memberNorm(m) {
+      if (!m || typeof m !== 'object') m = {};
+      // 兼容 v173 老字段 name/tag/note
+      var n = {
+        id: m.id || memberUid(),
+        avatar: m.avatar || '',
+        realName: String(m.realName != null ? m.realName : (m.name || '')).trim(),
+        netName: String(m.netName != null ? m.netName : '').trim(),
+        gender: m.gender || '',
+        lore: String(m.lore != null ? m.lore : '').trim(),
+        voiceId: String(m.voiceId != null ? m.voiceId : '').trim(),
+        look: String(m.look != null ? m.look : '').trim(),
+        lookImgs: Array.isArray(m.lookImgs) ? m.lookImgs.filter(function (x) { return x; }) : [],
+        npcs: Array.isArray(m.npcs) ? m.npcs.map(function (x) {
+          x = x || {};
+          return { id: x.id || memberUid(), name: String(x.name || '').trim(), bio: String(x.bio || '').trim(), rel: String(x.rel || '').trim() };
+        }) : []
+      };
+      if (m.tag && !n.netName) n.netName = String(m.tag).trim();
+      return n;
+    }
+    function memberLoad() {
+      try { var _a = JSON.parse(dbGet(MEMBER_KEY) || '[]'); return Array.isArray(_a) ? _a.map(memberNorm) : []; } catch (e) { return []; }
+    }
     function memberSave(list) { dbSet(MEMBER_KEY, JSON.stringify(list)); }
-    function memberAvatar(name) { return escHtml(String(name || '?').trim().charAt(0) || '?'); }
-    function renderMemberPage() {
+    function memberDispName(m) { return m.realName || m.netName || '未命名角色'; }
+    function memberAvatarHtml(m, size) {
+      var sz = size || 56;
+      if (m.avatar) return '<span class="mem-ava-img" style="width:' + sz + 'px;height:' + sz + 'px;background-image:url(\'' + m.avatar + '\')"></span>';
+      return '<span class="mem-ava-letter" style="width:' + sz + 'px;height:' + sz + 'px;font-size:' + Math.round(sz * 0.42) + 'px">' + escHtml(memberDispName(m).slice(0, 1) || '?') + '</span>';
+    }
+    // 读取图片并压缩（防止撑爆 localStorage）
+    function memberReadImg(file, maxSide, cb) {
+      var rd = new FileReader();
+      rd.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var w = img.width, h = img.height, sc = 1;
+            if (Math.max(w, h) > maxSide) sc = maxSide / Math.max(w, h);
+            var cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(w * sc)); cv.height = Math.max(1, Math.round(h * sc));
+            cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+            var mime = (file.type || '').indexOf('png') > -1 ? 'image/png' : 'image/jpeg';
+            cb(cv.toDataURL(mime, mime === 'image/png' ? 0.9 : 0.78));
+          } catch (e) { cb(rd.result); }
+        };
+        img.onerror = function () { cb(rd.result); };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(file);
+    }
+
+    // ===== 名单列表页 =====
+    function renderMemberList() {
       var list = memberLoad();
       var rows = '';
-      if (list.length === 0) {
-        rows = '<div style="padding:18px 16px;text-align:center;color:var(--text-faint);font-size:13px;line-height:1.7">名单还是空的<br>把TA世界里的人记下来吧</div>';
+      if (!list.length) {
+        rows = '<div class="member-empty"><div class="member-empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4.5 20c.8-3.4 3.6-5.2 7.5-5.2s6.7 1.8 7.5 5.2"/></svg></div><div class="member-empty-t">名单还是空的</div><div class="member-empty-s">点右上角 ＋ 添加第一个角色<br>把 TA 的本名、身世、音色、锁脸全部存下来</div><button class="member-empty-add" id="memberEmptyAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>添加第一个角色</button></div>';
       } else {
         rows = list.map(function (m, i) {
-          return '<div class="chat-search-item member-row" data-idx="' + i + '"><span class="member-avatar">' + memberAvatar(m.name) + '</span><span class="chat-search-text" style="flex:1"><span style="display:block;font-size:14px;font-weight:800;color:var(--text)">' + escHtml(m.name || '未命名') + '</span><span style="display:block;font-size:11.5px;color:var(--text-faint);margin-top:2px;line-height:1.4">' + (m.tag ? escHtml(m.tag) : '') + (m.note ? ' · ' + escHtml(m.note) : '') + '</span></span><span class="chat-search-go">›</span></div>';
+          var sub = [];
+          if (m.gender) sub.push(m.gender === 'secret' ? '保密' : m.gender);
+          if (m.netName) sub.push('网名 ' + m.netName);
+          if (!sub.length && m.lore) sub.push(m.lore.slice(0, 16));
+          return '<button class="member-row" data-idx="' + i + '">' + memberAvatarHtml(m, 52) +
+            '<span class="member-row-bd"><span class="member-row-name">' + escHtml(memberDispName(m)) +
+            (m.realName && m.netName ? '<span class="member-row-net">' + escHtml(m.netName) + '</span>' : '') + '</span>' +
+            (sub.length ? '<span class="member-row-sub">' + escHtml(sub.join(' · ')) + '</span>' : '<span class="member-row-sub">角色资料卡</span>') +
+            '</span><span class="member-row-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>';
         }).join('');
       }
-      var html = '<div style="padding:12px 12px 16px">' + rows + '<div class="chat-mini-list-btn" id="memberAddBtn" style="margin-top:10px;justify-content:center;text-align:center;color:var(--accent,#0aa2ff)">＋ 添加成员</div></div>';
-      appScrollEl.innerHTML = html;
-      appScrollEl.querySelectorAll('.member-row').forEach(function (row) {
-        row.addEventListener('click', function () { memberOp(row.getAttribute('data-idx')); });
+      memberListEl.innerHTML = '<div class="member-list-wrap">' + rows + '</div>';
+      memberListEl.querySelectorAll('.member-row').forEach(function (row) {
+        row.addEventListener('click', function () { openMemberEdit(parseInt(row.getAttribute('data-idx'), 10)); });
       });
-      var _add = appScrollEl.querySelector('#memberAddBtn');
-      if (_add) _add.addEventListener('click', memberEdit);
+      var _ea = memberListEl.querySelector('#memberEmptyAdd');
+      if (_ea) _ea.addEventListener('click', function () { openMemberEdit(-1); });
     }
-    function memberEdit(seed) {
-      seed = seed || {};
-      chatMini((seed.name ? '编辑成员' : '添加成员'),
-        '<div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">名字</div><input class="chat-mini-input" id="memberName" style="width:100%;box-sizing:border-box;margin-bottom:8px" value="' + escHtml(seed.name || '') + '"><div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">关系标签（选填）</div><input class="chat-mini-input" id="memberTag" style="width:100%;box-sizing:border-box;margin-bottom:8px" value="' + escHtml(seed.tag || '') + '"><div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">备注（选填）</div><input class="chat-mini-input" id="memberNote" style="width:100%;box-sizing:border-box" value="' + escHtml(seed.note || '') + '">',
-        seed.name ? '保存' : '添加', function () {
-          var name = (chatMiniBox.querySelector('#memberName').value || '').trim();
-          if (!name) { toast('名字不能为空'); return; }
-          var list = memberLoad();
-          var obj = { name: name, tag: (chatMiniBox.querySelector('#memberTag').value || '').trim(), note: (chatMiniBox.querySelector('#memberNote').value || '').trim() };
-          if (seed._idx != null) list[seed._idx] = obj; else list.unshift(obj);
-          memberSave(list);
-          renderMemberPage();
-        });
+    function openMemberList() {
+      renderMemberList();
+      memberOverlay.classList.add('open');
     }
-    function memberOp(idx) {
+
+    // ===== 全屏编辑页 =====
+    var memEditIdx = -1;
+    var memAvatar = '';
+    var memGender = '';
+    var memNpcs = [];
+    var memLookImgs = [];
+    var memDirty = false;
+
+    var MEM_SEX = [
+      { k: 'male', label: '男' },
+      { k: 'female', label: '女' },
+      { k: 'secret', label: '保密' }
+    ];
+    var MEM_REL_SUGGEST = ['恋人', '挚友', '家人', '对手', '前辈', '下属', '仇人'];
+
+    function memSeq(n) { return '<span class="mem-seq">' + ('0' + n).slice(-2) + '</span>'; }
+
+    function memFieldLabel(n, label, extra) {
+      return '<label>' + memSeq(n) + label + (extra || '') + '</label>';
+    }
+    function memAiBtn(id, tip) {
+      return '<button type="button" class="mem-ai" id="' + id + '" title="' + tip + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>AI</span></button>';
+    }
+
+    function memberEditBody(m) {
+      var isNew = !m;
+      var av = memAvatar;
+      var hero = '<div class="member-hero">' +
+        '<div class="member-avatar-edit' + (av ? ' has' : '') + '" id="memAvatarBtn" style="' + (av ? 'background-image:url(\'' + av + '\')' : '') + '">' +
+        (av ? '<span class="member-avatar-x" data-mact="avatar-clear" title="移除头像"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4.5 20c.8-3.4 3.6-5.2 7.5-5.2s6.7 1.8 7.5 5.2"/></svg><i>+</i>') + '</div>' +
+        '<div class="member-hero-tip">' + (av ? '点击更换头像' : '点击上传头像') + '</div>' +
+        '<input type="file" id="memAvatarFile" accept="image/*" hidden></div>';
+
+      var form = '';
+      form += '<div class="form-card member-card">';
+      form += '<div class="field">' + memFieldLabel(1, '角色本名') + '<input type="text" id="memRealName" value="' + escHtml(m ? m.realName : '') + '" placeholder="TA的本名，例如：林晚晴"></div>';
+      form += '<div class="field">' + memFieldLabel(2, '角色网名', '<span class="mem-label-ai-hint">' + memAiBtn('memNetAi', 'AI 根据已填写人设分析，起一个不超过7个字的网名') + '</span>') + '<input type="text" id="memNetName" value="' + escHtml(m ? m.netName : '') + '" placeholder="可自填，或点右侧 AI 帮填（不超过 7 个字）"></div>';
+      form += '<div class="field">' + memFieldLabel(3, '角色性别') + '<div class="mem-sex-row">' + MEM_SEX.map(function (s) {
+        return '<button type="button" class="mem-chip' + (memGender === s.k ? ' on' : '') + '" data-mact="sex" data-val="' + s.k + '">' + s.label + '</button>';
+      }).join('') + '</div></div>';
+      form += '<div class="field">' + memFieldLabel(4, '角色身世') + '<textarea id="memLore" rows="7" placeholder="在这里写下完整角色内容：成长经历、性格、身份、习惯、秘密…">' + escHtml(m ? m.lore : '') + '</textarea><div class="mem-field-foot"><span>身世越完整，AI 网名 / NPC 生成越准</span></div></div>';
+      form += '<div class="field">' + memFieldLabel(5, '角色音色') + '<input type="text" id="memVoiceId" value="' + escHtml(m ? m.voiceId : '') + '" placeholder="音色 ID，例如 speech-01-hd / female-soft"></div>';
+      form += '<div class="field">' + memFieldLabel(6, '角色外貌', '<span class="mem-label-ai-hint">' + memAiBtn('memLookAi', 'AI 从“角色身世”里提取已有外貌描写并润色填充') + '</span>') + '<textarea id="memLook" rows="3" placeholder="外貌描写…可手动写，或点右侧 AI 从身世提取">' + escHtml(m ? m.look : '') + '</textarea>';
+      form += '<div class="mem-look-label">锁脸参考图</div>';
+      form += '<div class="mem-look-grid" id="memLookGrid">';
+      memLookImgs.forEach(function (img, i) {
+        form += '<div class="mem-look-cell" style="background-image:url(\'' + img + '\')"><span class="member-look-x" data-mact="lookdel" data-val="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span></div>';
+      });
+      if (memLookImgs.length < 6) {
+        form += '<button type="button" class="mem-look-add" data-mact="lookadd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>';
+      }
+      form += '</div><input type="file" id="memLookFile" accept="image/*" multiple hidden>';
+      form += '<div class="mem-field-foot"><span>上传多张不同角度照片，生图时锁定这张脸（最多 6 张）</span></div></div>';
+      form += '</div>';
+
+      var npcRows = '';
+      if (!memNpcs.length) {
+        npcRows = '<div class="mem-npc-empty">还没有 NPC</div>';
+      } else {
+        npcRows = memNpcs.map(function (np, i) {
+          return '<div class="mem-npc-row"><span class="mem-npc-ava">' + escHtml(String(np.name || '?').slice(0, 1)) + '</span>' +
+            '<span class="mem-npc-bd"><span class="mem-npc-name">' + escHtml(np.name || '未命名') + '</span><span class="mem-npc-bio">' + escHtml(np.bio || '暂无简介') + '</span></span>' +
+            '<button type="button" class="mem-npc-op" data-mact="npcdel" data-val="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button></div>';
+        }).join('');
+      }
+      form += '<div class="form-card member-card"><div class="field">' + memFieldLabel(7, 'NPC 角色');
+      form += '<div class="mem-npc-list">' + npcRows + '</div><div class="mem-npc-btns">' +
+        '<button type="button" class="mem-ghost" data-mact="npcadd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>自建 NPC</span></button>' +
+        '<button type="button" class="mem-ghost ai" data-mact="npcai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>AI 生成 NPC</span></button></div></div></div>';
+
+      var relRows = '';
+      if (!memNpcs.length) {
+        relRows = '<div class="mem-npc-empty">先在上方添加 NPC，再定义关系</div>';
+      } else {
+        relRows = memNpcs.map(function (np, i) {
+          var chips = MEM_REL_SUGGEST.map(function (r) {
+            return '<button type="button" class="mem-rel-chip' + (np.rel === r ? ' on' : '') + '" data-mact="relset" data-val="' + i + '" data-rel="' + r + '">' + r + '</button>';
+          }).join('');
+          return '<div class="mem-rel-row"><span class="mem-npc-ava sm">' + escHtml(String(np.name || '?').slice(0, 1)) + '</span>' +
+            '<div class="mem-rel-bd"><div class="mem-rel-name">' + escHtml(np.name || '未命名') + '</div>' +
+            '<div class="mem-rel-chips">' + chips + '</div>' +
+            '<input type="text" class="mem-rel-input" data-relinput="' + i + '" value="' + escHtml(np.rel || '') + '" placeholder="自定义关系，如：青梅竹马 / 带刀侍卫">' +
+            '</div></div>';
+        }).join('');
+      }
+      form += '<div class="form-card member-card"><div class="field">' + memFieldLabel(8, '关系网') + '<div class="mem-rel-wrap">' + relRows + '</div><div class="mem-field-foot"><span>定义本角色与每个 NPC 的关系，聊天时 AI 会沿用</span></div></div></div>';
+
+      var foot = '';
+      if (!isNew) {
+        foot = '<button type="button" class="mem-del" id="memDelBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span>删除这个角色</span></button>';
+      }
+      return hero + form + foot;
+    }
+
+    function openMemberEdit(idx) {
       var list = memberLoad();
-      var m = list[idx];
-      if (!m) return;
-      chatMini('成员：' + m.name, '<div class="chat-mini-list"><button class="chat-mini-list-btn" id="memEdit">编辑资料</button><button class="chat-mini-list-btn" id="memDel" style="color:#ff453a">删除成员</button></div>', '关闭', function () {});
-      chatMiniBox.querySelector('#memEdit').addEventListener('click', function () { memberEdit({ _idx: idx, name: m.name, tag: m.tag, note: m.note }); });
-      chatMiniBox.querySelector('#memDel').addEventListener('click', function () {
-        chatMini('删除成员', '<div style="font-size:13px;color:var(--text-dim);line-height:1.6">确定把「' + escHtml(m.name) + '」从名单移除？</div>', '删除', function () {
-          var _l = memberLoad(); _l.splice(idx, 1); memberSave(_l); renderMemberPage();
+      var m = (idx >= 0 && list[idx]) ? list[idx] : null;
+      memEditIdx = m ? idx : -1;
+      memberEditTitleEl.textContent = m ? '编辑角色' : '新增角色';
+      memAvatar = m ? m.avatar : '';
+      memGender = m ? m.gender : '';
+      memNpcs = m ? m.npcs.map(function (x) { return { id: x.id, name: x.name, bio: x.bio, rel: x.rel }; }) : [];
+      memLookImgs = m ? m.lookImgs.slice() : [];
+      memDirty = false;
+      memberEditScroll.innerHTML = memberEditBody(m);
+      memberBindEdit();
+      memberEditOverlay.classList.add('open');
+    }
+    function closeMemberEdit() { memberEditOverlay.classList.remove('open'); }
+
+    function memberBindEdit() {
+      var scroll = memberEditScroll;
+      scroll.onclick = function (e) {
+        var b = e.target.closest ? e.target.closest('[data-mact]') : null;
+        if (!b) return;
+        var act = b.getAttribute('data-mact');
+        var val = b.getAttribute('data-val');
+        if (act === 'avatar-clear') { memAvatar = ''; memberRerender(); return; }
+        if (act === 'sex') {
+          memGender = val;
+          memDirty = true;
+          scroll.querySelectorAll('.mem-chip').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-val') === val); });
+          return;
+        }
+        if (act === 'lookadd') { var lf = scroll.querySelector('#memLookFile'); if (lf) lf.click(); return; }
+        if (act === 'lookdel') { memLookImgs.splice(parseInt(val, 10), 1); memDirty = true; memberRerender(); return; }
+        if (act === 'npcadd') { memberNpcAdd(); return; }
+        if (act === 'npcdel') { memNpcs.splice(parseInt(val, 10), 1); memDirty = true; memberRerender(); return; }
+        if (act === 'relset') {
+          var i = parseInt(val, 10), r = b.getAttribute('data-rel');
+          if (memNpcs[i]) memNpcs[i].rel = r;
+          memDirty = true;
+          scroll.querySelectorAll('[data-relinput="' + i + '"]').forEach(function (inp) { inp.value = r; });
+          scroll.querySelectorAll('.mem-rel-chip[data-val="' + i + '"]').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-rel') === r); });
+          return;
+        }
+        if (act === 'netai') { memberAiNet(); return; }
+        if (act === 'lookai') { memberAiLook(); return; }
+        if (act === 'npcai') { memberAiNpc(); return; }
+      };
+      // 头像点击
+      var ab = scroll.querySelector('#memAvatarBtn');
+      if (ab) ab.addEventListener('click', function (e) {
+        if (e.target.closest('[data-mact="avatar-clear"]')) return;
+        var af = scroll.querySelector('#memAvatarFile');
+        if (af) af.click();
+      });
+      // 上传头像
+      var avf = scroll.querySelector('#memAvatarFile');
+      if (avf) avf.addEventListener('change', function () {
+        var f = avf.files && avf.files[0];
+        if (!f) return;
+        memberReadImg(f, 320, function (url) { memAvatar = url; memDirty = true; memberRerender(); });
+        avf.value = '';
+      });
+      // 锁脸多图
+      var lkf = scroll.querySelector('#memLookFile');
+      if (lkf) lkf.addEventListener('change', function () {
+        var fs = lkf.files || [];
+        var queue = Array.prototype.slice.call(fs, 0, 6 - memLookImgs.length);
+        if (!queue.length) return;
+        var done = 0;
+        queue.forEach(function (f) {
+          memberReadImg(f, 560, function (url) {
+            memLookImgs.push(url);
+            done++;
+            if (done >= queue.length) { memDirty = true; memberRerender(); }
+          });
+        });
+        lkf.value = '';
+      });
+      // 所有输入/文本标记脏
+      scroll.querySelectorAll('input[type="text"], textarea').forEach(function (el) {
+        el.addEventListener('input', function () { memDirty = true; });
+      });
+      // 删除角色
+      var delBtn = scroll.querySelector('#memDelBtn');
+      if (delBtn) delBtn.addEventListener('click', function () {
+        if (memEditIdx < 0) return;
+        var nm = memberDispName(memberLoad()[memEditIdx] || {});
+        chatMini('删除角色', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">确定删除「' + escHtml(nm) + '」吗？这张角色卡的全部资料都会消失，不可恢复。</div></div>', '删除', function () {
+          var _l = memberLoad(); _l.splice(memEditIdx, 1); memberSave(_l);
+          closeMemberEdit();
+          renderMemberList();
+          toast('已删除角色');
         }, true);
       });
     }
+    function memberRerender() {
+      var m = null;
+      if (memEditIdx >= 0) { var _l = memberLoad(); m = _l[memEditIdx]; }
+      // 重渲染前先把当前表单文字同步到内存，避免丢字
+      var keep = { realName: '', netName: '', lore: '', voiceId: '', look: '' };
+      ['memRealName', 'memNetName', 'memLore', 'memVoiceId', 'memLook'].forEach(function (id) {
+        var el = memberEditScroll.querySelector('#' + id);
+        if (el) keep[id.replace('mem', '').toLowerCase()] = el.value;
+        else keep[id.replace('mem', '').toLowerCase()] = (m || {})[id.replace('mem', '').toLowerCase()] || '';
+      });
+      // NPC 关系输入同步
+      memberEditScroll.querySelectorAll('[data-relinput]').forEach(function (inp) {
+        var i = parseInt(inp.getAttribute('data-relinput'), 10);
+        if (memNpcs[i]) memNpcs[i].rel = inp.value;
+      });
+      var base = m ? {
+        realName: keep.realName, netName: keep.netName, lore: keep.lore,
+        voiceId: keep.voiceId, look: keep.look, avatar: memAvatar, gender: memGender
+      } : null;
+      memberEditScroll.innerHTML = memberEditBody(base);
+      memberBindEdit();
+    }
+    // 当前表单内容读取
+    function memberCollectForm() {
+      var g = function (id) {
+        var el = memberEditScroll.querySelector('#' + id);
+        return el ? String(el.value || '').trim() : '';
+      };
+      var rels = {};
+      memberEditScroll.querySelectorAll('[data-relinput]').forEach(function (inp) {
+        var i = parseInt(inp.getAttribute('data-relinput'), 10);
+        if (memNpcs[i]) rels[i] = inp.value.trim();
+      });
+      Object.keys(rels).forEach(function (k) { if (memNpcs[parseInt(k, 10)]) memNpcs[parseInt(k, 10)].rel = rels[k]; });
+      return {
+        realName: g('memRealName'), netName: g('memNetName'),
+        lore: g('memLore'), voiceId: g('memVoiceId'), look: g('memLook')
+      };
+    }
+    function memberSaveEdit() {
+      var v = memberCollectForm();
+      if (!v.realName && !v.netName) { toast('请至少填写角色本名或网名'); return; }
+      var list = memberLoad();
+      var obj = memberNorm({
+        avatar: memAvatar, realName: v.realName, netName: v.netName,
+        gender: memGender, lore: v.lore, voiceId: v.voiceId, look: v.look,
+        lookImgs: memLookImgs, npcs: memNpcs
+      });
+      if (memEditIdx >= 0 && list[memEditIdx]) list[memEditIdx] = obj;
+      else list.unshift(obj);
+      memberSave(list);
+      closeMemberEdit();
+      renderMemberList();
+      toast('角色已保存');
+    }
+    function memberDiscard() {
+      if (memDirty) {
+        chatMini('放弃修改？', '<div class="chat-swipe-card" style="margin:0"><div class="chat-swipe-card-text">当前填写的内容还没有保存，离开后将丢失。</div></div>', '放弃', function () { closeMemberEdit(); }, true);
+      } else closeMemberEdit();
+    }
+
+    // ===== AI 辅助 =====
+    function memberAiAsk(sys, user, cb) {
+      var cfg = null;
+      try { cfg = chatFindApi(); } catch (e) {}
+      if (!cfg || !cfg.baseUrl || !cfg.apiKey || !cfg.model) { cb && cb(null, '未配置聊天 API，先到「设置 → 聊天API」配置再试'); return; }
+      var url = String(cfg.baseUrl).replace(/\/+$/, '');
+      if (!/\/chat\/completions$/.test(url)) url += '/chat/completions';
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
+          temperature: 0.8,
+          max_tokens: 1024,
+          stream: false
+        })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        var out = '';
+        try { out = (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || ''; } catch (e) {}
+        if (!out && d && d.error) { cb && cb(null, (d.error.message || 'AI 接口错误')); return; }
+        if (!out) { cb && cb(null, 'AI 返回为空'); return; }
+        cb && cb(String(out).trim(), null);
+      }).catch(function (err) {
+        cb && cb(null, 'AI 网络错误：' + (err && err.message ? err.message : String(err)));
+      });
+    }
+    function memberAiBodyText() {
+      var v = memberCollectForm();
+      var gLabel = memGender === 'male' ? '男' : memGender === 'female' ? '女' : memGender === 'secret' ? '保密' : '';
+      return '角色本名：' + (v.realName || '（未填）') + '\n角色网名：' + (v.netName || '（未填）') + '\n性别：' + (gLabel || '（未填）') + '\n身世：' + (v.lore || '（未填）') + '\n音色ID：' + (v.voiceId || '（未填）') + '\n外貌：' + (v.look || '（未填）');
+    }
+    function memberAiNet() {
+      toast('AI 正在起名…');
+      var user = '以下是这个角色的完整人设：\n' + memberAiBodyText() + '\n\n请分析这个角色的性格气质，给他/她起一个贴合的网名，要求：中文，不超过 7 个字，不要书名号引号，不要解释。只输出网名本身。';
+      memberAiAsk('你是为角色起网名的创意助手。', user, function (txt, err) {
+        if (err || !txt) { toast(err || 'AI 起名失败'); return; }
+        var nm = String(txt).trim().replace(/^["'“”「」]+|["'“”「」]+$/g, '').replace(/\n/g, '');
+        if (nm.length > 12) nm = nm.slice(0, 12);
+        var el = memberEditScroll.querySelector('#memNetName');
+        if (el) { el.value = nm; memDirty = true; }
+        toast('AI 网名：' + nm);
+      });
+    }
+    function memberAiLook() {
+      var lore = (memberEditScroll.querySelector('#memLore') || {}).value || '';
+      if (!String(lore).trim()) { toast('请先填写「角色身世」，AI 才能提取外貌'); return; }
+      toast('AI 正在提取外貌…');
+      var user = '从下面这段角色身世中，提取并润色一段外貌描写（若原文没有直接描写，可结合性格身份合理推演），约 40~100 字。只输出外貌描写本身。\n\n' + String(lore).trim();
+      memberAiAsk('你是角色外貌设计师。', user, function (txt, err) {
+        if (err || !txt) { toast(err || 'AI 提取失败'); return; }
+        var el = memberEditScroll.querySelector('#memLook');
+        if (el) { el.value = String(txt).trim(); memDirty = true; }
+        toast('已填入外貌描写');
+      });
+    }
+    function memberAiNpc() {
+      var lore = (memberEditScroll.querySelector('#memLore') || {}).value || '';
+      if (!String(lore).trim()) { toast('请先填写「角色身世」，AI 才能生成 NPC'); return; }
+      toast('AI 正在生成 NPC…');
+      var user = '这是主角色的完整人设：\n' + memberAiBodyText() + '\n\n请基于这份身世，生成 3 个与角色有关联的 NPC。输出 JSON 数组，格式：[{"name":"NPC名字","bio":"一句简介(20字内)","rel":"与角色的关系(2~4字)"}]。只输出 JSON，不要解释。';
+      memberAiAsk('你是世界观设定助手，输出严格 JSON。', user, function (txt, err) {
+        if (err || !txt) { toast(err || 'AI 生成失败'); return; }
+        var arr = null;
+        try {
+          var t = String(txt).replace(/```json|```/g, '').trim();
+          var s = t.indexOf('['), e = t.lastIndexOf(']');
+          arr = JSON.parse(t.slice(s, e + 1));
+        } catch (e2) { try { arr = JSON.parse(txt); } catch (e3) {} }
+        if (!Array.isArray(arr) || !arr.length) { toast('AI 返回格式无法识别'); return; }
+        arr.forEach(function (x) {
+          if (x && x.name) memNpcs.push({ id: memberUid(), name: String(x.name).trim().slice(0, 12), bio: String(x.bio || '').trim().slice(0, 60), rel: String(x.rel || '').trim() });
+        });
+        memDirty = true;
+        memberRerender();
+        toast('已生成 ' + memNpcs.length + ' 个 NPC');
+      });
+    }
+    function memberNpcAdd() {
+      chatMini('自建 NPC', '<div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">NPC 名字</div><input class="chat-mini-input" id="npcAddName" style="width:100%;box-sizing:border-box;margin-bottom:10px"><div class="chat-mini-tip" style="font-size:12px;color:var(--text-faint);margin-bottom:6px">简介（选填，一句身份/性格）</div><input class="chat-mini-input" id="npcAddBio" style="width:100%;box-sizing:border-box">', '添加', function () {
+        var nm = (chatMiniBox.querySelector('#npcAddName').value || '').trim();
+        if (!nm) { toast('NPC 名字不能为空'); return; }
+        var bio = (chatMiniBox.querySelector('#npcAddBio').value || '').trim();
+        memNpcs.push({ id: memberUid(), name: nm.slice(0, 12), bio: bio.slice(0, 60), rel: '' });
+        memDirty = true;
+        memberRerender();
+        toast('已添加 NPC「' + nm + '」');
+      });
+    }
+
+    // ===== 顶栏 / 返回绑定 =====
+    document.getElementById('memberAddTop').addEventListener('click', function () { openMemberEdit(-1); });
+    document.getElementById('memberBack').addEventListener('click', function () { memberOverlay.classList.remove('open'); });
+    document.getElementById('memberEditBack').addEventListener('click', memberDiscard);
+    document.getElementById('memberEditSave').addEventListener('click', memberSaveEdit);
+
 
     // ===== 生图API 配置 =====
     var imgOverlay = document.getElementById('imgOverlay');
