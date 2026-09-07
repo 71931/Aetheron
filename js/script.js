@@ -10790,8 +10790,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return (window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0) <= 0;
   }
 
+  /* v173.1：下拉刷新只认主桌面/顶层背景，弹层里的触摸一律不启动下拉，
+     修复在聊天里删除会话/点按钮时误触下拉导致整页刷新跳回桌面 */
+  function isPullSource(t) {
+    var n = t;
+    while (n && n !== document.documentElement) {
+      if (n === document.body) break;
+      var cls = '';
+      if (n.className && typeof n.className === 'string') cls = n.className;
+      else if (n.className && n.className.baseVal !== undefined) cls = n.className.baseVal;
+      var id = n.id || '';
+      if (/overlay|mask|panel|modal/i.test(cls) || /overlay|mask|panel|modal/i.test(id)) return false;
+      if (n.tagName && /^(BUTTON|A|INPUT|TEXTAREA|SELECT|VIDEO|AUDIO)$/i.test(n.tagName)) return false;
+      n = n.parentNode;
+    }
+    return true;
+  }
+
   document.addEventListener('touchstart', function (e) {
-    if (canPull()) { startY = e.touches[0].clientY; pulling = true; dist = 0; }
+    if (canPull() && isPullSource(e.target)) { startY = e.touches[0].clientY; pulling = true; dist = 0; }
   }, { passive: true });
 
   document.addEventListener('touchmove', function (e) {
