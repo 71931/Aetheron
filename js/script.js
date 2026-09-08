@@ -2239,7 +2239,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       form += '<div class="field">' + memFieldLabel(4, '角色身世') + '<textarea id="memLore" rows="7" placeholder="在这里写下完整角色内容：成长经历、性格、身份、习惯、秘密…">' + escHtml(m ? m.lore : '') + '</textarea>' +
         '<div class="mem-field-foot mem-lore-foot"><span>身世越完整，AI 网名 / NPC 生成越准</span>' +
         '<button type="button" class="mem-ghost import" data-mact="loreimport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg><span>导入文件填充</span></button>' +
-        '<input type="file" id="memLoreFile" accept=".txt,.md,.markdown,.json,text/plain,application/json" hidden>' +
+        '<input type="file" id="memLoreFile" accept=".txt,.md,.markdown,.json,.docx,text/plain,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>' +
         '</div></div>';
       form += '<div class="field">' + memFieldLabel(5, '角色音色') + '<input type="text" id="memVoiceId" value="' + escHtml(m ? m.voiceId : '') + '" placeholder="音色 ID，例如 speech-01-hd / female-soft"></div>';
       form += '<div class="field">' + memFieldLabel(6, '角色外貌', '<span class="mem-label-ai-hint">' + memAiBtn('memLookAi', 'AI 从“角色身世”里提取已有外貌描写并润色填充', 'lookai') + '</span>') + '<textarea id="memLook" rows="3" placeholder="外貌描写…可手动写，或点右侧 AI 从身世提取">' + escHtml(m ? m.look : '') + '</textarea>';
@@ -2305,9 +2305,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         '<div class="mem-id-line"><span class="mem-id-label">角色ID</span><code class="mem-id-code">' + escHtml(memId || '保存后自动生成') + '</code></div>' +
         '<div class="mem-qr-label">角色二维码</div>' +
         '<div class="mem-qr-row"><input type="text" id="memQrText" value="' + escHtml(memQrText) + '" placeholder="二维码内容，如角色主页 / 身份链接">' +
-        '<button type="button" class="mem-ghost" data-mact="qrdef" title="填入默认的角色链接">默认</button>' +
-        '<button type="button" class="mem-ghost ai gen" data-mact="qrgen">生成</button></div>' +
-        '<div class="mem-qr-preview" id="memQrPreview">' + (memQrText ? '<img src="' + memQrUrl(memQrText) + '" alt="角色二维码">' : '<span class="mem-qr-empty">填写二维码内容后点“生成”</span>') + '</div>' +
+        '<button type="button" class="mem-ghost" data-mact="qrdef" title="生成含当前完整资料的好友码二维码，别人扫码即可添加">默认</button>' +
+        '<button type="button" class="mem-ghost ai gen" data-mact="qrgen">生成</button>' +
+        '<button type="button" class="mem-ghost" data-mact="qrshare" title="复制好友码文本，发给别人粘贴添加">复制好友码</button></div>' +
+        '<div class="mem-qr-preview" id="memQrPreview">' + (memQrText ? '<img src="' + memQrUrl(memQrText) + '" alt="角色二维码">' : '<span class="mem-qr-empty">点“默认”生成含资料的二维码，发给别人扫一扫即可添加 TA 为好友</span>') + '</div>' +
         '<div class="mem-toggle-row" data-mact="roleadd"><div class="mem-toggle-txt"><div class="sw-label">角色主动加好友</div><div class="sw-desc">开启后，这个角色可主动向他人发送好友申请</div></div><button type="button" class="mem-sw' + (memRoleAdd ? ' on' : '') + '"></button></div>' +
         '<div class="mem-toggle-row" data-mact="npcaddsw"><div class="mem-toggle-txt"><div class="sw-label">NPC 主动加好友</div><div class="sw-desc">开启后，NPC 也可主动发起好友申请</div></div><button type="button" class="mem-sw' + (memNpcAdd ? ' on' : '') + '"></button></div>' +
         '</div></div>';
@@ -2376,6 +2377,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (act === 'altdel') { memberSyncAltInputs(); memAlts.splice(parseInt(val, 10), 1); memDirty = true; memberRerender(); return; }
         if (act === 'qrdef') { memberQrDefault(); return; }
         if (act === 'qrgen') { memberQrGen(); return; }
+        if (act === 'qrshare') { memberQrShare(); return; }
         if (act === 'roleadd') { memRoleAdd = !memRoleAdd; memDirty = true; syncMemSw(scroll, 'roleadd', memRoleAdd); return; }
         if (act === 'npcaddsw') { memNpcAdd = !memNpcAdd; memDirty = true; syncMemSw(scroll, 'npcaddsw', memNpcAdd); return; }
       };
@@ -2552,10 +2554,35 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (pv) pv.innerHTML = memQrText ? '<img src="' + memQrUrl(memQrText) + '" alt="角色二维码">' : '<span class="mem-qr-empty">填写二维码内容后点“生成”</span>';
     }
     function memberQrDefault() {
-      memQrText = 'aether://member/' + (memTempUid || '');
+      var v = memberCollectForm();
+      var src = {
+        id: memTempUid || '', realName: v.realName, netName: v.netName,
+        gender: memGender, lore: v.lore, voiceId: v.voiceId, look: v.look,
+        lookPrompt: v.lookPrompt, alts: memAlts, npcs: memNpcs,
+        roleAdd: memRoleAdd, npcAdd: memNpcAdd
+      };
+      memQrText = memberShareCodeOf(src);
       memDirty = true;
       memberQrSync();
-      toast('已填入默认链接');
+      toast('已生成名片二维码（含当前资料），别人扫一扫即可添加');
+    }
+    function memberQrShare() {
+      if (!String(memQrText || '').trim() || memQrText.indexOf('aether://addmember/') !== 0) memberQrDefault();
+      var txt = memQrText;
+      var done = function (ok) { toast(ok ? '好友码已复制，发给别人粘贴即可添加 TA' : '复制失败，请手动选择复制'); };
+      var tryExec = function () {
+        var ta = document.createElement('textarea');
+        ta.value = txt; document.body.appendChild(ta);
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        ta.select(); ta.setSelectionRange(0, ta.value.length);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        done(ok);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { tryExec(); });
+      } else tryExec();
     }
     function memberQrGen() {
       var el = memberQrInput();
@@ -2566,68 +2593,116 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       memberQrSync();
       toast('二维码已生成');
     }
-    function memberLoreImportFile(f) {
-      var name = String((f && f.name) || '').toLowerCase();
-      if (name.indexOf('.pdf') >= 0 || name.indexOf('.doc') >= 0) { toast('暂不支持 ' + (f.name || '该文件') + '，可先另存为 txt / md / json 再导入'); return; }
+    function memberDocxToText(file, cb) {
       var reader = new FileReader();
       reader.onload = function () {
-        var txt = String(reader.result || '');
-        var auto = { realName: '', look: '' };
-        var maybeJson = name.indexOf('.json') >= 0 || /^\s*[\[{]/.test(txt);
-        if (maybeJson) {
-          try {
-            var data = JSON.parse(txt);
-            var objs = Array.isArray(data) ? data : [data];
-            var cand = null;
-            objs.forEach(function (o) { if (o && typeof o === 'object' && (!cand || Object.keys(o).length > Object.keys(cand).length)) cand = o; });
-            if (cand) {
-              var find = function (keys) { for (var i = 0; i < keys.length; i++) { var v = cand[keys[i]]; if (v != null && String(v).trim()) return String(v).trim(); } return ''; };
-              auto.realName = find(['realName', 'name', '本名', '角色名', '角色', 'character']);
-              auto.look = find(['look', 'appearance', '外貌', '外貌描写', 'avatarDesc', '形象']);
-              var mainBody = '';
-              ['lore', 'bio', 'story', 'background', 'description', '身世', '背景', '人物设定'].forEach(function (k) {
-                var v = cand[k];
-                if (v != null && String(v).trim()) mainBody += (mainBody ? '\n\n' : '') + String(v).trim();
-              });
-              if (mainBody) txt = mainBody;
-              else {
-                txt = '';
-                Object.keys(cand).forEach(function (k) {
-                  var v = cand[k];
-                  if (k === 'lookImgs' || k === 'avatar') return;
-                  if (typeof v === 'string' && v.trim()) txt += (txt ? '\n' : '') + v.trim();
-                });
-              }
-            }
-          } catch (e) { /* 不是 JSON 就当文本继续 */ }
-        } else {
-          String(txt).split(/\r?\n/).forEach(function (ln) {
-            var m1 = ln.match(/^\s*(?:角色)?本名\s*[:：]\s*(.+)$/);
-            if (m1 && m1[1].trim()) auto.realName = m1[1].trim();
-            var m2 = ln.match(/^\s*(?:外貌|形象)(?:描写)?\s*[:：]\s*(.+)$/);
-            if (m2 && m2[1].trim()) auto.look = m2[1].trim();
-          });
-        }
-        txt = String(txt || '').trim();
-        if (!txt && !auto.realName && !auto.look) { toast('没有从文件里读到可用内容'); return; }
-        var loreEl = memberEditScroll.querySelector('#memLore');
-        if (loreEl && txt) {
-          if (loreEl.value && loreEl.value.trim()) loreEl.value += '\n\n' + txt; else loreEl.value = txt;
-          memDirty = true;
-        }
-        var rnEl = memberEditScroll.querySelector('#memRealName');
-        if (rnEl && auto.realName && !String(rnEl.value || '').trim()) { rnEl.value = auto.realName; memDirty = true; }
-        var lkEl = memberEditScroll.querySelector('#memLook');
-        if (lkEl && auto.look && !String(lkEl.value || '').trim()) { lkEl.value = auto.look; memDirty = true; }
-        var res = ['已导入「' + (f.name || '文件') + '」'];
-        if (txt) res.push('身世已填充');
-        if (auto.realName) res.push('识别本名：' + auto.realName);
-        if (auto.look) res.push('识别外貌');
-        toast(res.join('，'));
+        try {
+          if (typeof JSZip === 'undefined') { cb('当前页面缺少 docx 解析库'); return; }
+          JSZip.loadAsync(reader.result).then(function (zip) {
+            var entry = zip.file('word/document.xml');
+            if (!entry) { cb('未找到正文，文件可能不是有效 docx'); return; }
+            return entry.async('string');
+          }).then(function (xml) {
+            var s = String(xml || '')
+              .replace(/<w:tab[^>]*\/>/g, ' ')
+              .replace(/<w:br[^>]*\/>/g, '\n')
+              .replace(/<w:p[ >]/g, '\n<w:p ')
+              .replace(/<[^>]+>/g, '')
+              .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+            cb(null, s);
+          }).catch(function (e) { cb('docx 解析失败：' + (e && e.message ? e.message : String(e))); });
+        } catch (e) { cb('docx 读取失败：' + (e && e.message ? e.message : String(e))); }
       };
+      reader.onerror = function () { cb('读取文件失败'); };
+      reader.readAsArrayBuffer(file);
+    }
+    function memberLoreImportFile(f) {
+      var name = String((f && f.name) || '').toLowerCase();
+      var isDocx = name.indexOf('.docx') >= 0;
+      var isPdf = name.indexOf('.pdf') >= 0;
+      var isOldDoc = name.indexOf('.doc') >= 0 && !isDocx;
+      if (isPdf || isOldDoc) { toast('暂不支持 ' + (f.name || '该文件') + '，可先另存为 txt / md / docx / json 再导入'); return; }
+      if (isDocx) {
+        memberDocxToText(f, function (err, txt) {
+          if (err) { toast(String(err)); return; }
+          memberLoreFillText(txt, f.name);
+        });
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function () { memberLoreFillText(String(reader.result || ''), f.name, name.indexOf('.json') >= 0 || /^\s*[\[{]/.test(String(reader.result || ''))); };
       reader.onerror = function () { toast('读取文件失败'); };
       reader.readAsText(f);
     }
+    function memberLoreFillText(rawTxt, fileName, isJsonHint) {
+      var txt = String(rawTxt || '');
+      var auto = { realName: '', look: '' };
+      var maybeJson = isJsonHint === true || /^\s*[\[{]/.test(txt);
+      if (maybeJson) {
+        try {
+          var data = JSON.parse(txt);
+          var objs = Array.isArray(data) ? data : [data];
+          var cand = null;
+          objs.forEach(function (o) { if (o && typeof o === 'object' && (!cand || Object.keys(o).length > Object.keys(cand).length)) cand = o; });
+          if (cand) {
+            var find = function (keys) { for (var i = 0; i < keys.length; i++) { var v = cand[keys[i]]; if (v != null && String(v).trim()) return String(v).trim(); } return ''; };
+            auto.realName = find(['realName', 'name', '本名', '角色名', '角色', 'character', 'nickname']);
+            auto.look = find(['look', 'appearance', '外貌', '外貌描写', 'avatarDesc', '形象', '长相']);
+            var mainBody = '';
+            ['lore', 'bio', 'story', 'background', 'description', '身世', '背景', '人物设定'].forEach(function (k) {
+              var v = cand[k];
+              if (v != null && String(v).trim()) mainBody += (mainBody ? '\n\n' : '') + String(v).trim();
+            });
+            if (mainBody) txt = mainBody;
+            else {
+              txt = '';
+              Object.keys(cand).forEach(function (k) {
+                var v = cand[k];
+                if (k === 'lookImgs' || k === 'avatar') return;
+                if (typeof v === 'string' && v.trim()) txt += (txt ? '\n' : '') + v.trim();
+              });
+            }
+          }
+        } catch (e) { /* 不是 JSON 就当文本继续 */ }
+      } else {
+        txt.split(/\r?\n/).forEach(function (ln) {
+          var m1 = ln.match(/^\s*(?:角色)?(?:本名|名字|姓名|角色名|名称)\s*[:：]\s*(.+)$/);
+          if (m1 && m1[1].trim()) auto.realName = m1[1].trim();
+          var m2 = ln.match(/^\s*(?:外貌|形象|长相)(?:描写)?\s*[:：]\s*(.+)$/);
+          if (m2 && m2[1].trim()) auto.look = m2[1].trim();
+        });
+        if (!auto.realName) {
+          var mN = txt.match(/本名\s*[:：]\s*([^\s，。,.、\n]+)/);
+          if (mN && mN[1]) auto.realName = mN[1].trim();
+        }
+        if (!auto.realName) {
+          var mN2 = txt.match(/我叫\s*([\u4e00-\u9fa5A-Za-z·]{2,12})[，。,\s]/);
+          if (mN2 && mN2[1]) auto.realName = mN2[1].trim();
+        }
+        if (!auto.look) {
+          var mL = txt.match(/外貌[\s\S]{0,40}?[:：]\s*([^\n]{6,300})/);
+          if (mL && mL[1]) auto.look = mL[1].trim();
+        }
+      }
+      txt = String(txt || '').trim();
+      if (!txt && !auto.realName && !auto.look) { toast('没有从文件里读到可用内容'); return; }
+      var loreEl = memberEditScroll.querySelector('#memLore');
+      if (loreEl && txt) {
+        if (loreEl.value && loreEl.value.trim()) loreEl.value += '\n\n' + txt; else loreEl.value = txt;
+        memDirty = true;
+      }
+      var rnEl = memberEditScroll.querySelector('#memRealName');
+      if (rnEl && auto.realName && !String(rnEl.value || '').trim()) { rnEl.value = auto.realName; memDirty = true; }
+      var lkEl = memberEditScroll.querySelector('#memLook');
+      if (lkEl && auto.look && !String(lkEl.value || '').trim()) { lkEl.value = auto.look; memDirty = true; }
+      var res = ['已导入「' + (fileName || '文件') + '」'];
+      if (txt) res.push('身世已填充');
+      if (auto.realName) res.push('自动识别本名：' + auto.realName);
+      if (auto.look) res.push('自动识别外貌（已直接填入，无需 AI）');
+      toast(res.join('，'));
+    }
+
     function memberImgFindApi() {
       try {
         if (typeof imgConfigs === 'undefined' || !Array.isArray(imgConfigs)) return null;
@@ -2638,12 +2713,81 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function memberGenTest() {
       var box = memberEditScroll.querySelector('#memGenBox');
       if (!box) return;
-      var cfg = memberImgFindApi();
-      if (!cfg) { box.innerHTML = '<div class="test-status test-err">未找到完整生图 API 配置，先到「设置 → 生图」保存模型配置</div>'; return; }
-      var lp = String((memberEditScroll.querySelector('#memLookPrompt') || {}).value || '').trim();
-      var lk = String((memberEditScroll.querySelector('#memLook') || {}).value || '').trim();
-      if (!lp && !lk) { box.innerHTML = '<div class="test-status test-err">先填写「角色外貌」或锁定生图提示词</div>'; return; }
-      generateTestImage(cfg, lp + (lp && lk ? '，' : '') + lk, '', '', box, null);
+      var cfgList = [];
+      try { cfgList = (typeof imgConfigs !== 'undefined') ? imgConfigs : []; } catch (e) {}
+      if (!cfgList.length) { box.innerHTML = '<div class="test-status test-err">未找到生图模型配置，先到「设置 → 生图API」保存</div>'; return; }
+      var prList = [];
+      try { prList = (typeof imgPrompts !== 'undefined') ? imgPrompts : []; } catch (e) {}
+      var modelOpts = cfgList.map(function (c, i) {
+        return '<option value="' + i + '">' + escHtml((c.name || ('配置' + (i + 1))) + '（' + (c.model || '') + '）') + '</option>';
+      }).join('');
+      var prOpts = prList.map(function (p, i) {
+        return '<option value="' + i + '">' + escHtml(p.name || ('提示词' + (i + 1))) + (p.builtin ? '（内置）' : '') + '</option>';
+      }).join('');
+      var html = '<div class="mem-gen-panel">';
+      html += '<div class="mem-gen-field"><label>1. 生图模型</label><select id="memGenModelSel">' + modelOpts + '</select></div>';
+      html += '<div class="mem-gen-field"><label>2. 生图提示词（系统设置里保存的）</label><select id="memGenPromptSel"><option value="-1">不套模板，只用外貌+锁定提示词</option>' + prOpts + '</select></div>';
+      html += '<div class="mem-gen-field"><label>3. 提供图片（锁脸参考，可选）</label><div class="mem-gen-refs" id="memGenRefs"></div><input type="file" id="memGenRefFile" accept="image/*" hidden></div>';
+      html += '<div class="mem-gen-actions"><button type="button" class="mem-ghost ai gen" id="memGenStart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-4.5-4.5L7 20"/></svg><span>开始生成</span></button></div>';
+      html += '<div id="memGenOut"></div></div>';
+      box.innerHTML = html;
+      var refsEl = box.querySelector('#memGenRefs');
+      var refImg = '';
+      function paintRefs() {
+        refsEl.innerHTML = '';
+        if (memLookImgs && memLookImgs.length) {
+          memLookImgs.forEach(function (src, i) {
+            var cell = document.createElement('div');
+            cell.className = 'mem-gen-refcell' + (refImg === src ? ' on' : '');
+            cell.style.backgroundImage = "url('" + src + "')";
+            cell.title = '用这张图作参考';
+            cell.addEventListener('click', function () {
+              refImg = (refImg === src) ? '' : src;
+              paintRefs();
+            });
+            refsEl.appendChild(cell);
+          });
+        }
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'mem-gen-refadd';
+        add.textContent = refImg ? '清除参考' : '+ 上传/使用锁脸图';
+        add.addEventListener('click', function () {
+          if (refImg) { refImg = ''; paintRefs(); return; }
+          var f = box.querySelector('#memGenRefFile');
+          if (f) f.click();
+        });
+        refsEl.appendChild(add);
+      }
+      paintRefs();
+      var refFile = box.querySelector('#memGenRefFile');
+      refFile.addEventListener('change', function () {
+        var f = refFile.files && refFile.files[0];
+        if (!f) return;
+        if (f.size > 8 * 1024 * 1024) { toast('参考图不能超过8MB'); refFile.value = ''; return; }
+        var r = new FileReader();
+        r.onload = function () { refImg = String(r.result || ''); paintRefs(); toast('参考图已选择'); };
+        r.readAsDataURL(f);
+        refFile.value = '';
+      });
+      var start = box.querySelector('#memGenStart');
+      start.addEventListener('click', function () {
+        var cfg = cfgList[parseInt(box.querySelector('#memGenModelSel').value, 10) || 0];
+        if (!cfg) { toast('请选择生图模型'); return; }
+        var pi = parseInt(box.querySelector('#memGenPromptSel').value, 10);
+        var pr = (pi >= 0 && prList[pi]) ? prList[pi] : null;
+        var lp = String((memberEditScroll.querySelector('#memLookPrompt') || {}).value || '').trim();
+        var lk = String((memberEditScroll.querySelector('#memLook') || {}).value || '').trim();
+        var base = [lp, lk].filter(function (s) { return String(s).trim(); }).join('，');
+        var pos = '';
+        if (pr) pos = imgPromptText(pr.pos || pr.content || '');
+        if (base) pos = pos ? base + '，' + pos : base;
+        if (!pos) { toast('请至少填写「角色外貌 / 锁定提示词」或选择提示词模板'); return; }
+        var neg = pr ? imgPromptText(pr.neg) : '';
+        var out = box.querySelector('#memGenOut');
+        out.innerHTML = '<div class="mem-gen-resultbox"><div class="test-status"><div class="test-spin"></div>生成中…</div></div>';
+        generateTestImage(cfg, pos, neg, '', out.querySelector('.mem-gen-resultbox'), function () { }, null, refImg || null);
+      });
     }
 
     // ===== AI 辅助 =====
@@ -2781,15 +2925,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var imgPromptList = document.getElementById('imgPromptList');
     var imgPromptAddBtn = document.getElementById('imgPromptAddBtn');
     var imgPromptCancelBtn = document.getElementById('imgPromptCancelBtn');
-    var imgThemeAddBtn = document.getElementById('imgThemeAddBtn');
-    var imgThemeList = document.getElementById('imgThemeList');
-    var imgThemeListView = document.getElementById('imgThemeListView');
-    var imgThemeEditView = document.getElementById('imgThemeEditView');
-    var imgThemeEditTitle = document.getElementById('imgThemeEditTitle');
-    var imgThemeNameInput = document.getElementById('imgThemeNameInput');
-    var imgThemePromptInput = document.getElementById('imgThemePromptInput');
-    var imgThemeSaveBtn = document.getElementById('imgThemeSaveBtn');
-    var imgThemeCancelBtn = document.getElementById('imgThemeCancelBtn');
     var imgPromptListView = document.getElementById('imgPromptListView');
     var imgPromptEditView = document.getElementById('imgPromptEditView');
     var imgPromptEditTitle = document.getElementById('imgPromptEditTitle');
@@ -2800,10 +2935,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     var IMG_KEY = 'ins-img-configs';
     var IMG_PROMPT_KEY = 'ins-img-prompts';
-    var IMG_THEME_KEY = 'ins-img-themes';
 
     var imgConfigs = (function () { try { return JSON.parse(dbGet(IMG_KEY)) || []; } catch (e) { return []; } })();
     var imgPrompts = (function () { try { return JSON.parse(dbGet(IMG_PROMPT_KEY)) || []; } catch (e) { return []; } })();
+
+    var IMG_LOCK_PWD = '482917';
+    var DEFAULT_IMG_PROMPTS = [
+      { id: 'b1', builtin: true, model: '', name: '第一视角纪实拍照', pos: `GPT image generation, first-person handheld mobile phone daily documentary casual snapshots, no stiff posed shots, spontaneous instant capture effect without rigidly regular composition with minor natural compositional flaws, accurate focus. Wide range of shooting subjects not limited to selfies, including portraits of East Asian young men aged 16-27, close-ups of men's hands, urban scenery outside windows, street views outside car windows, outdoor natural landscapes, still lifes on home desks, street food, urban dusk and night scenes. Native continental East Asian facial features for characters, no fixed single appearance template, freely adjustable facial features, hairstyles, outfits and temperaments. Unified high beauty standard: top-tier natural stunning handsome looks, small narrow skull and face frame, balanced and symmetrical facial proportions, coordinated exquisite facial features with smooth clean contour lines, bright well-defined eyes, tall three-dimensional straight nose, thin glossy glass-like lips with relaxed natural lip shape without stiff exaggerated expressions, completely clean without beards or stubble. Tall and slender figure over 190cm, lean healthy body type, broad shoulders and narrow waist with long legs, matte cool fair translucent skin tone retaining subtle natural skin texture without oily sheen or fake pale plastic complexion. Freely match long narrow fox eyes, deep black phoenix eyes, sharp slender eyes and sharp eyebrows; available temperaments include cold melancholy, sinister cold, sickly coquettish, lazy distant and arrogant. Hairstyles are unrestricted: neat black slicked-back hair, light gold layered wolf cut, short messy black hair and fluffy textured long hair are all acceptable. Outfit styles are flexible: shirt and waistcoat suits, plain casual tops, long overcoats and Japanese subculture attires. Exquisitely realistic hand details matching male skeletal anatomy, slender extended fingers with long nail beds and narrow clean nail surfaces, faintly visible slim knuckles, subtle faint vein lines, naturally tapered fingers, slightly prominent bone lines, narrow non-puffy palms, fair clean authentic skin texture with natural human asymmetry for both hands, well-proportioned nice finger shapes. Available visual textures: retro DV footage, low-quality Android front camera snapshots, dreamy hazy film texture, casual social media snapshot aesthetic, light Japanese documentary style, integrating casual check-in photo vibes from Douyin, Kuaishou and Instagram. Low grayscale low-saturation soft neutral color palette, natural white balance, real native lifelike colors, soft tone grading, delicate film grain noise, shallow depth of field, slight overexposure, partial motion blur and mild soft focus, subtle native camera imperfections only applied to background environments while facial features and hand details stay sharp and clear. Lighting adopts soft natural daylight and diffused window ambient light with gentle smooth shadow transition, no harsh glaring hard light. No restrictions on aspect ratios and shooting angles: vertical 9:16, 3:4 horizontal, low-angle/high-angle shots, close-up bust shots and full distant views are all supported. If locked image reference is uploaded, all standards yield to the reference picture, 1:1 replication of original facial features, face shape, hairstyle, body proportion, outfits, temperament, hand features, light color tone and composition atmosphere, only optimize image definition without altering character appearance. Overall strong daily life vibe, relaxed authentic casual atmosphere, non-commercial heavily retouched blockbuster texture`, neg: `Blurry overall frame, severely out-of-focus main subject, low resolution, JPEG compression block artifacts; distorted melted facial features, deformed facial outline, facial asymmetry, mismatched uneven eyes, skewed twisted eye structure, sunken eye sockets, heavy dark circles and eye bags, crooked nose bridge, deformed pouted lips, obvious deep wrinkles and nasolabial folds; wide round square face, childish doll face, plain mediocre pedestrian looks, rough ugly facial features; over-retouched perfect idol celebrity model faces, unnaturally exaggerated artificial handsome features, Western Caucasian European American facial features, middle-aged greasy uncle looks; shiny oily skin, large reflective facial highlights, oily acne-prone skin, thick fake pale waxy plastic foundation; all types of beards, stubble and facial stray hairs; puffy bloated hands, stubby thick fingers, wide fleshy palms, bulky meaty texture without bone definition, deformed curved knuckles, wide thick nails, missing or extra fingers, disproportionate weird malformed palms; overweight bloated figure, exaggerated bulky muscular bodybuilders; greasy shiny hair wax hairstyles, tight fitted reflective glossy fabrics, greasy flamboyant expressions, stacked luxurious ornaments; dramatic harsh hard lighting, professional studio flash lighting, high-saturation gaudy dazzling colors, exaggerated HDR filters, gorgeous commercial magazine advertising blockbuster texture; severely overexposed landscape frames, pure black dead shadows, cluttered stacked still-life objects with strong harsh light reflections; cartoon, anime, hand-drawn illustrations, 3D CGI rendering, oil painting texture; heavily over-smoothed fake pale silicone AI plastic faces, deformed facial features, messy thick heavy beards; watermarks, brand logos, extra text, multiple people in one frame, stiff artificial studio poses, excessive sharpening, pure black-and-white filters, glowing light effects, deformed limbs, eyes fully closed or blinking with unnatural expressions` },
+      { id: 'b2', builtin: true, model: '', name: '伪厚涂拍照', pos: `(2.5D Korean anime style:1.5), (Korean realistic thick painting CG illustration:1.4), (semi-realistic thick painting illustration:1.3), (hand-painted brush strokes:1.2), (delicate BJD doll skin texture:1.3), (absolutely reject real photos:1.5) Masterpiece, 8K ultra-high resolution, ultra-detailed, top-tier thick painting hand-drawn illustration, 2.5D semi-realistic rendering, smooth and clear lines, exquisite facial depiction, style between delicate two-dimensional illustrations and semi-realistic CG, no photographic or real camera texture. Handsome East Asian young man aged 18-22, narrow small head and slender face, sharply thin jawline with high folding angle, narrow fox-like bone structure, thin facial flesh, slightly prominent cheekbones, no round or big pie face. Long narrow drooping fox almond eyes with slightly downward tilted eye tails, deep black pupils, cold, aloof and melancholy aura, low-saturation gray faint smoky eye makeup, soft thin sword eyebrows, tall slender narrow nose tip, thin cool gray nude pink lips with clear lip lines, indifferent cold expression. Extreme close-up of exquisite facial features, delicate BJD-like skin texture, matte translucent fair cold skin with pale gray low blood color, ultimate skin texture, delicate skin rendering, soft granular texture retained, no heavy skin grinding, no oily sheen, no fake pale plastic skin, faint red blood streaks under eyes, tiny shallow scars on face, small mole under lower lip, clean face without beard or stray hairs. Distinct hair strands with transparent luster; optional hairstyles: gray-black layered wolf cut, messy broken bangs short hair, pure black short broken hair, light gold wolf cut, silver fluffy short hair, black slicked-back hair, bangs can half cover eyes. Outfit options: black satin shirt, white shirt, suit vest, long trench coat, solid casual top, plaid shirt, knit cardigan; finely depicted fabric texture, prints and metal reflections. Tall and slender figure, broad shoulders and narrow waist, slender neck, bony slender fingers with distinct knuckles, long clean nail beds, natural faint blood vessels on hands. Composition: front close-up, high-angle overhead shot, dramatic low-angle three-quarter side shot, two-thirds side bust shot, selfie-style close bust shot, casual snapshot with slightly imperfect framing. Soft warm side backlight, outline light on hair and shoulder lines, warm atmospheric light, soft diffuse window light, indoor warm light, strong light-dark contrast, clean cinematic shadows with soft transition, slight facial overexposure, shallow depth of field, blurred background, sharp clear facial features of the character. Low-saturation dark retro Morandi color palette, cool white white balance, main hues: gray pink, cool silver, charcoal black, light brown, soft focus film grain texture, slight film soft focus blurring, mild oil painting brush strokes, delicate thick painting texture, hand-drawn texture, single-person fashion portrait, ultra-detailed facial close-up.`, neg: `Real person photos, real portrait photos, camera shooting, photographic texture, realistic human portraits, 3D real human modeling, documentary & commercial studio photos, highly saturated bright colors, HDR, harsh hard light, dazzling highlights, pitch-black shadows, round pie face, square round face, childish baby face, plain average facial features, rough distorted facial features, asymmetrical face, uneven eye size, sunken eye sockets, heavy dark circles, eye bags, crooked nose, deformed lips, facial wrinkles, thick beard and stray facial hairs, thick wide eyebrows, big round eyes, exaggerated big smile, stiff expression, middle-aged uncle look, Western European facial features, fat bloated body, bulky bodybuilder muscles, stubby malproportionated deformed hands, wide nails, greasy heavy hairstyle, excessive hair gel, overly reflective fabric, Q-version cartoon, cheap two-dimensional style, heavy plastic CG texture, blurry thick brush strokes, low resolution blurry image, compression artifacts, watermarks, text, logos, multiple characters in one frame, stiff posed shot, over-sharpening, glowing special effects, deformed limbs, closed eyes` },
+      { id: 'b3', builtin: true, model: '', name: '少女骨3.0', pos: `realistic everyday lifestyle photography, candid social media photo style, natural daily life moment, authentic smartphone camera look, young Chinese man, 18-25 years old, natural mainland Chinese appearance, clean youthful face, attractive but realistic, fresh and natural appearance, clean bare face, no facial hair, healthy matte skin texture, natural smooth skin, clear complexion, realistic skin details, slim and healthy young male body, natural proportions, natural male hands, slender fingers, clean fair hands, slightly visible knuckles, casual lifestyle scene, ordinary real-world environment, lived-in surroundings, unposed moment, spontaneous snapshot, selfie or friend-taken photo, daily check-in photo, social media sharing photo, Douyin lifestyle style, Kuaishou lifestyle style, Instagram casual photo, soft natural daylight, ambient light, window light, gentle shadows, slightly imperfect framing, slight motion blur, slightly soft focus, minor exposure variation, real camera imperfections, low saturation color, muted natural tones, neutral color balance, natural white balance, true-to-life colors, soft color grading, documentary photography style, real person photography, authentic atmosphere, real-world texture, harmonious facial features, balanced facial proportions, attractive facial structure, refined facial features, clean youthful appearance, natural handsome look, good facial symmetry, bright expressive eyes, well-defined eyes, youthful appearance, relaxed lips, well-formed fingers, high nose bridge, straight nose, fluffy textured hair`, neg: `overly vivid colors, high saturation, bright colorful filter, HDR effect, dramatic lighting, professional studio lighting, fashion photoshoot, magazine cover, commercial photography, advertising style, luxury editorial style, beauty retouching, heavy skin smoothing, plastic skin, waxy skin, fake white skin, AI beauty filter, perfect face, idol face, celebrity look, model face, overly handsome artificial appearance, western male, caucasian, european appearance, american appearance, old man, middle-aged man, greasy uncle style, beard, mustache, stubble, facial hair, acne, oily skin, greasy face, excessive skin shine, overweight, obese, fat body, heavy body, bodybuilder, gym bro, excessive muscles, anime, cartoon, CGI, 3D render, doll face, deformed face, bad anatomy, distorted eyes, unnatural expression, bad hands, extra fingers, missing fingers, deformed fingers, closed eyes, blinking, stiff pose, over sharpened, over processed, artificial texture, watermark, logo, low resolution, jpeg artifacts, asymmetrical eyes, uneven eyes, misaligned eyes, distorted eyes, facial distortion, unnatural facial features, deformed fingers, extra fingers, missing fingers, wrinkles, nasolabial folds, pursed lips, dark circles, eye bags, tired eyes, sunken eyes` }
+    ];
+    function imgPromptEnsureBuiltin() {
+      var changed = false;
+      DEFAULT_IMG_PROMPTS.forEach(function (d) {
+        var hit = null;
+        for (var i = 0; i < imgPrompts.length; i++) {
+          var x = imgPrompts[i];
+          if (x && x.builtin && x.id === d.id) { hit = x; break; }
+        }
+        if (!hit) { imgPrompts.unshift({ id: d.id, name: d.name, pos: d.pos, neg: d.neg, model: '', builtin: true }); changed = true; }
+      });
+      if (changed) saveImgPrompts();
+    }
+    imgPromptEnsureBuiltin();
     var currentImgModel = '';
     var editingImgIdx = -1;
 
@@ -3015,22 +3169,19 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function renderImgPromptModelSel() {
       var cur = imgPromptModelSel.value;
       imgPromptModelSel.innerHTML = '';
+      var o0 = document.createElement('option');
+      o0.value = '';
+      o0.textContent = '通用（不绑定模型）';
+      imgPromptModelSel.appendChild(o0);
       var models = [];
       imgConfigs.forEach(function (c) { if (c.model && models.indexOf(c.model) === -1) models.push(c.model); });
-      if (!models.length) {
-        var o = document.createElement('option');
-        o.value = '';
-        o.textContent = '请先保存生图模型配置';
-        imgPromptModelSel.appendChild(o);
-        return;
-      }
       models.forEach(function (m) {
         var o = document.createElement('option');
         o.value = m;
         o.textContent = m;
         imgPromptModelSel.appendChild(o);
       });
-      if (cur && models.indexOf(cur) !== -1) imgPromptModelSel.value = cur;
+      if (cur && models.indexOf(cur) !== -1) imgPromptModelSel.value = cur; else imgPromptModelSel.value = '';
     }
 
     function showImgPromptList() {
@@ -3064,10 +3215,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var neg = imgPromptNeg.value.trim();
       if (!pos) { toast('请输入正向提示词'); return; }
       var model = imgPromptModelSel.value;
-      if (!model) { toast('请先保存生图模型配置再选择作用模型'); return; }
       var name = imgPromptNameInput.value.trim() || pos.slice(0, 12) + (pos.length > 12 ? '…' : '');
+      var prev = (editingPromptIdx >= 0 && imgPrompts[editingPromptIdx]) ? imgPrompts[editingPromptIdx] : null;
       var data = { name: name, pos: pos, neg: neg, model: model };
-      if (editingPromptIdx >= 0) {
+      if (prev) {
+        if (prev.builtin) data.builtin = true;
+        if (prev.id) data.id = prev.id;
         imgPrompts[editingPromptIdx] = data;
         editingPromptIdx = -1;
         imgAddPromptBtn.textContent = '保存提示词';
@@ -3081,84 +3234,59 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       imgPromptNameInput.value = '';
       imgPromptPos.value = '';
       imgPromptNeg.value = '';
+      imgPromptModelSel.value = '';
       showImgPromptList();
     });
 
-    function renderImgPrompts() {
-      imgPromptList.innerHTML = '';
-      if (!imgPrompts.length) {
-        var empty = document.createElement('div');
-        empty.className = 'empty';
-        empty.textContent = '暂无生图提示词';
-        imgPromptList.appendChild(empty);
-        return;
-      }
-      imgPrompts.forEach(function (p, i) {
-        var card = document.createElement('div');
-        card.className = 'prompt-card';
-        var head = document.createElement('div');
-        head.className = 'prompt-head';
-        var nm = document.createElement('div');
-        nm.className = 'prompt-name';
-        nm.textContent = p.name;
-        var testBtn = document.createElement('button');
-        testBtn.className = 'prompt-test';
-        testBtn.textContent = '测试';
-        testBtn.addEventListener('click', function () { openImgTest(p); });
-        var eye = document.createElement('button');
-        eye.className = 'prompt-eye';
-        eye.innerHTML = '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-        eye.addEventListener('click', function () { card.classList.toggle('open'); });
-        head.appendChild(nm);
-        head.appendChild(testBtn);
-        head.appendChild(eye);
-        card.appendChild(head);
-
-        var detail = document.createElement('div');
-        detail.className = 'prompt-detail';
-        var mdl = document.createElement('span');
-        mdl.className = 'pd-model';
-        mdl.textContent = p.model;
-        detail.appendChild(mdl);
-        var posBlock = document.createElement('div');
-        posBlock.className = 'pd-block';
-        var posLabel = document.createElement('div');
-        posLabel.className = 'pd-label';
-        posLabel.textContent = '正向提示词';
-        var posText = document.createElement('div');
-        posText.className = 'pd-text';
-        posText.textContent = p.pos || p.content || '';
-        posBlock.appendChild(posLabel);
-        posBlock.appendChild(posText);
-        detail.appendChild(posBlock);
-        var negBlock = document.createElement('div');
-        negBlock.className = 'pd-block';
-        var negLabel = document.createElement('div');
-        negLabel.className = 'pd-label';
-        negLabel.textContent = '负向提示词';
-        var negText = document.createElement('div');
-        negText.className = 'pd-text';
-        negText.textContent = p.neg || '（未设置）';
-        negBlock.appendChild(negLabel);
-        negBlock.appendChild(negText);
-        detail.appendChild(negBlock);
-        var actions = document.createElement('div');
-        actions.className = 'pd-actions';
-        var editBtn = document.createElement('button');
-        editBtn.className = 'pd-btn pd-edit';
-        editBtn.textContent = '编辑';
-        editBtn.addEventListener('click', function () {
-          editingPromptIdx = i;
-          imgPromptNameInput.value = p.name;
-          imgPromptPos.value = p.pos || p.content || '';
-          imgPromptNeg.value = p.neg || '';
-          imgPromptModelSel.value = p.model;
-          imgAddPromptBtn.textContent = '更新提示词';
-          card.classList.remove('open');
-          showImgPromptEdit(true);
-          var sc = document.querySelector('#imgOverlay .chat-scroll');
-          if (sc) sc.scrollTop = 0;
-        });
+    function imgPromptText(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+    function imgPromptDetailNode(p, i) {
+      var detail = document.createElement('div');
+      detail.className = 'prompt-detail';
+      var mdl = document.createElement('div');
+      mdl.className = 'pd-model';
+      mdl.textContent = p.model ? ('作用模型：' + p.model) : '通用提示词（不绑定模型）';
+      detail.appendChild(mdl);
+      var posBlock = document.createElement('div');
+      posBlock.className = 'pd-block';
+      var posLabel = document.createElement('div');
+      posLabel.className = 'pd-label';
+      posLabel.textContent = '正向提示词';
+      var posText = document.createElement('div');
+      posText.className = 'pd-text';
+      posText.textContent = imgPromptText(p.pos || p.content || '');
+      posBlock.appendChild(posLabel);
+      posBlock.appendChild(posText);
+      detail.appendChild(posBlock);
+      var negBlock = document.createElement('div');
+      negBlock.className = 'pd-block';
+      var negLabel = document.createElement('div');
+      negLabel.className = 'pd-label';
+      negLabel.textContent = '负向提示词';
+      var negText = document.createElement('div');
+      negText.className = 'pd-text';
+      negText.textContent = imgPromptText(p.neg) || '（未设置）';
+      negBlock.appendChild(negLabel);
+      negBlock.appendChild(negText);
+      detail.appendChild(negBlock);
+      var actions = document.createElement('div');
+      actions.className = 'pd-actions';
+      var editBtn = document.createElement('button');
+      editBtn.className = 'pd-btn pd-edit';
+      editBtn.textContent = '编辑';
+      editBtn.addEventListener('click', function () {
+        editingPromptIdx = i;
+        imgPromptNameInput.value = p.name;
+        imgPromptPos.value = imgPromptText(p.pos || p.content || '');
+        imgPromptNeg.value = imgPromptText(p.neg);
+        imgPromptModelSel.value = p.model || '';
+        imgAddPromptBtn.textContent = '更新提示词';
+        cardRemoveDetail();
+        showImgPromptEdit(true);
+        var sc = document.querySelector('#imgOverlay .chat-scroll');
+        if (sc) sc.scrollTop = 0;
+      });
+      actions.appendChild(editBtn);
+      if (!p.builtin) {
         var delBtn = document.createElement('button');
         delBtn.className = 'pd-btn pd-del';
         delBtn.textContent = '删除';
@@ -3168,190 +3296,153 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           renderImgPrompts();
           toast('已删除');
         });
-        actions.appendChild(editBtn);
         actions.appendChild(delBtn);
-        detail.appendChild(actions);
-        card.appendChild(detail);
-        imgPromptList.appendChild(card);
-      });
+      }
+      detail.appendChild(actions);
+      return detail;
     }
-
-    var DEFAULT_IMG_THEMES = [
-      { name: '日常', prompt: 'daily life, casual moment, soft natural light' },
-      { name: '旅行', prompt: 'travel, scenery, on the road, golden hour' },
-      { name: '美食', prompt: 'food, delicious meal, warm atmosphere' },
-      { name: '运动', prompt: 'sports, workout, dynamic action' },
-      { name: '城市', prompt: 'city, urban landscape, street view' },
-      { name: '夜景', prompt: 'night view, neon lights, starry sky' }
-    ];
-    var imgThemes = (function () { try { return JSON.parse(dbGet(IMG_THEME_KEY)) || []; } catch (e) { return []; } })();
-    var editingThemeIdx = -1;
-    function saveImgThemes() { try { dbSet(IMG_THEME_KEY, JSON.stringify(imgThemes)); } catch (e) { toast('存储失败'); } }
-
-    function renderImgThemes() {
-      imgThemeList.innerHTML = '';
-      if (!imgThemes.length) {
+    function imgPromptLockNode(p, i, card) {
+      var wrap = document.createElement('div');
+      wrap.className = 'prompt-detail pd-lock';
+      var tip = document.createElement('div');
+      tip.className = 'pd-lock-tip';
+      tip.textContent = '内置提示词已锁定，输入密码后查看详情';
+      wrap.appendChild(tip);
+      var row = document.createElement('div');
+      row.className = 'pd-lock-row';
+      var input = document.createElement('input');
+      input.type = 'password';
+      input.className = 'pd-lock-input';
+      input.placeholder = '请输入密码';
+      input.maxLength = 16;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pd-lock-btn';
+      btn.textContent = '查看详情';
+      function tryUnlock() {
+        if (String(input.value || '').trim() === IMG_LOCK_PWD) {
+          card.setAttribute('data-unlocked', '1');
+          wrap.innerHTML = '';
+          wrap.appendChild(imgPromptDetailNode(p, i));
+        } else {
+          toast('密码错误');
+          input.value = '';
+          input.focus();
+        }
+      }
+      btn.addEventListener('click', tryUnlock);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryUnlock(); });
+      row.appendChild(input);
+      row.appendChild(btn);
+      wrap.appendChild(row);
+      return wrap;
+    }
+    function renderImgPrompts() {
+      imgPromptList.innerHTML = '';
+      if (!imgPrompts.length) {
         var empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = '暂无主题，点右上角加号添加（生图测试将按主题生成 6 张图）';
-        imgThemeList.appendChild(empty);
+        empty.textContent = '暂无生图提示词，点右上角 ＋ 自建（内置模板无需添加）';
+        imgPromptList.appendChild(empty);
         return;
       }
-      imgThemes.forEach(function (t, i) {
+      imgPrompts.forEach(function (p, i) {
         var card = document.createElement('div');
         card.className = 'prompt-card';
         var head = document.createElement('div');
         head.className = 'prompt-head';
+        var nmBox = document.createElement('div');
+        nmBox.className = 'prompt-nmbox';
         var nm = document.createElement('div');
         nm.className = 'prompt-name';
-        nm.textContent = t.name;
+        nm.textContent = p.name;
+        nmBox.appendChild(nm);
+        if (p.builtin) {
+          var bg = document.createElement('span');
+          bg.className = 'pd-builtin';
+          bg.textContent = '内置';
+          nmBox.appendChild(bg);
+        }
+        var testBtn = document.createElement('button');
+        testBtn.className = 'prompt-test';
+        testBtn.textContent = '测试';
+        testBtn.addEventListener('click', function () { openImgTest(p); });
         var eye = document.createElement('button');
         eye.className = 'prompt-eye';
         eye.innerHTML = '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-        eye.addEventListener('click', function () { card.classList.toggle('open'); });
-        head.appendChild(nm);
+        head.appendChild(nmBox);
+        head.appendChild(testBtn);
         head.appendChild(eye);
         card.appendChild(head);
-        var detail = document.createElement('div');
-        detail.className = 'prompt-detail';
-        var actions = document.createElement('div');
-        actions.className = 'pd-actions';
-        var editBtn = document.createElement('button');
-        editBtn.className = 'pd-btn pd-edit';
-        editBtn.textContent = '编辑';
-        editBtn.addEventListener('click', function () {
-          editingThemeIdx = i;
-          imgThemeNameInput.value = t.name;
-          imgThemePromptInput.value = t.prompt || '';
-          imgThemeEditTitle.textContent = '配置六图主题';
-          imgThemeSaveBtn.textContent = '更新';
-          imgThemeListView.style.display = 'none';
-          imgThemeEditView.style.display = 'block';
-          var sc = document.querySelector('#imgOverlay .chat-scroll');
-          if (sc) sc.scrollTop = 0;
+        function cardRemoveDetail() {
+          var dd = card.querySelector('.prompt-detail');
+          if (dd) dd.remove();
+          card.classList.remove('open');
+        }
+        eye.addEventListener('click', function () {
+          if (card.classList.contains('open')) { cardRemoveDetail(); return; }
+          card.classList.add('open');
+          if (p.builtin && card.getAttribute('data-unlocked') !== '1') {
+            card.appendChild(imgPromptLockNode(p, i, card));
+          } else {
+            card.appendChild(imgPromptDetailNode(p, i));
+          }
         });
-        var delBtn = document.createElement('button');
-        delBtn.className = 'pd-btn pd-del';
-        delBtn.textContent = '删除';
-        delBtn.addEventListener('click', function () {
-          imgThemes.splice(i, 1);
-          saveImgThemes();
-          renderImgThemes();
-          toast('已删除');
-        });
-        actions.appendChild(editBtn);
-        actions.appendChild(delBtn);
-        detail.appendChild(actions);
-        var block = document.createElement('div');
-        block.className = 'pd-block';
-        var bl = document.createElement('div');
-        bl.className = 'pd-label';
-        bl.textContent = '画面关键词';
-        var bt = document.createElement('div');
-        bt.className = 'pd-text';
-        bt.textContent = t.prompt || '';
-        block.appendChild(bl);
-        block.appendChild(bt);
-        detail.appendChild(block);
-        card.appendChild(detail);
-        imgThemeList.appendChild(card);
+        imgPromptList.appendChild(card);
       });
     }
-
-    imgThemeAddBtn.addEventListener('click', function () {
-      editingThemeIdx = -1;
-      imgThemeNameInput.value = '';
-      imgThemePromptInput.value = '';
-      imgThemeEditTitle.textContent = '添加六图主题';
-      imgThemeSaveBtn.textContent = '保存';
-      imgThemeListView.style.display = 'none';
-      imgThemeEditView.style.display = 'block';
-      var sc = document.querySelector('#imgOverlay .chat-scroll');
-      if (sc) sc.scrollTop = 0;
-    });
-    imgThemeCancelBtn.addEventListener('click', function () {
-      imgThemeListView.style.display = 'block';
-      imgThemeEditView.style.display = 'none';
-    });
-    imgThemeSaveBtn.addEventListener('click', function () {
-      var name = imgThemeNameInput.value.trim();
-      var prompt = imgThemePromptInput.value.trim();
-      if (!name) { toast('请填写主题名称'); return; }
-      var item = { name: name, prompt: prompt };
-      if (editingThemeIdx >= 0) {
-        imgThemes[editingThemeIdx] = item;
-      } else {
-        imgThemes.push(item);
-      }
-      saveImgThemes();
-      renderImgThemes();
-      imgThemeListView.style.display = 'block';
-      imgThemeEditView.style.display = 'none';
-      toast('已保存');
-    });
 
     function openImgTest(p) {
       imgTestTitle.textContent = p.name;
       imgTestGrid.innerHTML = '';
       var cfg = null;
-      for (var i = 0; i < imgConfigs.length; i++) {
-        if (imgConfigs[i].model === p.model) { cfg = imgConfigs[i]; break; }
+      if (p.model) {
+        for (var i = 0; i < imgConfigs.length; i++) {
+          if (imgConfigs[i].model === p.model) { cfg = imgConfigs[i]; break; }
+        }
       }
+      if (!cfg && imgConfigs.length) cfg = imgConfigs[0];
       if (!cfg) {
         var hint = document.createElement('div');
         hint.className = 'test-hint';
-        hint.textContent = '未找到模型「' + p.model + '」的有效配置，请先在「模型配置」页保存该模型。';
+        hint.textContent = '未找到可用的生图模型配置，请先到「模型配置」页保存。';
         imgTestGrid.appendChild(hint);
         imgTestOverlay.classList.add('open');
         return;
       }
-      var pos = (p.pos || p.content || '').trim();
-      var neg = (p.neg || '').trim();
-      var jobs = [];
-      if (!imgThemes.length) { toast('请先到「六图主题」配置主题'); imgTestOverlay.classList.add('open'); return; }
-      imgThemes.forEach(function (c) {
-        var card = document.createElement('div');
-        card.className = 'test-card';
-        var imgBox = document.createElement('div');
-        imgBox.className = 'test-img';
-        imgBox.innerHTML = '<div class="test-status">等待生成…</div>';
-        var lbl = document.createElement('div');
-        lbl.className = 'test-label';
-        lbl.textContent = c.label;
-        card.appendChild(imgBox);
-        card.appendChild(lbl);
-        imgTestGrid.appendChild(card);
-        jobs.push({ box: imgBox, prompt: c.prompt });
-      });
+      var pos = imgPromptText(p.pos || p.content || '');
+      var neg = imgPromptText(p.neg);
+      var card = document.createElement('div');
+      card.className = 'test-card full';
+      var imgBox = document.createElement('div');
+      imgBox.className = 'test-img';
+      imgBox.innerHTML = '<div class="test-status">等待生成…</div>';
+      var lbl = document.createElement('div');
+      lbl.className = 'test-label';
+      lbl.textContent = (cfg.name || cfg.model || '') + (p.model && p.model !== cfg.model ? '（' + p.model + '）' : '');
+      card.appendChild(imgBox);
+      card.appendChild(lbl);
+      imgTestGrid.appendChild(card);
       imgTestOverlay.classList.add('open');
-      runSeq(jobs, cfg, pos, neg, 0);
+      generateTestImage(cfg, pos, neg, '', imgBox, null, null);
     }
 
-    function runSeq(jobs, cfg, pos, neg, idx) {
-      if (idx >= jobs.length) return;
-      var job = jobs[idx];
-      job.box.innerHTML = '<div class="test-status"><div class="test-spin"></div>生成中…</div>';
-      generateTestImage(cfg, pos, neg, job.prompt, job.box, function () {
-        runSeq(jobs, cfg, pos, neg, idx + 1);
-      });
-    }
-
-    function generateTestImage(cfg, pos, neg, categoryPrompt, box, done) {
+    function generateTestImage(cfg, pos, neg, categoryPrompt, box, done, refImage) {
       var baseUrl = (cfg.baseUrl || '').trim().replace(/\/+$/, '');
       if (!baseUrl || !cfg.apiKey) {
-        showTestError(box, cfg, pos, neg, categoryPrompt, '缺少 Base URL / API Key');
-        if (done) done();
+        showTestError(box, cfg, pos, neg, categoryPrompt, '缺少 Base URL / API Key', done, refImage);
         return;
       }
-      var prompt = (pos ? pos + ', ' : '') + categoryPrompt;
+      var prompt = imgPromptText((pos || '') + (categoryPrompt ? (imgPromptText(pos) ? '，' : '') + categoryPrompt : ''));
       var body = { model: cfg.model, prompt: prompt, n: 1 };
-      if (neg) body.negative_prompt = neg;
+      if (imgPromptText(neg)) body.negative_prompt = imgPromptText(neg);
+      if (refImage) body.images = [refImage];
       fetch(baseUrl + '/images/generations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
         body: JSON.stringify(body)
       }).then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status + (t ? ' ' + String(t).slice(0, 200) : '')); });
         return r.json();
       }).then(function (data) {
         var item = data && data.data && data.data[0];
@@ -3364,25 +3455,40 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         img.className = 'test-result';
         img.alt = '';
         img.onload = function () { box.innerHTML = ''; box.appendChild(img); if (done) done(); };
-        img.onerror = function () { showTestError(box, cfg, pos, neg, categoryPrompt, '图片加载失败'); if (done) done(); };
+        img.onerror = function () { showTestError(box, cfg, pos, neg, categoryPrompt, '图片加载失败', done, refImage); };
         img.src = src;
       }).catch(function (e) {
-        showTestError(box, cfg, pos, neg, categoryPrompt, (e && e.message ? e.message : '生成失败'));
-        if (done) done();
+        showTestError(box, cfg, pos, neg, categoryPrompt, (e && e.message ? e.message : '生成失败'), done, refImage);
       });
     }
 
-    function showTestError(box, cfg, pos, neg, categoryPrompt, msg) {
+    function showTestError(box, cfg, pos, neg, categoryPrompt, msg, done, refImage) {
       box.innerHTML = '';
       var st = document.createElement('div');
       st.className = 'test-status test-err';
       st.textContent = msg;
+      box.appendChild(st);
+      if (refImage) {
+        var tip = document.createElement('div');
+        tip.className = 'test-hint';
+        tip.textContent = '若接口不支持参考图，可去掉参考图重试';
+        box.appendChild(tip);
+      }
+      var row = document.createElement('div');
+      row.className = 'test-retry-row';
       var retry = document.createElement('button');
       retry.className = 'test-retry';
-      retry.textContent = '重试';
-      retry.addEventListener('click', function () { generateTestImage(cfg, pos, neg, categoryPrompt, box, null); });
-      box.appendChild(st);
-      box.appendChild(retry);
+      retry.textContent = refImage ? '带参考图重试' : '重试';
+      retry.addEventListener('click', function () { generateTestImage(cfg, pos, neg, categoryPrompt, box, null, refImage); });
+      row.appendChild(retry);
+      if (refImage) {
+        var plain = document.createElement('button');
+        plain.className = 'test-retry ghost';
+        plain.textContent = '去掉参考图重试';
+        plain.addEventListener('click', function () { generateTestImage(cfg, pos, neg, categoryPrompt, box, null, null); });
+        row.appendChild(plain);
+      }
+      box.appendChild(row);
     }
 
     document.getElementById('imgTestBack').addEventListener('click', function () {
@@ -3396,7 +3502,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       document.getElementById('imgModelPage').classList.toggle('active', tab === 'model');
       document.getElementById('imgPromptPage').classList.toggle('active', tab === 'prompt');
-      document.getElementById('imgThemePage').classList.toggle('active', tab === 'theme');
     }
 
     document.querySelectorAll('#imgOverlay .img-tab').forEach(function (btn) {
@@ -4681,6 +4786,176 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         saveGroups(); renderGroups(); toast('群聊已创建');
       });
     });
+    document.getElementById('chatPlusAddFriend').addEventListener('click', function () {
+      closePlusMenu();
+      openAddFriendView();
+    });
+
+    /* ===== v176：添加好友（好友码 / ID / 扫一扫 / 名单导入） ===== */
+    function b64uEncode(str) {
+      try { return btoa(unescape(encodeURIComponent(String(str)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+      catch (e) { return ''; }
+    }
+    function b64uDecode(str) {
+      try {
+        var s = String(str).replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        return decodeURIComponent(escape(atob(s)));
+      } catch (e) { return null; }
+    }
+    function memberPayloadOf(m) {
+      m = m || {};
+      var alts = Array.isArray(m.alts) ? m.alts.filter(function (x) { return String(x || '').trim(); }) : [];
+      return { v: 1, k: 'aether-member', id: String(m.id || ''), realName: m.realName || '', netName: m.netName || '', gender: m.gender || '', lore: m.lore || '', voiceId: m.voiceId || '', look: m.look || '', lookPrompt: m.lookPrompt || '', alts: alts, roleAdd: !!m.roleAdd, npcAdd: !!m.npcAdd, t: Date.now() };
+    }
+    function memberShareCodeOf(m) { return 'aether://addmember/' + b64uEncode(JSON.stringify(memberPayloadOf(m))); }
+    function memberRolePromptOf(p) {
+      return [(p.lore || ''), (p.look ? '外貌：' + p.look : ''), (p.voiceId ? '音色：' + p.voiceId : ''), (p.lookPrompt ? '锁脸/生图提示词：' + p.lookPrompt : '')].filter(function (s) { return String(s).trim(); }).join('\n');
+    }
+    function parseFriendCode(raw) {
+      var s = String(raw || '').trim();
+      if (!s) return { err: '内容为空' };
+      var dec = null;
+      if (s.indexOf('aether://addmember/') === 0) { dec = b64uDecode(s.slice('aether://addmember/'.length)); }
+      else if (s.indexOf('aether://member/') === 0) {
+        var mid = s.slice('aether://member/'.length);
+        var list = memberLoad();
+        for (var i = 0; i < list.length; i++) if (String(list[i].id) === mid) return { payload: list[i] };
+        return { err: '本机名单中找不到该角色ID' };
+      } else if (s.charAt(0) === '{') { dec = s; }
+      else {
+        var l2 = memberLoad();
+        for (var j = 0; j < l2.length; j++) { if (String(l2[j].id) === s || String(l2[j].qrText || '') === s) return { payload: l2[j] }; }
+        return { err: '无法识别：请粘贴 aether://addmember/ 开头的好友码' };
+      }
+      if (!dec) return { err: '好友码解析失败，请确认内容完整' };
+      try {
+        var obj = JSON.parse(dec);
+        if (obj && (obj.k === 'aether-member' || obj.realName || obj.netName || obj.lore)) return { payload: obj };
+        return { err: '好友码不是有效的角色名片' };
+      } catch (e) { return { err: '好友码解析失败，请确认内容完整' }; }
+    }
+    function addFriendFromPayload(p, silent) {
+      if (!p) { if (!silent) toast('未获取到名片资料'); return false; }
+      var name = String(p.realName || p.netName || '新好友').trim();
+      var dupId = p.id ? 'm' + p.id : '';
+      for (var i = 0; i < chatContacts.length; i++) {
+        if ((dupId && chatContacts[i].id === dupId) || chatContacts[i].name === name) {
+          if (!silent) toast('「' + name + '」已经是你的联系人啦');
+          return false;
+        }
+      }
+      if (!dupId) dupId = 'm' + Date.now();
+      var now = Date.now();
+      var remark = (p.netName && p.netName !== name) ? p.netName : '';
+      var note = (p.alts && p.alts.length) ? ('小号：' + p.alts.join('、')) : '来自好友名片';
+      var color = '#7c5cff';
+      var contact = { id: dupId, name: name, note: note, color: color, status: '在线' };
+      chatContacts.push(contact);
+      var conv = { id: 'c' + now, contactId: contact.id, name: name, color: color, status: '在线', messages: [], settings: defaultConvSettings() };
+      conv.settings.roleIdentity = { name: name, avatar: '', sex: p.gender || '', prompt: memberRolePromptOf(p), remark: remark };
+      chatConvs.push(conv);
+      saveContacts(); saveConvs();
+      renderContacts(); renderChatConvs();
+      if (!silent) toast('已添加「' + name + '」到聊天列表');
+      return true;
+    }
+    var afScanStream = null, afScanTimer = null, afScanning = false;
+    function afStopScan() {
+      afScanning = false;
+      if (afScanTimer) { clearInterval(afScanTimer); afScanTimer = null; }
+      if (afScanStream) { afScanStream.getTracks().forEach(function (t) { t.stop(); }); afScanStream = null; }
+      var vw = document.getElementById('afVideoWrap'); if (vw) vw.style.display = 'none';
+      var rs = document.getElementById('afResult');
+      if (rs) rs.innerHTML = '';
+    }
+    function afRenderResult(html) { var rs = document.getElementById('afResult'); if (rs) rs.innerHTML = html || ''; }
+    function openAddFriendView() {
+      openChatSub('添加好友', '' +
+        '<div class="addfriend-wrap">' +
+        '<div class="addfriend-tip">对方在「名单 → 编辑角色 → 扩展」里点「复制好友码」把名片发给你。<br>在这里粘贴好友码 / 输入角色ID，或点「扫一扫」扫对方二维码，即可把 TA 加进你的聊天列表。</div>' +
+        '<textarea id="afCodeInput" rows="3" placeholder="粘贴 aether://addmember/ 开头的好友码，或输入角色ID"></textarea>' +
+        '<div class="addfriend-row">' +
+        '<button type="button" class="mem-ghost ai gen" id="afAddBtn">添加</button>' +
+        '<button type="button" class="mem-ghost" id="afScanBtn">扫一扫</button>' +
+        '<button type="button" class="mem-ghost" id="afMemberBtn">从名单导入</button>' +
+        '</div>' +
+        '<div class="af-video-wrap" id="afVideoWrap" style="display:none">' +
+        '<video id="afVideo" playsinline muted style="width:100%;border-radius:12px;background:#000"></video>' +
+        '<button type="button" class="mem-ghost" id="afScanStop" style="width:100%;margin-top:8px">停止扫码</button>' +
+        '</div>' +
+        '<div class="af-result" id="afResult"></div>' +
+        '</div>');
+      document.getElementById('afAddBtn').addEventListener('click', function () {
+        var inp = document.getElementById('afCodeInput');
+        var v = String((inp && inp.value) || '').trim();
+        if (!v) { toast('先粘贴好友码或输入ID'); return; }
+        var r = parseFriendCode(v);
+        if (r.err) { toast(r.err); return; }
+        if (addFriendFromPayload(r.payload)) { if (inp) inp.value = ''; afRenderResult('<div class="af-ok">已添加，可在「聊天」列表查看</div>'); }
+      });
+      document.getElementById('afScanBtn').addEventListener('click', function () { afStartScan(); });
+      document.getElementById('afMemberBtn').addEventListener('click', function () { afPickMember(); });
+      var stopEl = document.getElementById('afScanStop');
+      if (stopEl) stopEl.addEventListener('click', afStopScan);
+    }
+    function afStartScan() {
+      if (!('BarcodeDetector' in window)) { toast('当前浏览器不支持摄像头扫码，请直接粘贴好友码'); return; }
+      var vw = document.getElementById('afVideoWrap');
+      if (vw) vw.style.display = 'block';
+      var video = document.getElementById('afVideo');
+      var rs = document.getElementById('afResult');
+      if (rs) rs.innerHTML = '<div class="af-scan-tip">正在打开摄像头，对准二维码…</div>';
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (stream) {
+        afScanStream = stream;
+        video.srcObject = stream;
+        video.setAttribute('playsinline', 'true');
+        video.play().catch(function () {});
+        var detector = null;
+        try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) {}
+        afScanning = true;
+        afScanTimer = setInterval(function () {
+          if (!afScanning || !video.videoWidth) return;
+          if (!detector) { toast('扫码组件不可用，请粘贴好友码'); afStopScan(); return; }
+          detector.detect(video).then(function (codes) {
+            if (!codes) return;
+            for (var i = 0; i < codes.length; i++) {
+              var raw = codes[i] && codes[i].rawValue;
+              if (!raw || raw.indexOf('aether://') !== 0) continue;
+              var r = parseFriendCode(raw);
+              if (r.err) { toast(r.err); continue; }
+              afStopScan();
+              addFriendFromPayload(r.payload);
+              return;
+            }
+          }).catch(function () {});
+        }, 400);
+      }).catch(function () {
+        if (vw) vw.style.display = 'none';
+        if (rs) rs.innerHTML = '<div class="af-err">无法打开摄像头：请把好友码粘贴到输入框添加</div>';
+        toast('摄像头不可用，请粘贴好友码');
+      });
+    }
+    function afPickMember() {
+      var list = memberLoad();
+      var rs = document.getElementById('afResult');
+      if (!list.length) { if (rs) rs.innerHTML = '<div class="af-err">名单还是空的，先在「名单」里添加角色</div>'; return; }
+      var html = '<div class="af-mem-title">选一个名单角色转为聊天好友：</div>';
+      html += list.map(function (m, i) {
+        var nm = memberDispName(m);
+        return '<div class="af-mem-item" data-i="' + i + '"><span class="af-mem-name">' + escHtml(nm) + (m.netName && m.netName !== nm ? '（' + escHtml(m.netName) + '）' : '') + '</span><span class="af-mem-add">添加</span></div>';
+      }).join('');
+      if (rs) rs.innerHTML = html;
+      var items = rs.querySelectorAll('.af-mem-item');
+      items.forEach(function (it) {
+        it.addEventListener('click', function () {
+          var mi = parseInt(it.getAttribute('data-i'), 10);
+          var src = list[mi];
+          if (addFriendFromPayload(memberPayloadOf(src))) afRenderResult('<div class="af-ok">已把「' + escHtml(memberDispName(src)) + '」添加为好友</div>');
+        });
+      });
+    }
+
     function contactAvatarHtml(c) {
       var av = '';
       for (var ci = 0; ci < chatConvs.length; ci++) {

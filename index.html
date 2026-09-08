@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="manifest" href="manifest.json">
-<title>Aetheron 黑白桌面 · v174.1</title>
+<title>Aetheron 黑白桌面 · v176</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -463,7 +463,6 @@
       <div class="img-tabs">
         <button class="img-tab active" data-tab="model">模型配置</button>
         <button class="img-tab" data-tab="prompt">生图提示词</button>
-        <button class="img-tab" data-tab="theme">六图主题</button>
       </div>
       <div class="chat-scroll">
         <div class="img-page active" id="imgModelPage">
@@ -532,35 +531,6 @@
             <button class="prompt-cancel" id="imgPromptCancelBtn">取消</button>
           </div>
         </div>
-        <div class="img-page" id="imgThemePage">
-          <div id="imgThemeListView">
-            <div class="prompt-topbar">
-              <span class="group-title" style="margin:0">六图主题</span>
-              <button class="prompt-add" id="imgThemeAddBtn" title="添加">＋</button>
-            </div>
-            <div id="imgThemeList"></div>
-          </div>
-          <div id="imgThemeEditView" style="display:none">
-            <div class="group-title" id="imgThemeEditTitle">添加六图主题</div>
-            <div class="group-card form-card">
-              <div class="field">
-                <label>主题名称</label>
-                <input id="imgThemeNameInput" type="text" placeholder="例如：我的日常">
-              </div>
-              <div class="field">
-                <label>画面关键词</label>
-                <textarea id="imgThemePromptInput" placeholder="英文关键词，逗号分隔，例如：daily life, cozy room, soft light"></textarea>
-              </div>
-            </div>
-            <button class="primary-btn wb-btn" id="imgThemeSaveBtn">保存</button>
-            <button class="prompt-cancel" id="imgThemeCancelBtn">取消</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
   <!-- 生图测试 -->
   <div class="chat-overlay" id="imgTestOverlay">
     <div class="chat-panel">
@@ -830,6 +800,7 @@
     <div class="chat-plus-menu" id="chatPlusMenu">
       <div class="chat-plus-item" id="chatPlusContact"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg><span>创建联系人</span></div>
       <div class="chat-plus-item" id="chatPlusGroup"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>创建群聊</span></div>
+      <div class="chat-plus-item" id="chatPlusAddFriend"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M7.5 17.5a4.5 4.5 0 0 1 9 0"/></svg><span>添加好友</span></div>
     </div>
     <div class="chat-modal-mask" id="chatModalMask" style="display:none">
       <div class="chat-modal-box">
