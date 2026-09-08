@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-<title>Aetheron 黑白桌面 · v176 单文件版</title>
+<title>Aetheron 黑白桌面 · v176 单文件报错版</title>
 <style>
 
   :root {
@@ -4513,7 +4513,62 @@ body.light .af-mem-item{background:#fff;border-color:#e2e2e8}
   </div>
 </div>
 
+
+<!-- ===== 报错栏 v1：独立于业务脚本，任何 JS 错误都弹顶栏 ===== -->
 <script>
+(function () {
+  var shown = 0;
+  function mount() {
+    try {
+      var bar = document.createElement('div');
+      bar.id = 'aetherErrBar';
+      bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;max-height:46vh;overflow:auto;background:#a3001a;color:#fff;font:12px/1.5 Consolas,Menlo,monospace;padding:8px 34px 8px 10px;white-space:pre-wrap;word-break:break-all;display:none;-webkit-overflow-scrolling:touch;';
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '\u00d7';
+      close.style.cssText = 'position:absolute;top:2px;right:4px;border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 8px;';
+      close.onclick = function () { bar.style.display = 'none'; };
+      bar.appendChild(close);
+      document.documentElement.appendChild(bar);
+      function add(msg) {
+        try {
+          shown++;
+          var line = document.createElement('div');
+          line.style.cssText = 'border-top:1px solid rgba(255,255,255,0.25);padding:3px 0;';
+          line.textContent = '[' + shown + '] ' + new Date().toLocaleTimeString() + ' ' + msg;
+          bar.appendChild(line);
+          bar.style.display = 'block';
+          bar.scrollTop = bar.scrollHeight;
+        } catch (e) {}
+      }
+      window.addEventListener('error', function (e) {
+        var m = '';
+        if (e && e.error && e.error.stack) m = e.error.stack;
+        else m = (e && (e.message || (e.error && e.error.message))) || '未知错误';
+        add('JS\u9519\u8bef: ' + m);
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e && e.reason;
+        var m = (r && (r.stack || r.message)) || String(r);
+        add('Promise\u9519\u8bef: ' + m);
+      });
+      try {
+        var origErr = console.error;
+        console.error = function () {
+          try { add('console.error: ' + Array.prototype.map.call(arguments, String).join(' ')); } catch (e) {}
+          return origErr.apply(console, arguments);
+        };
+      } catch (e) {}
+      window.__aetherErrBar = { add: add };
+    } catch (e) {}
+  }
+  if (document.body) mount();
+  else if (document.addEventListener) document.addEventListener('DOMContentLoaded', mount);
+  else window.addEventListener('load', mount);
+})();
+</script>
+<script>
+try{document.title='Ae:1-boot';}catch(e){}
 
 /*!
 
