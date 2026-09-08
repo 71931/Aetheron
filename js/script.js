@@ -12542,7 +12542,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       tag.textContent = 'Aetheron 出错：' + msg + '（点此关闭，稍后自动消失）';
       tag.onclick = function () { try { tag.style.display = 'none'; } catch (e3) {} };
       clearTimeout(showBootErr._t);
-      showBootErr._t = setTimeout(function () { try { tag.style.display = 'none'; } catch (e4) {} }, 8000);
+      showBootErr._t = setTimeout(function () { try { tag.style.display = 'none'; } catch (e4) {} }, 600000);
     } catch (e2) {}
   }
   window.addEventListener('error', function (ev) {
