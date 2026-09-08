@@ -1656,6 +1656,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
 
     // ===== APP 点击：设置弹面板，其余占位提示 =====
+    try{document.title='Ae:2-bindApp';}catch(e){}
     document.querySelectorAll('.app').forEach(function (app) {
       var label = app.querySelector('.label');
       app.addEventListener('click', function () {
@@ -12563,3 +12564,4 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }, 300);
   }
 })();
+try{document.title=document.title+'|Z-end';}catch(e){}
