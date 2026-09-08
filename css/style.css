@@ -2989,3 +2989,63 @@ body.light .chat-cfg-edit { background: rgba(0,0,0,.08); color: #000; }
 /* 删除按钮 */
 .mem-del { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 40px); margin: 26px 20px 10px; box-sizing: border-box; padding: 13px 0; border-radius: 14px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.22); color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; }
 .mem-del svg { width: 16px; height: 16px; }
+
+/* ===== v174.2 名单·浅色模式覆盖 ===== */
+body.light .member-overlay .chat-panel,
+body.light .member-edit-overlay .chat-panel { background: #f7f7f9; }
+body.light .member-header-add,
+body.light .member-empty-ico,
+body.light .member-empty-add,
+body.light .member-row:active,
+body.light .member-avatar-edit,
+body.light .member-avatar-edit i,
+body.light .mem-ai,
+body.light .mem-chip,
+body.light .mem-chip.on,
+body.light .mem-look-add,
+body.light .mem-npc-row,
+body.light .mem-npc-ava,
+body.light .mem-npc-op,
+body.light .mem-ghost,
+body.light .mem-ghost.ai,
+body.light .mem-rel-row,
+body.light .mem-rel-chip,
+body.light .mem-rel-chip.on,
+body.light .mem-rel-input,
+body.light .mem-del,
+body.light #memberEditScroll .field input[type="text"],
+body.light #memberEditScroll .field textarea { background: rgba(0,0,0,0.06); }
+body.light .member-empty-ico { color: rgba(0,0,0,0.45); }
+body.light .member-empty-add { color: #0a0a0b; }
+body.light .mem-ava-letter { background: rgba(0,0,0,0.12); color: #f2f2f5; }
+body.light .member-row-net,
+body.light .member-row-go { background: rgba(0,0,0,0.05); color: rgba(0,0,0,0.55); }
+body.light .member-avatar-edit i,
+body.light .mem-avatar-edit i { background: #0a0a0b; color: #ffffff; }
+body.light .member-avatar-x { color: rgba(0,0,0,0.55); }
+body.light .mem-seq { color: rgba(0,0,0,0.75); }
+body.light .mem-ai { color: #0a0a0b; }
+body.light #memberEditScroll .field input[type="text"],
+body.light #memberEditScroll .field textarea { color: #0a0a0b; }
+body.light #memberEditScroll .field input[type="text"]:focus,
+body.light #memberEditScroll .field textarea:focus { background: #ffffff; border-color: rgba(0,0,0,0.35); color: #0a0a0b; }
+body.light #memberEditScroll .field input::placeholder,
+body.light #memberEditScroll .field textarea::placeholder { color: rgba(0,0,0,0.4); }
+body.light .mem-chip { color: rgba(0,0,0,0.65); }
+body.light .mem-chip.on { background: #0a0a0b; border-color: #0a0a0b; color: #ffffff; }
+body.light .mem-chip.on svg { stroke: #ffffff; }
+body.light .member-look-x { color: rgba(0,0,0,0.7); }
+body.light .mem-look-add { color: rgba(0,0,0,0.5); }
+body.light .mem-npc-row { background: rgba(0,0,0,0.05); }
+body.light .mem-npc-ava { background: rgba(0,0,0,0.12); color: #0a0a0b; }
+body.light .mem-npc-op { background: rgba(0,0,0,0.07); color: #0a0a0b; }
+body.light .mem-ghost { background: rgba(0,0,0,0.055); color: rgba(0,0,0,0.72); }
+body.light .mem-ghost.ai { border-color: rgba(0,0,0,0.38); color: #0a0a0b; background: rgba(0,0,0,0.1); }
+body.light .mem-rel-row { background: rgba(0,0,0,0.05); }
+body.light .mem-rel-chip { color: rgba(0,0,0,0.6); }
+body.light .mem-rel-chip.on { background: #0a0a0b; border-color: #0a0a0b; color: #ffffff; }
+body.light .mem-rel-chip.on svg { stroke: #ffffff; }
+body.light .mem-rel-input { background: rgba(0,0,0,0.05); color: #0a0a0b; }
+body.light .mem-rel-input:focus { border-color: rgba(0,0,0,0.35); background: #ffffff; }
+body.light .mem-del { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #0a0a0b; }
+body.light .mem-del svg { stroke: #0a0a0b; }
