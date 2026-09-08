@@ -1755,6 +1755,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function saveChatConfigs() { try { dbSet(CHAT_KEY, JSON.stringify(chatConfigs)); } catch (e) { toast('存储失败'); } }
 
     function openChatApi() {
+      chatEnsurePrimary();
       showChatConfigList();
       renderChatConfigList();
       chatOverlay.classList.add('open');
@@ -1926,10 +1927,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var idx = -1;
       for (var i = 0; i < chatConfigs.length; i++) { if (chatConfigs[i].name === name) idx = i; }
       if (idx >= 0) chatConfigs[idx] = cfg; else chatConfigs.push(cfg);
+      chatEnsurePrimary();
       saveChatConfigs();
       renderChatConfigList();
       showChatConfigList();
-      toast('已保存「' + name + '」');
+      toast('已保存「' + name + '」' + (cfg.isPrimary ? '（主 API）' : ''));
     });
 
     function showChatConfigList() {
@@ -1943,6 +1945,27 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       chatConfigEditTitle.textContent = isEdit ? '编辑聊天配置' : '添加聊天配置';
     }
 
+    /* v175：主 API —— 用于整个界面的全局默认生成（名单网名/NPC/外貌等） */
+    function chatPrimaryApi() {
+      if (!Array.isArray(chatConfigs) || !chatConfigs.length) return null;
+      for (var i = 0; i < chatConfigs.length; i++) {
+        if (chatConfigs[i] && chatConfigs[i].isPrimary) return chatConfigs[i];
+      }
+      return chatConfigs[0] || null;
+    }
+    function chatSetPrimary(i) {
+      if (!Array.isArray(chatConfigs)) return;
+      chatConfigs.forEach(function (c, k) { if (c) c.isPrimary = (k === i); });
+      saveChatConfigs();
+      renderChatConfigList();
+      toast('已设为主 API');
+    }
+    function chatEnsurePrimary() {
+      if (!Array.isArray(chatConfigs) || !chatConfigs.length) return;
+      var has = false;
+      chatConfigs.forEach(function (c) { if (c && c.isPrimary) has = true; });
+      if (!has && chatConfigs[0]) chatConfigs[0].isPrimary = true;
+    }
     function renderChatConfigList() {
       chatConfigListEl.innerHTML = '';
       if (!chatConfigs.length) {
@@ -1954,30 +1977,54 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       chatConfigs.forEach(function (cfg, i) {
         var wrap = document.createElement('div');
-        wrap.className = 'saved-item';
+        wrap.className = 'saved-item chat-cfg-item' + (cfg.isPrimary ? ' primary' : '');
         wrap.style.cursor = 'pointer';
         var info = document.createElement('div');
         info.className = 'saved-info';
+        var nmRow = document.createElement('div');
+        nmRow.className = 'saved-name-row';
         var nm = document.createElement('div');
         nm.className = 'saved-name';
         nm.textContent = cfg.name;
+        nmRow.appendChild(nm);
+        if (cfg.isPrimary) {
+          var badge = document.createElement('span');
+          badge.className = 'chat-cfg-primary-badge';
+          badge.textContent = '主API';
+          nmRow.appendChild(badge);
+        }
         var dt = document.createElement('div');
         dt.className = 'saved-detail';
         dt.textContent = cfg.model + ' · 温度 ' + cfg.temperature + ' · Top-P ' + (cfg.topP != null ? cfg.topP : 1);
-        info.appendChild(nm);
+        info.appendChild(nmRow);
         info.appendChild(dt);
+        var ops = document.createElement('div');
+        ops.className = 'saved-ops';
+        if (!cfg.isPrimary) {
+          var starBtn = document.createElement('button');
+          starBtn.className = 'saved-btn saved-star';
+          starBtn.textContent = '设为主API';
+          starBtn.title = '作为全局默认 API：名单网名 / NPC / 外貌等 AI 生成都使用它';
+          starBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            chatSetPrimary(i);
+          });
+          ops.appendChild(starBtn);
+        }
         var delBtn = document.createElement('button');
         delBtn.className = 'saved-btn saved-del';
         delBtn.textContent = '删除';
         delBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           chatConfigs.splice(i, 1);
+          chatEnsurePrimary();
           saveChatConfigs();
           renderChatConfigList();
           toast('已删除');
         });
+        ops.appendChild(delBtn);
         wrap.appendChild(info);
-        wrap.appendChild(delBtn);
+        wrap.appendChild(ops);
         wrap.addEventListener('click', function () { loadConfig(i); });
         chatConfigListEl.appendChild(wrap);
       });
@@ -2067,10 +2114,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         voiceId: String(m.voiceId != null ? m.voiceId : '').trim(),
         look: String(m.look != null ? m.look : '').trim(),
         lookImgs: Array.isArray(m.lookImgs) ? m.lookImgs.filter(function (x) { return x; }) : [],
+        lookPrompt: String(m.lookPrompt != null ? m.lookPrompt : '').trim(),
         npcs: Array.isArray(m.npcs) ? m.npcs.map(function (x) {
           x = x || {};
-          return { id: x.id || memberUid(), name: String(x.name || '').trim(), bio: String(x.bio || '').trim(), rel: String(x.rel || '').trim() };
-        }) : []
+          return { id: x.id || memberUid(), name: String(x.name || '').trim(), bio: String(x.bio || '').trim(), rel: String(x.rel || '').trim(), add: !!x.add };
+        }) : [],
+        alts: Array.isArray(m.alts) ? m.alts.map(function (x) { return String(x || '').trim(); }).filter(function (x) { return x; }) : [],
+        qrText: String(m.qrText != null ? m.qrText : '').trim(),
+        roleAdd: !!m.roleAdd,
+        npcAdd: !!m.npcAdd
       };
       if (m.tag && !n.netName) n.netName = String(m.tag).trim();
       return n;
@@ -2144,6 +2196,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var memGender = '';
     var memNpcs = [];
     var memLookImgs = [];
+    var memLookPrompt = '';
+    var memAlts = [];
+    var memRoleAdd = false;
+    var memNpcAdd = false;
+    var memQrText = '';
+    var memTempUid = '';
     var memDirty = false;
 
     var MEM_SEX = [
@@ -2158,8 +2216,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function memFieldLabel(n, label, extra) {
       return '<label>' + memSeq(n) + label + (extra || '') + '</label>';
     }
-    function memAiBtn(id, tip) {
-      return '<button type="button" class="mem-ai" id="' + id + '" title="' + tip + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>AI</span></button>';
+    function memAiBtn(id, tip, mact) {
+      return '<button type="button" class="mem-ai" id="' + id + '"' + (mact ? ' data-mact="' + mact + '"' : '') + ' title="' + tip + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>AI</span></button>';
     }
 
     function memberEditBody(m) {
@@ -2174,13 +2232,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var form = '';
       form += '<div class="form-card member-card">';
       form += '<div class="field">' + memFieldLabel(1, '角色本名') + '<input type="text" id="memRealName" value="' + escHtml(m ? m.realName : '') + '" placeholder="TA的本名，例如：林晚晴"></div>';
-      form += '<div class="field">' + memFieldLabel(2, '角色网名', '<span class="mem-label-ai-hint">' + memAiBtn('memNetAi', 'AI 根据已填写人设分析，起一个不超过7个字的网名') + '</span>') + '<input type="text" id="memNetName" value="' + escHtml(m ? m.netName : '') + '" placeholder="可自填，或点右侧 AI 帮填（不超过 7 个字）"></div>';
+      form += '<div class="field">' + memFieldLabel(2, '角色网名', '<span class="mem-label-ai-hint">' + memAiBtn('memNetAi', 'AI 根据已填写人设分析，起一个不超过7个字的网名', 'netai') + '</span>') + '<input type="text" id="memNetName" value="' + escHtml(m ? m.netName : '') + '" placeholder="可自填，或点右侧 AI 帮填（不超过 7 个字）"></div>';
       form += '<div class="field">' + memFieldLabel(3, '角色性别') + '<div class="mem-sex-row">' + MEM_SEX.map(function (s) {
         return '<button type="button" class="mem-chip' + (memGender === s.k ? ' on' : '') + '" data-mact="sex" data-val="' + s.k + '">' + s.label + '</button>';
       }).join('') + '</div></div>';
-      form += '<div class="field">' + memFieldLabel(4, '角色身世') + '<textarea id="memLore" rows="7" placeholder="在这里写下完整角色内容：成长经历、性格、身份、习惯、秘密…">' + escHtml(m ? m.lore : '') + '</textarea><div class="mem-field-foot"><span>身世越完整，AI 网名 / NPC 生成越准</span></div></div>';
+      form += '<div class="field">' + memFieldLabel(4, '角色身世') + '<textarea id="memLore" rows="7" placeholder="在这里写下完整角色内容：成长经历、性格、身份、习惯、秘密…">' + escHtml(m ? m.lore : '') + '</textarea>' +
+        '<div class="mem-field-foot mem-lore-foot"><span>身世越完整，AI 网名 / NPC 生成越准</span>' +
+        '<button type="button" class="mem-ghost import" data-mact="loreimport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg><span>导入文件填充</span></button>' +
+        '<input type="file" id="memLoreFile" accept=".txt,.md,.markdown,.json,text/plain,application/json" hidden>' +
+        '</div></div>';
       form += '<div class="field">' + memFieldLabel(5, '角色音色') + '<input type="text" id="memVoiceId" value="' + escHtml(m ? m.voiceId : '') + '" placeholder="音色 ID，例如 speech-01-hd / female-soft"></div>';
-      form += '<div class="field">' + memFieldLabel(6, '角色外貌', '<span class="mem-label-ai-hint">' + memAiBtn('memLookAi', 'AI 从“角色身世”里提取已有外貌描写并润色填充') + '</span>') + '<textarea id="memLook" rows="3" placeholder="外貌描写…可手动写，或点右侧 AI 从身世提取">' + escHtml(m ? m.look : '') + '</textarea>';
+      form += '<div class="field">' + memFieldLabel(6, '角色外貌', '<span class="mem-label-ai-hint">' + memAiBtn('memLookAi', 'AI 从“角色身世”里提取已有外貌描写并润色填充', 'lookai') + '</span>') + '<textarea id="memLook" rows="3" placeholder="外貌描写…可手动写，或点右侧 AI 从身世提取">' + escHtml(m ? m.look : '') + '</textarea>';
       form += '<div class="mem-look-label">锁脸参考图</div>';
       form += '<div class="mem-look-grid" id="memLookGrid">';
       memLookImgs.forEach(function (img, i) {
@@ -2190,7 +2252,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         form += '<button type="button" class="mem-look-add" data-mact="lookadd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>';
       }
       form += '</div><input type="file" id="memLookFile" accept="image/*" multiple hidden>';
-      form += '<div class="mem-field-foot"><span>上传多张不同角度照片，生图时锁定这张脸（最多 6 张）</span></div></div>';
+      form += '<div class="mem-field-foot"><span>上传多张不同角度照片，作为锁脸参考（最多 6 张）</span></div>';
+      form += '<div class="mem-look-prompt-label">锁定生图提示词</div>';
+      form += '<textarea id="memLookPrompt" rows="2" placeholder="固定人脸特征的提示词，测试生图时始终拼在开头，例如：东方女性，五官立体，冷白皮，黑色长发">' + escHtml(m ? m.lookPrompt : '') + '</textarea>';
+      form += '<div class="mem-gen-row"><button type="button" class="mem-ghost ai gen" data-mact="lookgen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-4.5-4.5L7 20"/></svg><span>测试生图</span></button><span class="mem-gen-note">按上面外貌 + 锁脸提示词生成一张看看效果</span></div>';
+      form += '<div class="mem-gen-box" id="memGenBox"></div></div>';
       form += '</div>';
 
       var npcRows = '';
@@ -2225,6 +2291,27 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       form += '<div class="form-card member-card"><div class="field">' + memFieldLabel(8, '关系网') + '<div class="mem-rel-wrap">' + relRows + '</div><div class="mem-field-foot"><span>定义本角色与每个 NPC 的关系，聊天时 AI 会沿用</span></div></div></div>';
 
+      /* v175：第九栏 小号 */
+      var altRows = memAlts.length ? memAlts.map(function (al, i) {
+        return '<div class="mem-alt-row"><input type="text" class="mem-alt-input" data-altinput="' + i + '" value="' + escHtml(al) + '" placeholder="小号网名 / 昵称"><button type="button" class="mem-alt-del" data-mact="altdel" data-val="' + i + '" title="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
+      }).join('') : '<div class="mem-npc-empty" id="memAltEmpty">还没有小号</div>';
+      form += '<div class="form-card member-card"><div class="field">' + memFieldLabel(9, '小号') + '<div class="mem-alt-wrap">' + altRows + '</div>' +
+        '<div class="mem-npc-btns"><button type="button" class="mem-ghost" data-mact="altadd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>添加小号</span></button></div>' +
+        '<div class="mem-field-foot"><span>同一角色人设下的其他小号昵称，可添加多个</span></div></div></div>';
+
+      /* v175：扩展设置 —— 角色ID / 二维码 / 主动加好友 */
+      var memId = (m && m.id) ? m.id : memTempUid;
+      form += '<div class="form-card member-card"><div class="field"><label>角色标识</label>' +
+        '<div class="mem-id-line"><span class="mem-id-label">角色ID</span><code class="mem-id-code">' + escHtml(memId || '保存后自动生成') + '</code></div>' +
+        '<div class="mem-qr-label">角色二维码</div>' +
+        '<div class="mem-qr-row"><input type="text" id="memQrText" value="' + escHtml(memQrText) + '" placeholder="二维码内容，如角色主页 / 身份链接">' +
+        '<button type="button" class="mem-ghost" data-mact="qrdef" title="填入默认的角色链接">默认</button>' +
+        '<button type="button" class="mem-ghost ai gen" data-mact="qrgen">生成</button></div>' +
+        '<div class="mem-qr-preview" id="memQrPreview">' + (memQrText ? '<img src="' + memQrUrl(memQrText) + '" alt="角色二维码">' : '<span class="mem-qr-empty">填写二维码内容后点“生成”</span>') + '</div>' +
+        '<div class="mem-toggle-row" data-mact="roleadd"><div class="mem-toggle-txt"><div class="sw-label">角色主动加好友</div><div class="sw-desc">开启后，这个角色可主动向他人发送好友申请</div></div><button type="button" class="mem-sw' + (memRoleAdd ? ' on' : '') + '"></button></div>' +
+        '<div class="mem-toggle-row" data-mact="npcaddsw"><div class="mem-toggle-txt"><div class="sw-label">NPC 主动加好友</div><div class="sw-desc">开启后，NPC 也可主动发起好友申请</div></div><button type="button" class="mem-sw' + (memNpcAdd ? ' on' : '') + '"></button></div>' +
+        '</div></div>';
+
       var foot = '';
       if (!isNew) {
         foot = '<button type="button" class="mem-del" id="memDelBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span>删除这个角色</span></button>';
@@ -2239,8 +2326,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       memberEditTitleEl.textContent = m ? '编辑角色' : '新增角色';
       memAvatar = m ? m.avatar : '';
       memGender = m ? m.gender : '';
-      memNpcs = m ? m.npcs.map(function (x) { return { id: x.id, name: x.name, bio: x.bio, rel: x.rel }; }) : [];
+      memNpcs = m ? m.npcs.map(function (x) { return { id: x.id, name: x.name, bio: x.bio, rel: x.rel, add: !!x.add }; }) : [];
       memLookImgs = m ? m.lookImgs.slice() : [];
+      memLookPrompt = m ? (m.lookPrompt || '') : '';
+      memAlts = m ? (Array.isArray(m.alts) ? m.alts.slice() : []) : [];
+      memRoleAdd = m ? !!m.roleAdd : false;
+      memNpcAdd = m ? !!m.npcAdd : false;
+      memQrText = m ? (m.qrText || '') : '';
+      memTempUid = m && m.id ? m.id : memberUid();
       memDirty = false;
       memberEditScroll.innerHTML = memberEditBody(m);
       memberBindEdit();
@@ -2277,6 +2370,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (act === 'netai') { memberAiNet(); return; }
         if (act === 'lookai') { memberAiLook(); return; }
         if (act === 'npcai') { memberAiNpc(); return; }
+        if (act === 'loreimport') { var lf2 = scroll.querySelector('#memLoreFile'); if (lf2) lf2.click(); return; }
+        if (act === 'lookgen') { memberGenTest(); return; }
+        if (act === 'altadd') { memberAltAdd(); return; }
+        if (act === 'altdel') { memberSyncAltInputs(); memAlts.splice(parseInt(val, 10), 1); memDirty = true; memberRerender(); return; }
+        if (act === 'qrdef') { memberQrDefault(); return; }
+        if (act === 'qrgen') { memberQrGen(); return; }
+        if (act === 'roleadd') { memRoleAdd = !memRoleAdd; memDirty = true; syncMemSw(scroll, 'roleadd', memRoleAdd); return; }
+        if (act === 'npcaddsw') { memNpcAdd = !memNpcAdd; memDirty = true; syncMemSw(scroll, 'npcaddsw', memNpcAdd); return; }
       };
       // 头像点击
       var ab = scroll.querySelector('#memAvatarBtn');
@@ -2309,9 +2410,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         });
         lkf.value = '';
       });
-      // 所有输入/文本标记脏
+      // 身世文件导入
+      var lrf = scroll.querySelector('#memLoreFile');
+      if (lrf) lrf.addEventListener('change', function () {
+        var f = lrf.files && lrf.files[0];
+        if (!f) return;
+        memberLoreImportFile(f);
+        lrf.value = '';
+      });
+      // 所有输入/文本标记脏（含新字段同步）
       scroll.querySelectorAll('input[type="text"], textarea').forEach(function (el) {
-        el.addEventListener('input', function () { memDirty = true; });
+        el.addEventListener('input', function () {
+          memDirty = true;
+          var ai = el.getAttribute && el.getAttribute('data-altinput');
+          if (ai != null) {
+            var ii = parseInt(ai, 10);
+            if (ii >= 0 && ii < memAlts.length) memAlts[ii] = el.value;
+          } else if (el.id === 'memQrText') {
+            memQrText = el.value;
+          }
+        });
       });
       // 删除角色
       var delBtn = scroll.querySelector('#memDelBtn');
@@ -2330,20 +2448,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var m = null;
       if (memEditIdx >= 0) { var _l = memberLoad(); m = _l[memEditIdx]; }
       // 重渲染前先把当前表单文字同步到内存，避免丢字
-      var keep = { realName: '', netName: '', lore: '', voiceId: '', look: '' };
-      ['memRealName', 'memNetName', 'memLore', 'memVoiceId', 'memLook'].forEach(function (id) {
+      var keep = { realName: '', netName: '', lore: '', voiceId: '', look: '', lookPrompt: '', qrText: '' };
+      var keepIds = { memRealName: 'realName', memNetName: 'netName', memLore: 'lore', memVoiceId: 'voiceId', memLook: 'look', memLookPrompt: 'lookPrompt', memQrText: 'qrText' };
+      Object.keys(keepIds).forEach(function (id) {
         var el = memberEditScroll.querySelector('#' + id);
-        if (el) keep[id.replace('mem', '').toLowerCase()] = el.value;
-        else keep[id.replace('mem', '').toLowerCase()] = (m || {})[id.replace('mem', '').toLowerCase()] || '';
+        if (el) keep[keepIds[id]] = el.value;
+        else {
+          var mm = m || {};
+          keep[keepIds[id]] = keepIds[id] === 'lookPrompt' ? (mm.lookPrompt || '') : (keepIds[id] === 'qrText' ? memQrText || '' : mm[keepIds[id]] || '');
+        }
       });
       // NPC 关系输入同步
       memberEditScroll.querySelectorAll('[data-relinput]').forEach(function (inp) {
         var i = parseInt(inp.getAttribute('data-relinput'), 10);
         if (memNpcs[i]) memNpcs[i].rel = inp.value;
       });
+      memberSyncAltInputs();
       var base = m ? {
         realName: keep.realName, netName: keep.netName, lore: keep.lore,
-        voiceId: keep.voiceId, look: keep.look, avatar: memAvatar, gender: memGender
+        voiceId: keep.voiceId, look: keep.look, avatar: memAvatar, gender: memGender,
+        lookPrompt: keep.lookPrompt, id: memTempUid
       } : null;
       memberEditScroll.innerHTML = memberEditBody(base);
       memberBindEdit();
@@ -2362,17 +2486,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       Object.keys(rels).forEach(function (k) { if (memNpcs[parseInt(k, 10)]) memNpcs[parseInt(k, 10)].rel = rels[k]; });
       return {
         realName: g('memRealName'), netName: g('memNetName'),
-        lore: g('memLore'), voiceId: g('memVoiceId'), look: g('memLook')
+        lore: g('memLore'), voiceId: g('memVoiceId'), look: g('memLook'),
+        lookPrompt: g('memLookPrompt'), qrText: g('memQrText')
       };
+    }
+    function memberSyncAltInputs() {
+      var ins = memberEditScroll.querySelectorAll('[data-altinput]');
+      ins.forEach(function (inp) {
+        var i = parseInt(inp.getAttribute('data-altinput'), 10);
+        if (i >= 0 && i < memAlts.length) memAlts[i] = inp.value;
+      });
     }
     function memberSaveEdit() {
       var v = memberCollectForm();
+      memberSyncAltInputs();
       if (!v.realName && !v.netName) { toast('请至少填写角色本名或网名'); return; }
+      memQrText = v.qrText;
+      var cleanAlts = [];
+      memAlts.forEach(function (s) { s = String(s || '').trim(); if (s && cleanAlts.indexOf(s) < 0) cleanAlts.push(s); });
       var list = memberLoad();
       var obj = memberNorm({
-        avatar: memAvatar, realName: v.realName, netName: v.netName,
+        id: memTempUid, avatar: memAvatar, realName: v.realName, netName: v.netName,
         gender: memGender, lore: v.lore, voiceId: v.voiceId, look: v.look,
-        lookImgs: memLookImgs, npcs: memNpcs
+        lookImgs: memLookImgs, lookPrompt: v.lookPrompt, npcs: memNpcs,
+        alts: cleanAlts, qrText: memQrText, roleAdd: memRoleAdd, npcAdd: memNpcAdd
       });
       if (memEditIdx >= 0 && list[memEditIdx]) list[memEditIdx] = obj;
       else list.unshift(obj);
@@ -2387,13 +2524,143 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       } else closeMemberEdit();
     }
 
+    /* ===== v175：小号 / 二维码 / 主动加好友 / 文件导入 / 测试生图 ===== */
+    function memberAltAdd() {
+      memberSyncAltInputs();
+      memAlts.push('');
+      memDirty = true;
+      memberRerender();
+      var els = memberEditScroll.querySelectorAll('[data-altinput]');
+      var last = els.length ? els[els.length - 1] : null;
+      if (last) last.focus();
+    }
+    function syncMemSw(scope, act, on) {
+      if (!scope) return;
+      scope.querySelectorAll('[data-mact="' + act + '"]').forEach(function (r) {
+        var sw = r.querySelector && r.querySelector('.mem-sw');
+        if (sw) sw.classList.toggle('on', !!on);
+      });
+    }
+    function memQrUrl(text) {
+      return 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&color=000000&bgcolor=ffffff&data=' + encodeURIComponent(String(text || ''));
+    }
+    function memberQrInput() { return memberEditScroll.querySelector('#memQrText'); }
+    function memberQrSync() {
+      var el = memberQrInput();
+      if (el && el.value !== memQrText) el.value = memQrText;
+      var pv = memberEditScroll.querySelector('#memQrPreview');
+      if (pv) pv.innerHTML = memQrText ? '<img src="' + memQrUrl(memQrText) + '" alt="角色二维码">' : '<span class="mem-qr-empty">填写二维码内容后点“生成”</span>';
+    }
+    function memberQrDefault() {
+      memQrText = 'aether://member/' + (memTempUid || '');
+      memDirty = true;
+      memberQrSync();
+      toast('已填入默认链接');
+    }
+    function memberQrGen() {
+      var el = memberQrInput();
+      var val = el ? String(el.value || '').trim() : '';
+      if (!val) { toast('先填写二维码内容'); return; }
+      memQrText = val;
+      memDirty = true;
+      memberQrSync();
+      toast('二维码已生成');
+    }
+    function memberLoreImportFile(f) {
+      var name = String((f && f.name) || '').toLowerCase();
+      if (name.indexOf('.pdf') >= 0 || name.indexOf('.doc') >= 0) { toast('暂不支持 ' + (f.name || '该文件') + '，可先另存为 txt / md / json 再导入'); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        var txt = String(reader.result || '');
+        var auto = { realName: '', look: '' };
+        var maybeJson = name.indexOf('.json') >= 0 || /^\s*[\[{]/.test(txt);
+        if (maybeJson) {
+          try {
+            var data = JSON.parse(txt);
+            var objs = Array.isArray(data) ? data : [data];
+            var cand = null;
+            objs.forEach(function (o) { if (o && typeof o === 'object' && (!cand || Object.keys(o).length > Object.keys(cand).length)) cand = o; });
+            if (cand) {
+              var find = function (keys) { for (var i = 0; i < keys.length; i++) { var v = cand[keys[i]]; if (v != null && String(v).trim()) return String(v).trim(); } return ''; };
+              auto.realName = find(['realName', 'name', '本名', '角色名', '角色', 'character']);
+              auto.look = find(['look', 'appearance', '外貌', '外貌描写', 'avatarDesc', '形象']);
+              var mainBody = '';
+              ['lore', 'bio', 'story', 'background', 'description', '身世', '背景', '人物设定'].forEach(function (k) {
+                var v = cand[k];
+                if (v != null && String(v).trim()) mainBody += (mainBody ? '\n\n' : '') + String(v).trim();
+              });
+              if (mainBody) txt = mainBody;
+              else {
+                txt = '';
+                Object.keys(cand).forEach(function (k) {
+                  var v = cand[k];
+                  if (k === 'lookImgs' || k === 'avatar') return;
+                  if (typeof v === 'string' && v.trim()) txt += (txt ? '\n' : '') + v.trim();
+                });
+              }
+            }
+          } catch (e) { /* 不是 JSON 就当文本继续 */ }
+        } else {
+          String(txt).split(/\r?\n/).forEach(function (ln) {
+            var m1 = ln.match(/^\s*(?:角色)?本名\s*[:：]\s*(.+)$/);
+            if (m1 && m1[1].trim()) auto.realName = m1[1].trim();
+            var m2 = ln.match(/^\s*(?:外貌|形象)(?:描写)?\s*[:：]\s*(.+)$/);
+            if (m2 && m2[1].trim()) auto.look = m2[1].trim();
+          });
+        }
+        txt = String(txt || '').trim();
+        if (!txt && !auto.realName && !auto.look) { toast('没有从文件里读到可用内容'); return; }
+        var loreEl = memberEditScroll.querySelector('#memLore');
+        if (loreEl && txt) {
+          if (loreEl.value && loreEl.value.trim()) loreEl.value += '\n\n' + txt; else loreEl.value = txt;
+          memDirty = true;
+        }
+        var rnEl = memberEditScroll.querySelector('#memRealName');
+        if (rnEl && auto.realName && !String(rnEl.value || '').trim()) { rnEl.value = auto.realName; memDirty = true; }
+        var lkEl = memberEditScroll.querySelector('#memLook');
+        if (lkEl && auto.look && !String(lkEl.value || '').trim()) { lkEl.value = auto.look; memDirty = true; }
+        var res = ['已导入「' + (f.name || '文件') + '」'];
+        if (txt) res.push('身世已填充');
+        if (auto.realName) res.push('识别本名：' + auto.realName);
+        if (auto.look) res.push('识别外貌');
+        toast(res.join('，'));
+      };
+      reader.onerror = function () { toast('读取文件失败'); };
+      reader.readAsText(f);
+    }
+    function memberImgFindApi() {
+      try {
+        if (typeof imgConfigs === 'undefined' || !Array.isArray(imgConfigs)) return null;
+        for (var i = 0; i < imgConfigs.length; i++) { var c = imgConfigs[i]; if (c && c.baseUrl && c.apiKey && c.model) return c; }
+      } catch (e) {}
+      return null;
+    }
+    function memberGenTest() {
+      var box = memberEditScroll.querySelector('#memGenBox');
+      if (!box) return;
+      var cfg = memberImgFindApi();
+      if (!cfg) { box.innerHTML = '<div class="test-status test-err">未找到完整生图 API 配置，先到「设置 → 生图」保存模型配置</div>'; return; }
+      var lp = String((memberEditScroll.querySelector('#memLookPrompt') || {}).value || '').trim();
+      var lk = String((memberEditScroll.querySelector('#memLook') || {}).value || '').trim();
+      if (!lp && !lk) { box.innerHTML = '<div class="test-status test-err">先填写「角色外貌」或锁定生图提示词</div>'; return; }
+      generateTestImage(cfg, lp + (lp && lk ? '，' : '') + lk, '', '', box, null);
+    }
+
     // ===== AI 辅助 =====
     function memberFindApi() {
       /* v174.1：名单 AI 独立取配置——不依赖当前聊天会话（chatFindApi 要求 chatCurrentConv 存在，名单里没有会话会误报"未配置"） */
+      /* v175：优先使用全局「主 API」，未设置时回退取第一条完整配置 */
+      try {
+        if (typeof chatPrimaryApi === 'function') {
+          var _p = chatPrimaryApi();
+          if (_p && _p.baseUrl && _p.apiKey && _p.model) return _p;
+        }
+      } catch (e) {}
       var list = [];
       try { list = (typeof chatConfigs !== 'undefined' && chatConfigs && chatConfigs.length) ? chatConfigs : (JSON.parse(dbGet('ins-chat-configs')) || []); } catch (e) { try { list = JSON.parse(dbGet('ins-chat-configs')) || []; } catch (e2) { list = []; } }
       if (!Array.isArray(list)) list = [];
-      for (var i = 0; i < list.length; i++) { if (list[i] && list[i].baseUrl && list[i].apiKey && list[i].model) return list[i]; }
+      for (var i = 0; i < list.length; i++) { if (list[i] && list[i].isPrimary && list[i].baseUrl && list[i].apiKey && list[i].model) return list[i]; }
+      for (var j = 0; j < list.length; j++) { if (list[j] && list[j].baseUrl && list[j].apiKey && list[j].model) return list[j]; }
       return list.length ? list[0] : null;
     }
     function memberAiAsk(sys, user, cb) {
@@ -2433,7 +2700,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       memberAiAsk('你是为角色起网名的创意助手。', user, function (txt, err) {
         if (err || !txt) { toast(err || 'AI 起名失败'); return; }
         var nm = String(txt).trim().replace(/^["'“”「」]+|["'“”「」]+$/g, '').replace(/\n/g, '');
-        if (nm.length > 12) nm = nm.slice(0, 12);
+        if (nm.length > 7) nm = nm.slice(0, 7);
         var el = memberEditScroll.querySelector('#memNetName');
         if (el) { el.value = nm; memDirty = true; }
         toast('AI 网名：' + nm);
@@ -6732,7 +6999,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var cfg = null;
       if (s.apiName) { for (var i = 0; i < chatConfigs.length; i++) { if (chatConfigs[i].name === s.apiName) cfg = chatConfigs[i]; } }
       if (!cfg && s.model) { for (var j = 0; j < chatConfigs.length; j++) { if (chatConfigs[j].model === s.model) cfg = chatConfigs[j]; } }
-      if (!cfg && chatConfigs.length) cfg = chatConfigs[0];
+      /* v175：未指定配置时兜底到「主 API」而非简单取第一条 */
+      if (!cfg) cfg = chatPrimaryApi();
       if (!cfg || !cfg.baseUrl || !cfg.apiKey || !cfg.model) return null;
       return cfg;
     }

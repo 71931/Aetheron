@@ -3049,3 +3049,53 @@ body.light .mem-rel-input { background: rgba(0,0,0,0.05); color: #0a0a0b; }
 body.light .mem-rel-input:focus { border-color: rgba(0,0,0,0.35); background: #ffffff; }
 body.light .mem-del { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #0a0a0b; }
 body.light .mem-del svg { stroke: #0a0a0b; }
+
+/* ==== v175 名单编辑器新字段：导入 / 锁脸提示词 / 测试生图 / 小号 / 二维码 / 主动加好友 ==== */
+.mem-lore-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.mem-lore-foot .mem-ghost { flex: none; padding: 6px 12px; font-size: 11px; }
+.mem-lore-foot .mem-ghost svg { width: 14px; height: 14px; }
+.mem-look-prompt-label { margin: 14px 0 6px; font-size: 11px; color: var(--text-faint); letter-spacing: .3px; }
+.mem-gen-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.mem-gen-note { font-size: 11px; color: var(--text-faint); }
+.mem-gen-box { margin-top: 10px; min-height: 44px; border: 1px dashed rgba(255,255,255,.18); border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.mem-gen-box img.test-result { max-height: 220px; width: auto; max-width: 100%; object-fit: contain; }
+.mem-gen-box .test-status { width: 100%; padding: 16px; box-sizing: border-box; }
+.mem-alt-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.mem-alt-row { display: flex; gap: 8px; align-items: center; }
+.mem-alt-row .mem-alt-input { flex: 1; }
+.mem-alt-del { flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 9px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); color: rgba(255,255,255,.55); cursor: pointer; }
+.mem-alt-del svg { width: 13px; height: 13px; }
+.mem-id-line { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.mem-id-label { font-size: 12px; color: var(--text-faint); }
+.mem-id-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.85); }
+.mem-qr-label { font-size: 12px; color: var(--text-faint); margin-bottom: 6px; }
+.mem-qr-row { display: flex; gap: 8px; }
+.mem-qr-row input { flex: 1; min-width: 0; }
+.mem-qr-row .mem-ghost { flex: none; padding: 9px 14px; font-size: 12px; }
+.mem-qr-preview { margin-top: 12px; display: flex; justify-content: center; padding: 14px; border: 1px dashed rgba(255,255,255,.18); border-radius: 14px; min-height: 150px; align-items: center; box-sizing: border-box; }
+.mem-qr-preview img { width: 150px; height: 150px; image-rendering: pixelated; }
+.mem-qr-empty { font-size: 11px; color: var(--text-faint); }
+.mem-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.08); cursor: pointer; }
+.mem-toggle-row:first-of-type { border-top: none; padding-top: 4px; }
+.mem-toggle-txt { min-width: 0; }
+.mem-toggle-txt .sw-label { font-size: 14px; font-weight: 700; }
+.mem-toggle-txt .sw-desc { font-size: 11px; color: var(--text-faint); margin-top: 3px; line-height: 1.5; }
+.mem-sw { position: relative; width: 46px; height: 26px; border-radius: 999px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.24); cursor: pointer; flex: none; transition: background .2s ease; }
+.mem-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #f5f5f5; transition: left .2s ease; }
+.mem-sw.on { background: #f5f5f5; border-color: #f5f5f5; }
+.mem-sw.on::after { left: 22px; background: #0a0a0b; }
+body.light .mem-look-prompt-label,
+body.light .mem-gen-note,
+body.light .mem-id-label,
+body.light .mem-qr-label,
+body.light .mem-qr-empty { color: rgba(0,0,0,0.6); }
+body.light .mem-gen-box,
+body.light .mem-qr-preview { border-color: rgba(0,0,0,0.2); }
+body.light .mem-alt-del { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.6); }
+body.light .mem-alt-del svg { stroke: #0a0a0b; }
+body.light .mem-id-code { background: rgba(0,0,0,0.08); color: #0a0a0b; }
+body.light .mem-toggle-row { border-top-color: rgba(0,0,0,0.1); }
+body.light .mem-sw { background: rgba(0,0,0,0.2); border-color: rgba(0,0,0,0.26); }
+body.light .mem-sw::after { background: #ffffff; }
+body.light .mem-sw.on { background: #0a0a0b; border-color: #0a0a0b; }
+body.light .mem-sw.on::after { background: #ffffff; }
