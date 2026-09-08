@@ -1389,6 +1389,8 @@
         } catch (e) {}
       }
       window.addEventListener('error', function (e) {
+        var em0 = (e && e.message) || '';
+        if (em0 === 'Script error.' || em0.indexOf('Script error') !== -1) return;
         var m = '';
         if (e && e.error && e.error.stack) m = e.error.stack;
         else m = (e && (e.message || (e.error && e.error.message))) || '未知错误';
